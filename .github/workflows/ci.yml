@@ -44,4 +44,4 @@ jobs:
       #   run: mypy .
 
       - name: Pytest (with coverage)
-        run: pytest -q --cov=custom_components/fansync --cov=fansync --cov-report=term-missing --cov-fail-under=60
+        run: pytest -q --cov=custom_components/fansync --cov-report=term-missing --cov-fail-under=60
