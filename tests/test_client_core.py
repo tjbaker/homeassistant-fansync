@@ -41,9 +41,10 @@ def _get_ok(status: dict[str, int] | None = None) -> str:
 
 
 async def test_connect_sets_device_id(hass: HomeAssistant):
-    c = FanSyncClient(hass, "e@example.com", "p", verify_ssl=True)
+    c = FanSyncClient(hass, "e@example.com", "p", verify_ssl=True, enable_push=False)
     with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
-         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
+         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls, \
+         patch("threading.Thread") as th_cls:
         http_inst = http_cls.return_value
         http_inst.post.return_value = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}})()
         ws = ws_cls.return_value
@@ -56,7 +57,7 @@ async def test_connect_sets_device_id(hass: HomeAssistant):
 
 
 async def test_get_status_returns_mapping(hass: HomeAssistant):
-    c = FanSyncClient(hass, "e", "p", verify_ssl=False)
+    c = FanSyncClient(hass, "e", "p", verify_ssl=False, enable_push=False)
     with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
          patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
         http_inst = http_cls.return_value
@@ -64,7 +65,14 @@ async def test_get_status_returns_mapping(hass: HomeAssistant):
         ws = ws_cls.return_value
         ws.connect.return_value = None
         # login, list, then get
-        ws.recv.side_effect = [_login_ok(), _lst_device_ok("id"), _get_ok({"H00": 1, "H02": 19})]
+        ws.recv.side_effect = [
+            _login_ok(),
+            _lst_device_ok("id"),
+            _get_ok({"H00": 1, "H02": 19}),
+            # background recv loop may consume an extra frame; provide a benign event
+            json.dumps({"event": "noop"}),
+            json.dumps({"event": "noop2"}),
+        ]
         await c.async_connect()
         status = await c.async_get_status()
 
@@ -72,7 +80,7 @@ async def test_get_status_returns_mapping(hass: HomeAssistant):
 
 
 async def test_async_set_triggers_callback(hass: HomeAssistant):
-    c = FanSyncClient(hass, "e", "p", verify_ssl=True)
+    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
     with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
          patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
         http_inst = http_cls.return_value
@@ -80,7 +88,14 @@ async def test_async_set_triggers_callback(hass: HomeAssistant):
         ws = ws_cls.return_value
         ws.connect.return_value = None
         # login, list, set ack, get
-        ws.recv.side_effect = [_login_ok(), _lst_device_ok("id"), json.dumps({"status": "ok", "response": "set", "id": 4}), _get_ok({"H00": 1, "H02": 55})]
+        ws.recv.side_effect = [
+            _login_ok(),
+            _lst_device_ok("id"),
+            json.dumps({"status": "ok", "response": "set", "id": 4}),
+            _get_ok({"H00": 1, "H02": 55}),
+            json.dumps({"event": "noop"}),
+            json.dumps({"event": "noop2"}),
+        ]
 
         # Capture callback result
         seen: list[dict[str, int]] = []
