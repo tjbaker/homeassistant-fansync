@@ -13,6 +13,7 @@
 - Organize imports consistent with Ruff isort settings.
   - known-first-party: ["fansync", "custom_components"]
   - Do not force single-line imports.
+  - Group order: standard library, third-party, first-party.
 
 # Linting (mirror pyproject Ruff rules)
 - Enable Ruff rules: [E, F, I, B, UP].
@@ -20,13 +21,22 @@
   - tests/**/*.py: [E501, F401, I001]
   - examples/**/*.py: [E501, F401, F403, B904]
   - fansync/**/*.py: [E501, F401, F403]
+  - Prefer modern typing:
+    - Use X | None instead of Optional[X].
+    - Import Callable/Iterable/etc. from collections.abc, not typing.
 
 # Home Assistant specifics
 - Use HA async patterns (`async_*` methods); avoid blocking I/O in the event loop.
 - Prefer CoordinatorEntity for entities with push updates.
+ - For push-based entities, set update_interval=None and push via coordinator.async_set_updated_data.
 
 # Comments
 - Keep comments concise and only when adding non-obvious context.
 
 # Do not introduce unrelated style changes beyond these rules.
 
+# Testing
+- Always add new tests, ensure they pass, and requisite code coverage is met when adding new functionality
+ - Use pytest; do not make real network calls. Patch httpx/websocket at module paths (custom_components.fansync.client.*).
+ - Coverage focus in CI is custom_components/fansync; target ≥ 60%.
+ - For HA services, ensure no blocking I/O in event loop (use hass.async_add_executor_job).
