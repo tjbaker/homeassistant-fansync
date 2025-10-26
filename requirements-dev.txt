@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Development requirements for CI and local checks
+pytest
+pytest-homeassistant-custom-component
+ruff
+black
+pytest-cov
+mypy
+# Runtime deps required by integration (for local tests)
+bidict
+websocket-client
+pydantic
+# Use a compatible range to avoid conflict with Home Assistant's pin to 0.28.1
+httpx>=0.27,<0.29

@@ -1,0 +1,15 @@
+{
+  "domain": "fansync",
+  "name": "FanSync",
+  "version": "0.1.0",
+  "documentation": "https://github.com/tjbaker/homeassistant-fansync",
+  "requirements": [
+    "httpx==0.27.0",
+    "websocket-client==1.8.0",
+    "pydantic==2.12.0",
+    "bidict==0.23.1"
+  ],
+  "codeowners": ["@tjbaker"],
+  "config_flow": true,
+  "iot_class": "cloud_push"
+}
