@@ -101,8 +101,8 @@ class FanSyncClient:
                         continue
                     if not isinstance(payload, dict):
                         continue
-                    # Ignore direct responses to our own requests
-                    if payload.get("response") in {"login", "lst_device", "get", "set"}:
+                    # Ignore direct responses to our own requests except set when it includes status
+                    if payload.get("response") in {"login", "lst_device", "get"}:
                         continue
                     data = payload.get("data")
                     if isinstance(data, dict) and isinstance(data.get("status"), dict):
@@ -205,14 +205,26 @@ class FanSyncClient:
                     self._ws.send(json.dumps(message))
                 # Best-effort ack read; ignore errors
                 try:
-                    self._ws.recv()
+                    raw = self._ws.recv()
+                    try:
+                        payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+                        if isinstance(payload, dict) and payload.get("response") == "set":
+                            d = payload.get("data")
+                            if isinstance(d, dict) and isinstance(d.get("status"), dict):
+                                return d["status"]
+                    except Exception:
+                        pass
                 except Exception:
-                    pass
+                    return None
+            return None
 
-        await self.hass.async_add_executor_job(_set)
+        ack_status = await self.hass.async_add_executor_job(_set)
         # After a successful set, fetch latest status and notify listeners, if any.
         if self._status_callback is not None:
-            status = await self.async_get_status()
+            if isinstance(ack_status, dict):
+                status = ack_status
+            else:
+                status = await self.async_get_status()
 
             def _notify():
                 assert self._status_callback is not None
