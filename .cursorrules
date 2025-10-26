@@ -1,0 +1,32 @@
+# Cursor Code Style Rules for this repository
+
+# General
+- Follow PEP 8 for Python style.
+- Optimize for clarity and readability; prefer explicit types where helpful.
+
+# Formatting
+- Use Black-compatible formatting.
+- Maximum line length: 100.
+- Target Python version: 3.13.
+
+# Imports
+- Organize imports consistent with Ruff isort settings.
+  - known-first-party: ["fansync", "custom_components"]
+  - Do not force single-line imports.
+
+# Linting (mirror pyproject Ruff rules)
+- Enable Ruff rules: [E, F, I, B, UP].
+- Respect per-file ignores from pyproject:
+  - tests/**/*.py: [E501, F401, I001]
+  - examples/**/*.py: [E501, F401, F403, B904]
+  - fansync/**/*.py: [E501, F401, F403]
+
+# Home Assistant specifics
+- Use HA async patterns (`async_*` methods); avoid blocking I/O in the event loop.
+- Prefer CoordinatorEntity for entities with push updates.
+
+# Comments
+- Keep comments concise and only when adding non-obvious context.
+
+# Do not introduce unrelated style changes beyond these rules.
+
