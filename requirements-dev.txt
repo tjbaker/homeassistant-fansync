@@ -7,8 +7,8 @@ black
 pytest-cov
 mypy
 # Runtime deps required by integration (for local tests)
-bidict==0.23.1
-websocket-client==1.8.0
-pydantic==2.12.0
+bidict
+websocket-client
+pydantic
 # Use a compatible range to avoid conflict with Home Assistant's pin to 0.28.1
 httpx>=0.27,<0.29
