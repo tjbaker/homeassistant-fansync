@@ -1,0 +1,48 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.venv-ha/
+
+# Test/coverage caches
+.pytest_cache/
+.coverage*
+htmlcov/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# IDE/editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+
+# Local configuration & secrets
+credentials.py
+.env
+.env.*
+.envrc
+
+# Node (if present)
+node_modules/
+
+# Custom components caches
+custom_components/**/__pycache__/
+
+# Logs
+*.log
+
+# Ruff cache
+.ruff_cache/
