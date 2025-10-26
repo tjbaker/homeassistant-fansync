@@ -10,5 +10,4 @@ mypy
 bidict
 websocket-client
 pydantic
-# Use a compatible range to avoid conflict with Home Assistant's pin to 0.28.1
 httpx
