@@ -2,8 +2,21 @@
 name: CI
 
 on:
+  # Run on pushes to main (and tags), not on feature branches
   push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  # Run for PRs targeting main
   pull_request:
+    branches:
+      - main
+
+# Avoid duplicate parallel runs for the same ref/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint-and-test:
