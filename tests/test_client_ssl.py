@@ -15,7 +15,7 @@ from custom_components.fansync.client import FanSyncClient
 
 async def test_client_ssl_flag(hass: HomeAssistant):
     """Ensure FanSyncClient builds HTTPX client with verify=True when configured."""
-    c = FanSyncClient(hass, "e", "p", verify_ssl=True)
+    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
     with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
          patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
         http_inst = http_cls.return_value
@@ -27,4 +27,5 @@ async def test_client_ssl_flag(hass: HomeAssistant):
             '{"status":"ok","response":"lst_device","data":[{"device":"id"}],"id":2}',
         ]
         await c.async_connect()
+        await c.async_disconnect()
         http_cls.assert_called_with(verify=True)
