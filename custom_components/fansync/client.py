@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 import websocket
 from homeassistant.core import HomeAssistant
+from websocket import WebSocketConnectionClosedException
 
 
 class FanSyncClient:
@@ -20,6 +21,7 @@ class FanSyncClient:
         self.verify_ssl = verify_ssl
         self._http: httpx.Client | None = None
         self._ws: websocket.WebSocket | None = None
+        self._token: str | None = None
         self._device_id: str | None = None
         self._status_callback: Callable[[dict[str, Any]], None] | None = None
 
@@ -57,6 +59,7 @@ class FanSyncClient:
 
             self._http = session
             self._ws = ws
+            self._token = token
             self._device_id = device_id
 
         await self.hass.async_add_executor_job(_connect)
@@ -66,10 +69,49 @@ class FanSyncClient:
             await self.hass.async_add_executor_job(self._ws.close)
             self._ws = None
 
+    # Internal helper: ensure websocket is connected and logged in (called in executor)
+    def _ensure_ws_connected(self) -> None:
+        if self._ws is not None:
+            return
+        if self._http is None:
+            raise RuntimeError("HTTP session not initialized")
+
+        token = self._token
+        if not token:
+            url = "https://fanimation.apps.exosite.io/api:1/session"
+            resp = self._http.post(
+                url,
+                headers={"Content-Type": "application/json", "charset": "utf-8"},
+                json={"email": self.email, "password": self.password},
+            )
+            resp.raise_for_status()
+            token = resp.json()["token"]
+            self._token = token
+
+        ws_opts = {} if self.verify_ssl else {"cert_reqs": ssl.CERT_NONE}
+        ws = websocket.WebSocket(sslopt=ws_opts)
+        ws.timeout = 10
+        ws.connect("wss://fanimation.apps.exosite.io/api:1/phone")
+        ws.send(json.dumps({"id": 1, "request": "login", "data": {"token": token}}))
+        raw = ws.recv()
+        payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+        if not (isinstance(payload, dict) and payload.get("status") == "ok"):
+            raise RuntimeError("Websocket login failed")
+        self._ws = ws
+
     async def async_get_status(self) -> dict[str, Any]:
         def _get():
-            assert self._ws is not None and self._device_id is not None
-            self._ws.send(json.dumps({"id": 3, "request": "get", "device": self._device_id}))
+            assert self._device_id is not None
+            self._ensure_ws_connected()
+            assert self._ws is not None
+            try:
+                self._ws.send(json.dumps({"id": 3, "request": "get", "device": self._device_id}))
+            except WebSocketConnectionClosedException:
+                # reconnect and retry once
+                self._ws = None
+                self._ensure_ws_connected()
+                assert self._ws is not None
+                self._ws.send(json.dumps({"id": 3, "request": "get", "device": self._device_id}))
             while True:
                 raw = self._ws.recv()
                 payload = json.loads(raw if isinstance(raw, str) else raw.decode())
@@ -80,14 +122,23 @@ class FanSyncClient:
 
     async def async_set(self, data: dict[str, int]):
         def _set():
-            assert self._ws is not None and self._device_id is not None
+            assert self._device_id is not None
+            self._ensure_ws_connected()
+            assert self._ws is not None
             message = {
                 "id": 4,
                 "request": "set",
                 "device": self._device_id,
                 "data": data,
             }
-            self._ws.send(json.dumps(message))
+            try:
+                self._ws.send(json.dumps(message))
+            except WebSocketConnectionClosedException:
+                # reconnect and retry once
+                self._ws = None
+                self._ensure_ws_connected()
+                assert self._ws is not None
+                self._ws.send(json.dumps(message))
             try:
                 self._ws.recv()
             except Exception:
