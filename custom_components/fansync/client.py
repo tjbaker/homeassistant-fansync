@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import ssl
 from collections.abc import Callable
 from typing import Any
 
 import httpx
+import websocket
 from homeassistant.core import HomeAssistant
-
-from fansync import HttpApi  # type: ignore[attr-defined]
-from fansync.websocket import Websocket  # type: ignore[attr-defined]
 
 
 class FanSyncClient:
@@ -18,24 +18,47 @@ class FanSyncClient:
         self.email = email
         self.password = password
         self.verify_ssl = verify_ssl
-        self._http = None
-        self._ws = None
+        self._http: httpx.Client | None = None
+        self._ws: websocket.WebSocket | None = None
         self._device_id: str | None = None
         self._status_callback: Callable[[dict[str, Any]], None] | None = None
 
     async def async_connect(self):
         def _connect():
-            http = HttpApi()
-            http._session = httpx.Client(verify=self.verify_ssl)
-            creds = http.post_session(self.email, self.password)
-            ws = Websocket(creds.token, verify_ssl=self.verify_ssl)
-            ws.connect()
-            ws.login()
-            devices = ws.list_devices()
-            device_id = devices.data[0].device if devices.data else None
-            self._http = http
+            session = httpx.Client(verify=self.verify_ssl)
+
+            # Authenticate over HTTP
+            url = "https://fanimation.apps.exosite.io/api:1/session"
+            resp = session.post(
+                url,
+                headers={"Content-Type": "application/json", "charset": "utf-8"},
+                json={"email": self.email, "password": self.password},
+            )
+            resp.raise_for_status()
+            token = resp.json()["token"]
+
+            # Websocket connect and login
+            ws_opts = {} if self.verify_ssl else {"cert_reqs": ssl.CERT_NONE}
+            ws = websocket.WebSocket(sslopt=ws_opts)
+            ws.timeout = 10
+            ws.connect("wss://fanimation.apps.exosite.io/api:1/phone")
+            ws.send(json.dumps({"id": 1, "request": "login", "data": {"token": token}}))
+            raw = ws.recv()
+            payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+            if not (isinstance(payload, dict) and payload.get("status") == "ok"):
+                raise RuntimeError("Websocket login failed")
+
+            # List devices
+            ws.send(json.dumps({"id": 2, "request": "lst_device"}))
+            raw = ws.recv()
+            payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+            devices = payload.get("data") or []
+            device_id = devices[0]["device"] if devices else None
+
+            self._http = session
             self._ws = ws
             self._device_id = device_id
+
         await self.hass.async_add_executor_job(_connect)
 
     async def async_disconnect(self):
@@ -45,28 +68,37 @@ class FanSyncClient:
 
     async def async_get_status(self) -> dict[str, Any]:
         def _get():
-            from fansync.models import ListDevicesResponse
+            assert self._ws is not None and self._device_id is not None
+            self._ws.send(json.dumps({"id": 3, "request": "get", "device": self._device_id}))
+            while True:
+                raw = self._ws.recv()
+                payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+                if isinstance(payload, dict) and payload.get("response") == "get":
+                    return payload["data"]["status"]
 
-            d = ListDevicesResponse.Device(
-                device=self._device_id,
-                properties=ListDevicesResponse.Properties(
-                    displayName="Fan", deviceHasBeenConfigured=True
-                ),
-            )
-            info = self._ws.get_device(d)
-            return info.data.status
         return await self.hass.async_add_executor_job(_get)
 
     async def async_set(self, data: dict[str, int]):
         def _set():
-            self._ws.set_device(self._device_id, data)
+            assert self._ws is not None and self._device_id is not None
+            message = {
+                "id": 4,
+                "request": "set",
+                "device": self._device_id,
+                "data": data,
+            }
+            self._ws.send(json.dumps(message))
+            try:
+                self._ws.recv()
+            except Exception:
+                pass
+
         await self.hass.async_add_executor_job(_set)
-        # After a successful set, fetch the latest status and notify listeners, if any.
+        # After a successful set, fetch latest status and notify listeners, if any.
         if self._status_callback is not None:
             status = await self.async_get_status()
 
             def _notify():
-                # Ensure callback is executed in HA event loop context
                 assert self._status_callback is not None
                 self._status_callback(status)
 
@@ -77,8 +109,4 @@ class FanSyncClient:
         return self._device_id
 
     def set_status_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
-        """Register a callback invoked when fresh status is available.
-
-        The callback will be called in the Home Assistant event loop thread.
-        """
         self._status_callback = callback

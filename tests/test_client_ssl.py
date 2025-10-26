@@ -15,21 +15,16 @@ from custom_components.fansync.client import FanSyncClient
 
 async def test_client_ssl_flag(hass: HomeAssistant):
     """Ensure FanSyncClient builds HTTPX client with verify=True when configured."""
-    with patch("custom_components.fansync.client.httpx.Client") as mock_cls:
-        mock_http = object()
-        mock_cls.return_value = mock_http
-        c = FanSyncClient(hass, "e", "p", verify_ssl=True)
-        async def _fake_connect():
-            def inner():
-                # ensure we instantiate with verify=True
-                pass
-            return await hass.async_add_executor_job(inner)
-        # call normal connect to exercise code path
-        with patch("fansync.HttpApi.post_session") as post, patch("custom_components.fansync.client.Websocket") as ws_cls:
-            post.return_value = type("C", (), {"token": "t"})()
-            ws = ws_cls.return_value
-            ws.connect.return_value = None
-            ws.login.return_value = None
-            ws.list_devices.return_value = type("D", (), {"data": [type("X", (), {"device": "id"})()]})()
-            await c.async_connect()
-        mock_cls.assert_called_with(verify=True)
+    c = FanSyncClient(hass, "e", "p", verify_ssl=True)
+    with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
+         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
+        http_inst = http_cls.return_value
+        http_inst.post.return_value = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}})()
+        ws = ws_cls.return_value
+        ws.connect.return_value = None
+        ws.recv.side_effect = [
+            '{"status":"ok","response":"login","id":1}',
+            '{"status":"ok","response":"lst_device","data":[{"device":"id"}],"id":2}',
+        ]
+        await c.async_connect()
+        http_cls.assert_called_with(verify=True)
