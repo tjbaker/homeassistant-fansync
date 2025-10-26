@@ -29,7 +29,7 @@ def _get_ok(status: dict[str, int]) -> str:
 
 
 async def test_disconnect_on_unload(hass: HomeAssistant):
-    c = FanSyncClient(hass, "e", "p")
+    c = FanSyncClient(hass, "e", "p", enable_push=False)
     with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
          patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
         http_inst = http_cls.return_value
@@ -45,7 +45,7 @@ async def test_disconnect_on_unload(hass: HomeAssistant):
 
 
 async def test_set_retries_on_closed_socket(hass: HomeAssistant):
-    c = FanSyncClient(hass, "e", "p")
+    c = FanSyncClient(hass, "e", "p", enable_push=False)
     with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
          patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
         http_inst = http_cls.return_value
@@ -69,6 +69,7 @@ async def test_set_retries_on_closed_socket(hass: HomeAssistant):
         ws.recv.side_effect = [_login_ok(), json.dumps({"status": "ok", "response": "set", "id": 4})]
 
         await c.async_set({"H02": 10})
+        await c.async_disconnect()
 
     assert ws.send.call_count >= 2
 
