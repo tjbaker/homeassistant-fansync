@@ -84,8 +84,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
             if now <= expires:
                 return value
             self._overlay.pop(key, None)
-        all_status = self.coordinator.data or {}
-        status: dict[str, object] = dict(all_status.get(self._device_id, {}))
+        status = self._status_for(self.coordinator.data or {})
         raw = status.get(key, default)
         if isinstance(raw, int | str):
             try:
