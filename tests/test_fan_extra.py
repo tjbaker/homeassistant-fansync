@@ -84,12 +84,14 @@ async def test_percentage_exits_fresh_air(hass: HomeAssistant, patch_client):
     assert state.attributes.get("percentage") == 50
     assert state.attributes.get("preset_mode") == "normal"
 
-async def test_turn_off_sets_min_speed(hass: HomeAssistant, patch_client):
-    """Turning off sets internal min speed while entity state reads off."""
+async def test_turn_off_preserves_speed(hass: HomeAssistant, patch_client):
+    """Turning off preserves last percentage speed while state reads off."""
     await setup_entry(hass, patch_client, entry_id="test5")
+    # Capture current speed
+    state = hass.states.get("fan.fan")
+    prev_pct = state.attributes.get("percentage")
     await hass.services.async_call("fan", "turn_off", {"entity_id": "fan.fan"}, blocking=True)
     await hass.async_block_till_done()
-    # Our entity sets H02 to 1 on turn_off; reflected as percentage 1 and state off
     state = hass.states.get("fan.fan")
     assert state.state == "off"
-    assert state.attributes.get("percentage") == 1
+    assert state.attributes.get("percentage") == prev_pct
