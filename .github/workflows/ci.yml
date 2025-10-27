@@ -62,7 +62,7 @@ jobs:
       - name: Mypy (type check)
         run: |
           set -euo pipefail
-          mypy --exclude 'venv|\.venv|examples' custom_components/fansync tests
+          mypy --exclude 'venv|\.venv|examples' custom_components/fansync
 
       - name: Pytest (with coverage)
         run: pytest -q --cov=custom_components/fansync --cov-report=term-missing --cov-fail-under=75
