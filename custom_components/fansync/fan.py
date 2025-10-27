@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -84,18 +86,33 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             inv = {v: k for k, v in PRESET_MODES.items()}
             data[KEY_PRESET] = inv.get(preset_mode, 0)
         await self.client.async_set(data)
-        # Push latest status into coordinator
+        # Push latest status into coordinator (best-effort)
         status = await self.client.async_get_status()
         self.coordinator.async_set_updated_data(status)
 
     async def async_turn_off(self, **kwargs):
         await self.client.async_set({KEY_POWER: 0, KEY_SPEED: 1})
-        status = await self.client.async_get_status()
+        # Retry briefly until power reflects off to avoid UI lag
+        attempts = 3
+        status = {}
+        for _ in range(attempts):
+            status = await self.client.async_get_status()
+            if status.get(KEY_POWER) == 0:
+                break
+            await asyncio.sleep(0.2)
         self.coordinator.async_set_updated_data(status)
 
     async def async_set_percentage(self, percentage: int) -> None:
-        await self.client.async_set({KEY_POWER: 1, KEY_SPEED: clamp_percentage(percentage)})
-        status = await self.client.async_get_status()
+        target = clamp_percentage(percentage)
+        await self.client.async_set({KEY_POWER: 1, KEY_SPEED: target})
+        # Retry briefly until reported speed matches target to ensure UI updates
+        attempts = 3
+        status = {}
+        for _ in range(attempts):
+            status = await self.client.async_get_status()
+            if status.get(KEY_SPEED) == target:
+                break
+            await asyncio.sleep(0.2)
         self.coordinator.async_set_updated_data(status)
 
     async def async_set_direction(self, direction: str) -> None:
