@@ -52,9 +52,9 @@ jobs:
       - name: Black (format check)
         run: |
           set -euo pipefail
-          PY_FILES=$(git ls-files '*.py')
+          PY_FILES=$(git ls-files 'custom_components/fansync/**/*.py' 'tests/**/*.py')
           if [ -z "$PY_FILES" ]; then
-            echo "No Python files tracked by git. Skipping Black."
+            echo "No target Python files. Skipping Black."
             exit 0
           fi
           python -m black --check --diff --color $PY_FILES
