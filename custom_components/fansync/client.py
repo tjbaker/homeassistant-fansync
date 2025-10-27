@@ -17,7 +17,13 @@ from websocket import WebSocketConnectionClosedException
 
 class FanSyncClient:
     def __init__(
-        self, hass: HomeAssistant, email: str, password: str, verify_ssl: bool = True, *, enable_push: bool = True
+        self,
+        hass: HomeAssistant,
+        email: str,
+        password: str,
+        verify_ssl: bool = True,
+        *,
+        enable_push: bool = True,
     ):
         self.hass = hass
         self.email = email
@@ -166,13 +172,17 @@ class FanSyncClient:
             assert self._ws is not None
             with self._recv_lock:
                 try:
-                    self._ws.send(json.dumps({"id": 3, "request": "get", "device": self._device_id}))
+                    self._ws.send(
+                        json.dumps({"id": 3, "request": "get", "device": self._device_id})
+                    )
                 except WebSocketConnectionClosedException:
                     # reconnect and retry once
                     self._ws = None
                     self._ensure_ws_connected()
                     assert self._ws is not None
-                    self._ws.send(json.dumps({"id": 3, "request": "get", "device": self._device_id}))
+                    self._ws.send(
+                        json.dumps({"id": 3, "request": "get", "device": self._device_id})
+                    )
                 # Bounded read to find the response
                 for _ in range(5):
                     raw = self._ws.recv()
