@@ -43,7 +43,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install -U pip setuptools wheel numpy
+          python -m pip install -U pip setuptools wheel
           pip install -r requirements-dev.txt
 
       - name: Ruff (lint)
