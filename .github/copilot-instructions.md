@@ -33,7 +33,7 @@ This repository contains a Home Assistant custom integration. Use these instruct
 ## Testing
 - Use `pytest`; do not make real network calls.
 - Patch at module paths under `custom_components.fansync.client.*`.
-- Focus coverage on `custom_components/fansync/`; CI target ≥ 60%.
+- Focus coverage on `custom_components/fansync/`; CI target ≥ 75%.
 - Provide tests for:
   - Optimistic updates (success and revert paths) and overlay behavior.
   - Client reconnect, ack short-circuit, no-push mode, bounded get timeouts.
