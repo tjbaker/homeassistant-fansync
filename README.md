@@ -1,119 +1,100 @@
-# FanSync Home Assistant Integration 
+# FanSync Home Assistant Integration
 
 [![CI](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml/badge.svg)](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/tjbaker/homeassistant-fansync/branch/main/graph/badge.svg)](https://codecov.io/gh/tjbaker/homeassistant-fansync)
 
-A Home Assistant custom integration for controlling Fanimation FanSync devices, plus a small Python client and runnable examples.
+Custom Home Assistant integration for Fanimation FanSync devices. Includes a small Python client and runnable examples.
 
-This project includes:
-- `custom_components/fansync/`: Home Assistant integration (fan + light platforms).
-- `fansync/`: Low-level client library and websocket helpers.
-- `examples/`: Runnable scripts demonstrating login, listing devices, and sending commands.
+## Requirements
 
-- `tests/`: Pytest suite for the custom component.
+- Python 3.13
+- Home Assistant Core (recent stable)
 
-## Quick start
+## Installation
 
-1) Create a Python virtual environment (recommended):
-```bash
-python -m venv venv
-source venv/bin/activate
-pip install -U pip
-```
-
-2) Install dev/test dependencies:
-```bash
-pip install -r requirements-dev.txt
-```
-
-3) (Optional) Enable pre-commit hooks:
-```bash
-pre-commit install
-```
-
-4) Run the tests:
-```bash
-pytest -q
-```
-
-## Home Assistant integration
-
-- Copy or link `custom_components/fansync/` into your Home Assistant `config/custom_components/` directory.
-- Restart Home Assistant, then add the integration via Settings → Devices & services → Add integration → “FanSync”.
-- During setup, provide your FanSync account email and password. You can choose whether to verify SSL (default: on).
-
-### One-click install via HACS
+### HACS (recommended)
 
 <a href="http://homeassistant.local:8123/hacs/repository?owner=tjbaker&repository=homeassistant-fansync">
   <img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.">
-</a>
+  </a>
 
-### Configuration options
+### Manual
 
-| Option | Description | Default |
-|-------|-------------|---------|
-| Email | FanSync account email | – |
-| Password | FanSync account password | – |
-| Verify SSL | Verify HTTPS certificates when connecting to FanSync cloud | True |
+1) Copy `custom_components/fansync/` into your Home Assistant `config/custom_components/` directory.
+2) Restart Home Assistant.
+3) Add the integration: Settings → Devices & Services → Add integration → “FanSync”.
 
-### Features
+## Features
 
 - Fan: on/off, percentage speed, direction, preset modes (normal, fresh_air)
 - Light: on/off, brightness (0–100 mapped to 0–255)
 
-### Notes & limitations
+## Configuration
 
-- Multi-device support is limited to the first device returned today. Future versions will create one HA device per FanSync device.
+| Option      | Description                                                  | Default |
+|-------------|--------------------------------------------------------------|---------|
+| Email       | FanSync account email                                        | –       |
+| Password    | FanSync account password                                     | –       |
+| Verify SSL  | Verify HTTPS certificates when connecting to FanSync cloud   | True    |
+
+## Notes & limitations
+
+- Multi-device support currently targets the first device returned. Future versions will create one HA device per FanSync device.
 
 ## Examples
 
-- Duplicate the template and add your credentials locally (never commit real secrets):
+Setup and run an example (never commit real credentials):
 ```bash
-cp examples/credentials.example.py credentials.py
-# Edit credentials.py and set EMAIL and PASSWORD
+python -m venv venv
+source venv/bin/activate
+pip install -U pip
+pip install -r requirements-dev.txt
+
+cp examples/credentials.example.py credentials.py  # edit EMAIL/PASSWORD locally
+
+# Run connection test (ensure local credentials.py is importable)
+PYTHONPATH=$(pwd) python examples/test_connection.py
 ```
-- Run an example (set PYTHONPATH so the local credentials.py is found instead of Python's stdlib module):
-```bash
-PYTHONPATH=$(pwd) venv/bin/python examples/test_connection.py
-```
 
-Notes:
-- `credentials.py` is ignored by git. Do not commit real credentials. Rotate credentials if accidentally exposed.
-- See `examples/README.md` for more scripts and tips.
+## Repository structure
 
-## Project layout
-
-- `custom_components/fansync/`: HA entities, config flow, coordinator, and manifest.
-- `fansync/`: Core modules for HTTP and websocket interactions.
-- `examples/`: Small scripts that use `fansync` to connect and control devices.
-- `tests/`: Pytest-based tests; see `tests/README.md` for suite overview.
+- `custom_components/fansync/`: HA integration (config flow, coordinator, fan/light entities)
+- `fansync/`: Low-level client (HTTP/WebSocket)
+- `examples/`: Small runnable scripts
+- `tests/`: Pytest suite for the integration
 
 ## Development
 
-- Linting/formatting is configured via `pyproject.toml` (Ruff + Black).
-- Pre-commit hooks can enforce formatting automatically:
+- Formatting and linting: configured via `pyproject.toml` (Black + Ruff)
+- Optional pre-commit hooks:
 ```bash
 pre-commit install
 ```
-- Run formatters/lint manually:
+- Manual checks:
 ```bash
 ruff --fix .
 black .
 ```
 
+## Testing
+
+Run tests with coverage:
+```bash
+pytest -q --cov=custom_components/fansync
+```
+CI enforces coverage on the integration code (threshold set in the workflow).
+
 ## Security
 
-- Secrets are kept in `credentials.py` (local only). The template `examples/credentials.example.py` is tracked for reference.
-- Ensure `credentials.py` is never committed. If it was previously tracked:
+- Keep secrets in local `credentials.py` (ignored by git). If accidentally committed, remove and rotate credentials:
 ```bash
 git rm --cached credentials.py
 git commit -m "Stop tracking credentials.py"
 ```
-- Rotate any credentials that may have been exposed.
 
 ## Attribution
 
-Portions of the original reverse-engineered protocol understanding and sample payloads were informed by the upstream project `rotinom/fansync`. See: https://github.com/rotinom/fansync
+Portions of the reverse-engineered protocol and sample payloads were informed by `rotinom/fansync`: https://github.com/rotinom/fansync
 
 ## License
 
