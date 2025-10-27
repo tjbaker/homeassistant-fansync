@@ -43,8 +43,7 @@ def _get_ok(status: dict[str, int] | None = None) -> str:
 async def test_connect_sets_device_id(hass: HomeAssistant):
     c = FanSyncClient(hass, "e@example.com", "p", verify_ssl=True, enable_push=False)
     with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
-         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls, \
-         patch("threading.Thread") as th_cls:
+         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
         http_inst = http_cls.return_value
         http_inst.post.return_value = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}})()
         ws = ws_cls.return_value
