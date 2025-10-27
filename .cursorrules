@@ -4,6 +4,9 @@
 - Use Black/Ruff exactly as configured in pyproject.toml (line length 100, Python 3.13).
 - Follow PEP 8 principles; Black/Ruff are authoritative for enforcement.
 - Optimize for clarity and readability; prefer explicit types where helpful.
+- Prefer union syntax in isinstance checks (e.g., int | str) over tuples.
+- Import ABCs (Callable, Iterable, etc.) from collections.abc, not typing.
+- No blocking I/O in the event loop; use hass.async_add_executor_job when needed.
 
 # Imports
 - Organize imports consistent with Ruff isort settings.
@@ -29,12 +32,18 @@
 - Prefer CoordinatorEntity for entities with push updates.
  - For push-based entities, set update_interval=None and push via coordinator.async_set_updated_data.
  - Use optimistic updates for user commands and reconcile on push ack to avoid UI snap-back.
+ - Multi-device model: coordinator data is dict[device_id, dict[str, int | str]], one entity per
+   device; entity unique_id must use self._device_id consistently.
+ - Optimistic overlays: apply per-key overlays immediately; guard ~8s; confirm then clear;
+   revert only on explicit failure.
 
 # Testing
 - Always add new tests, ensure they pass, and requisite code coverage is met when adding new functionality
  - Use pytest; do not make real network calls. Patch httpx/websocket at module paths (custom_components.fansync.client.*).
- - Coverage focus in CI is custom_components/fansync; target ≥ 60%.
+ - Coverage focus in CI is custom_components/fansync; target ≥ 75%.
  - For HA services, ensure no blocking I/O in event loop (use hass.async_add_executor_job).
+ - Include tests for: push callback merge, reconnect paths, config flow (happy/error/duplicate),
+   optimistic overlay expiry, and multi-device entity isolation.
 
 # Git / Commits
 - Commit message subject MUST be ≤ 72 characters (to avoid GitHub truncation).
@@ -43,3 +52,4 @@
   - Scope is optional; subject in imperative mood
   - Examples: "feat: add optimistic light updates", "fix: prevent UI snap-back"
 - Wrap body lines at ~72 characters.
+ - PR titles must be semantic; a workflow enforces this.
