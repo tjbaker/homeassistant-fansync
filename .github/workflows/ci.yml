@@ -52,7 +52,7 @@ jobs:
       - name: Black (format check)
         run: |
           set -euo pipefail
-          FILES=$(git ls-files custom_components/fansync tests | grep -E '\\.py$' || true)
+          FILES=$(find custom_components/fansync tests -type f -name '*.py' -print || true)
           if [ -z "$FILES" ]; then
             echo "No target Python files. Skipping Black."
             exit 0
