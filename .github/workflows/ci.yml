@@ -65,4 +65,10 @@ jobs:
           mypy --exclude 'venv|\.venv|examples' custom_components/fansync
 
       - name: Pytest (with coverage)
-        run: pytest -q --cov=custom_components/fansync --cov-report=term-missing --cov-fail-under=75
+        run: pytest -q --cov=custom_components/fansync --cov-report=xml --cov-report=term-missing --cov-fail-under=75
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: true
