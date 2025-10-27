@@ -23,17 +23,19 @@ def _lst_device_ok(device_id: str = "id") -> str:
 
 
 def _get_ok(status: dict[str, int]) -> str:
-    return json.dumps(
-        {"status": "ok", "response": "get", "data": {"status": status}, "id": 3}
-    )
+    return json.dumps({"status": "ok", "response": "get", "data": {"status": status}, "id": 3})
 
 
 async def test_disconnect_on_unload(hass: HomeAssistant):
     c = FanSyncClient(hass, "e", "p", enable_push=False)
-    with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
-         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+    ):
         http_inst = http_cls.return_value
-        http_inst.post.return_value = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}})()
+        http_inst.post.return_value = type(
+            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
+        )()
         ws = ws_cls.return_value
         ws.connect.return_value = None
         ws.recv.side_effect = [_login_ok(), _lst_device_ok("id")]
@@ -46,10 +48,14 @@ async def test_disconnect_on_unload(hass: HomeAssistant):
 
 async def test_set_retries_on_closed_socket(hass: HomeAssistant):
     c = FanSyncClient(hass, "e", "p", enable_push=False)
-    with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
-         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+    ):
         http_inst = http_cls.return_value
-        http_inst.post.return_value = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}})()
+        http_inst.post.return_value = type(
+            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
+        )()
         ws = ws_cls.return_value
         ws.connect.return_value = None
         # Connect sequence
@@ -66,11 +72,12 @@ async def test_set_retries_on_closed_socket(hass: HomeAssistant):
         _send.first = True  # type: ignore[attr-defined]
         ws.send.side_effect = _send
         # after reconnect: login ok, then set ack
-        ws.recv.side_effect = [_login_ok(), json.dumps({"status": "ok", "response": "set", "id": 4})]
+        ws.recv.side_effect = [
+            _login_ok(),
+            json.dumps({"status": "ok", "response": "set", "id": 4}),
+        ]
 
         await c.async_set({"H02": 10})
         await c.async_disconnect()
 
     assert ws.send.call_count >= 2
-
-

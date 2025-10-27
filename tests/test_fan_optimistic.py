@@ -37,9 +37,11 @@ async def setup_entry_with_client(hass: HomeAssistant, client) -> MockConfigEntr
         unique_id="optimistic-test",
     )
     entry.add_to_hass(hass)
-    with patch("custom_components.fansync.fan.FanSyncClient", return_value=client), \
-         patch("custom_components.fansync.light.FanSyncClient", return_value=client), \
-         patch("custom_components.fansync.FanSyncClient", return_value=client):
+    with (
+        patch("custom_components.fansync.fan.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.light.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.FanSyncClient", return_value=client),
+    ):
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     return entry
@@ -87,5 +89,3 @@ async def test_set_direction_reverts_on_error(hass: HomeAssistant):
     # After failure, state should be reverted to previous (forward)
     state = hass.states.get("fan.fan")
     assert state.attributes.get("direction") == "forward"
-
-

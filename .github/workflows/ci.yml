@@ -46,15 +46,30 @@ jobs:
           python -m pip install -U pip setuptools wheel numpy
           pip install -r requirements-dev.txt
 
-      # - name: Ruff (lint)
-      #   run: ruff check .
+      - name: Ruff (lint)
+        run: ruff check --force-exclude custom_components/fansync tests
 
-      # - name: Black (format check)
-      #   run: |
-      #     black --check custom_components/fansync fansync examples tests
+      - name: Black (format check)
+        run: |
+          set -euo pipefail
+          FILES=$(find custom_components/fansync tests -type f -name '*.py' -print || true)
+          if [ -z "$FILES" ]; then
+            echo "No target Python files. Skipping Black."
+            exit 0
+          fi
+          python -m black --check --diff --color $FILES
 
-      # - name: Mypy (type check)
-      #   run: mypy .
+      - name: Mypy (type check)
+        run: |
+          set -euo pipefail
+          mypy --exclude 'venv|\.venv|examples' custom_components/fansync
 
       - name: Pytest (with coverage)
-        run: pytest -q --cov=custom_components/fansync --cov-report=term-missing --cov-fail-under=75
+        run: pytest -q --cov=custom_components/fansync --cov-report=xml --cov-report=term-missing --cov-fail-under=75
+
+      - name: Upload coverage to Codecov
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: true

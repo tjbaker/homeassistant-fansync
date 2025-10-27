@@ -41,9 +41,8 @@ def main():
         device = ListDevicesResponse.Device(
             device=device_id,
             properties=ListDevicesResponse.Properties(
-                displayName="Fan",
-                deviceHasBeenConfigured=True
-            )
+                displayName="Fan", deviceHasBeenConfigured=True
+            ),
         )
 
         # Current status

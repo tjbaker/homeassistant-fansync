@@ -5,10 +5,12 @@ from bidict import bidict
 
 # This is dynamically driven from values that come from
 # GET /api:1/info-model
-field_mapping_ = bidict({
-    'LIGHT_POWER': 'H0B',
-    'LIGHT_PERCENT': 'H0C',
-})
+field_mapping_ = bidict(
+    {
+        "LIGHT_POWER": "H0B",
+        "LIGHT_PERCENT": "H0C",
+    }
+)
 
 
 fan_mode_ = bidict({})
@@ -16,7 +18,6 @@ fan_direction_ = bidict({})
 
 
 class Light:
-
     def __init__(self, output_callback, power_key: str, percent_key: str):
         self._output_callback = output_callback
         self._power_key: str = power_key
@@ -30,6 +31,7 @@ class Light:
 
         if self._percent_key in status:
             self._percent_value = status[self._percent_key]
+
     def turn_on(self):
         pass
 
@@ -44,8 +46,3 @@ class Light:
 
     def is_on(self):
         pass
-
-
-
-
-

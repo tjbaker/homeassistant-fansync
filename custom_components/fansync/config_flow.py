@@ -8,11 +8,14 @@ from homeassistant import config_entries
 from .client import FanSyncClient
 from .const import CONF_EMAIL, CONF_PASSWORD, CONF_VERIFY_SSL, DOMAIN
 
-DATA_SCHEMA = vol.Schema({
-    vol.Required(CONF_EMAIL): str,
-    vol.Required(CONF_PASSWORD): str,
-    vol.Optional(CONF_VERIFY_SSL, default=True): bool,
-})
+DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_EMAIL): str,
+        vol.Required(CONF_PASSWORD): str,
+        vol.Optional(CONF_VERIFY_SSL, default=True): bool,
+    }
+)
+
 
 class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1

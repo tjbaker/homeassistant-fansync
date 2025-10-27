@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
 
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.config_entries import ConfigEntry
@@ -23,6 +24,9 @@ from .const import (
     clamp_percentage,
 )
 from .coordinator import FanSyncCoordinator
+
+# Only overlay keys that directly affect HA UI state to prevent snap-back
+OVERLAY_KEYS = {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}
 
 
 async def async_setup_entry(
@@ -57,7 +61,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         self._retry_attempts = 5
         self._retry_delay = 0.1
         self._optimistic_until: float | None = None
-        self._optimistic_predicate = None
+        self._optimistic_predicate: Callable[[dict], bool] | None = None
         # Per-key optimistic overlay to avoid snap-back during short races
         # key -> (value, expires_at_monotonic)
         self._overlay: dict[str, tuple[int, float]] = {}
@@ -73,7 +77,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         status = self.coordinator.data or {}
         return int(status.get(key, default))
 
-    async def _retry_update_until(self, predicate) -> tuple[dict, bool]:
+    async def _retry_update_until(self, predicate: Callable[[dict], bool]) -> tuple[dict, bool]:
         """Fetch status until predicate passes or attempts exhausted.
 
         Returns (status, satisfied). If not satisfied, caller may keep optimistic state.
@@ -86,17 +90,19 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             await asyncio.sleep(self._retry_delay)
         return status, False
 
-    async def _apply_with_optimism(self, optimistic: dict, payload: dict, confirm_pred):
+    async def _apply_with_optimism(
+        self,
+        optimistic: dict,
+        payload: dict,
+        confirm_pred: Callable[[dict], bool],
+    ) -> None:
         previous = self.coordinator.data or {}
         optimistic_state = {**previous, **optimistic}
         # Apply per-key overlays to keep UI stable; use an 8s guard window
         expires = time.monotonic() + 8.0
         for k, v in optimistic.items():
-            if k in {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}:
-                try:
-                    self._overlay[k] = (int(v), expires)
-                except Exception:
-                    self._overlay[k] = (v, expires)  # type: ignore[assignment]
+            if k in OVERLAY_KEYS:
+                self._overlay[k] = (int(v), expires)
         self.coordinator.async_set_updated_data(optimistic_state)
         # Guard against snap-back from interim coordinator refreshes
         self._optimistic_until = expires
@@ -161,21 +167,25 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             payload[KEY_PRESET] = target_preset
         else:
             target_preset = None
-        await self._apply_with_optimism(
-            optimistic,
-            payload,
-            lambda s: s.get(KEY_POWER) == 1
-            and (target_speed is None or s.get(KEY_SPEED) == target_speed)
-            and (target_preset is None or s.get(KEY_PRESET) == target_preset),
-        )
+
+        def _confirm(
+            s: dict,
+            ts: int | None = target_speed,
+            tp: int | None = target_preset,
+        ) -> bool:
+            return (
+                s.get(KEY_POWER) == 1
+                and (ts is None or s.get(KEY_SPEED) == ts)
+                and (tp is None or s.get(KEY_PRESET) == tp)
+            )
+
+        await self._apply_with_optimism(optimistic, payload, _confirm)
 
     async def async_turn_off(self, **kwargs):
         # Toggling power should not change percentage speed
         optimistic = {KEY_POWER: 0}
         payload = {KEY_POWER: 0}
-        await self._apply_with_optimism(
-            optimistic, payload, lambda s: s.get(KEY_POWER) == 0
-        )
+        await self._apply_with_optimism(optimistic, payload, lambda s: s.get(KEY_POWER) == 0)
 
     async def async_set_percentage(self, percentage: int) -> None:
         target = clamp_percentage(percentage)

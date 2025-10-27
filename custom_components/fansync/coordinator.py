@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import FanSyncClient
 
-SCAN_INTERVAL = timedelta(seconds=60)
+SCAN_INTERVAL = None  # push-first; no periodic polling
+
 
 class FanSyncCoordinator(DataUpdateCoordinator):
     def __init__(self, hass: HomeAssistant, client: FanSyncClient):
@@ -18,7 +18,7 @@ class FanSyncCoordinator(DataUpdateCoordinator):
             hass,
             logger=logging.getLogger(__name__),
             name="fansync",
-            update_interval=SCAN_INTERVAL,  # periodic refresh as a fallback to push
+            update_interval=SCAN_INTERVAL,
         )
         self.client = client
 

@@ -63,5 +63,3 @@ async def test_setup_registers_callback_and_unload_disconnects(hass: HomeAssista
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert client.disconnected is True
-
-

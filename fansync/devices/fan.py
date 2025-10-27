@@ -3,22 +3,18 @@
 from bidict import bidict
 
 # Fan-specific protocol mappings (moved from light.py)
-field_mapping_ = bidict({
-    'FAN_POWER': 'H00',
-    'FAN_MODE': 'H01',
-    'FAN_PERCENT': 'H02',
-    'FAN_DIRECTION': 'H06',
-})
+field_mapping_ = bidict(
+    {
+        "FAN_POWER": "H00",
+        "FAN_MODE": "H01",
+        "FAN_PERCENT": "H02",
+        "FAN_DIRECTION": "H06",
+    }
+)
 
-fan_mode_ = bidict({
-    0: "Normal",
-    1: "Fresh Air"
-})
+fan_mode_ = bidict({0: "Normal", 1: "Fresh Air"})
 
-fan_direction_ = bidict({
-    0: "Forward",
-    1: "Reverse"
-})
+fan_direction_ = bidict({0: "Forward", 1: "Reverse"})
 
 
 class Fan:

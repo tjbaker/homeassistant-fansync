@@ -46,3 +46,6 @@ custom_components/**/__pycache__/
 
 # Ruff cache
 .ruff_cache/
+
+# Mypy cache
+.mypy_cache/

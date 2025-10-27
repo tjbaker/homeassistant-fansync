@@ -78,9 +78,8 @@ def main():
         device = ListDevicesResponse.Device(
             device=device_id,
             properties=ListDevicesResponse.Properties(
-                displayName="Fan",
-                deviceHasBeenConfigured=True
-            )
+                displayName="Fan", deviceHasBeenConfigured=True
+            ),
         )
 
         info = ws.get_device(device)
@@ -93,10 +92,10 @@ def main():
         # Verify; retry once if not applied
         info = ws.get_device(device)
         if not (
-            info.data.status.get("H00") == 1 and
-            info.data.status.get("H06") == h06 and
-            info.data.status.get("H01") == h01 and
-            info.data.status.get("H02") == speed
+            info.data.status.get("H00") == 1
+            and info.data.status.get("H06") == h06
+            and info.data.status.get("H01") == h01
+            and info.data.status.get("H02") == speed
         ):
             ws.set_device(device_id, {"H00": 1, "H06": h06, "H01": h01, "H02": speed})
             time.sleep(1.5)

@@ -1,5 +1,8 @@
 # FanSync Home Assistant Integration 
 
+[![CI](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml/badge.svg)](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/tjbaker/homeassistant-fansync/branch/main/graph/badge.svg)](https://codecov.io/gh/tjbaker/homeassistant-fansync)
+
 A Home Assistant custom integration for controlling Fanimation FanSync devices, plus a small Python client and runnable examples.
 
 This project includes:
