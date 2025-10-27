@@ -1,9 +1,9 @@
-# FanSync Home Assistant Integration
+# FanSync Home Assistant Integration 
 
 [![CI](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml/badge.svg)](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/tjbaker/homeassistant-fansync/branch/main/graph/badge.svg)](https://codecov.io/gh/tjbaker/homeassistant-fansync)
 
-Custom Home Assistant integration for Fanimation FanSync devices. Includes a small Python client and runnable examples.
+Custom Home Assistant integration for Fanimation FanSync devices.
 
 ## Requirements
 
@@ -41,28 +41,6 @@ Custom Home Assistant integration for Fanimation FanSync devices. Includes a sma
 
 - Multi-device support currently targets the first device returned. Future versions will create one HA device per FanSync device.
 
-## Examples
-
-Setup and run an example (never commit real credentials):
-```bash
-python -m venv venv
-source venv/bin/activate
-pip install -U pip
-pip install -r requirements-dev.txt
-
-cp examples/credentials.example.py credentials.py  # edit EMAIL/PASSWORD locally
-
-# Run connection test (ensure local credentials.py is importable)
-PYTHONPATH=$(pwd) python examples/test_connection.py
-```
-
-## Repository structure
-
-- `custom_components/fansync/`: HA integration (config flow, coordinator, fan/light entities)
-- `fansync/`: Low-level client (HTTP/WebSocket)
-- `examples/`: Small runnable scripts
-- `tests/`: Pytest suite for the integration
-
 ## Development
 
 - Formatting and linting: configured via `pyproject.toml` (Black + Ruff)
@@ -95,15 +73,7 @@ CI enforces coverage on the integration code (threshold set in the workflow).
 
 ## Security
 
-- Keep secrets in local `credentials.py` (ignored by git). If accidentally committed, remove and rotate credentials:
-```bash
-git rm --cached credentials.py
-git commit -m "Stop tracking credentials.py"
-```
-
-## Attribution
-
-Portions of the reverse-engineered protocol and sample payloads were informed by `rotinom/fansync`: https://github.com/rotinom/fansync
+- Do not commit real credentials. Rotate any credentials that may have been exposed.
 
 ## License
 
