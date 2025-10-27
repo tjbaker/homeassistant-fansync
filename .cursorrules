@@ -40,3 +40,7 @@
  - Use pytest; do not make real network calls. Patch httpx/websocket at module paths (custom_components.fansync.client.*).
  - Coverage focus in CI is custom_components/fansync; target ≥ 60%.
  - For HA services, ensure no blocking I/O in event loop (use hass.async_add_executor_job).
+
+# Git / Commits
+- Commit message subject MUST be ≤ 72 characters (to avoid GitHub truncation).
+- Prefer imperative mood for subjects; wrap body lines at ~72 characters.
