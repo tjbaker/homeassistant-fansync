@@ -56,15 +56,18 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         self._retry_attempts = 5
         self._retry_delay = 0.1
 
-    async def _retry_update_until(self, predicate) -> dict:
-        """Fetch status until predicate passes or attempts exhausted."""
+    async def _retry_update_until(self, predicate) -> tuple[dict, bool]:
+        """Fetch status until predicate passes or attempts exhausted.
+
+        Returns (status, satisfied). If not satisfied, caller may keep optimistic state.
+        """
         status: dict = {}
         for _ in range(self._retry_attempts):
             status = await self.client.async_get_status()
             if predicate(status):
-                break
+                return status, True
             await asyncio.sleep(self._retry_delay)
-        return status
+        return status, False
 
     async def _apply_with_optimism(self, optimistic: dict, payload: dict, confirm_pred):
         previous = self.coordinator.data or {}
@@ -73,10 +76,12 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         try:
             await self.client.async_set(payload)
         except Exception:
+            # Only revert on explicit failure; otherwise keep optimistic state
             self.coordinator.async_set_updated_data(previous)
             raise
-        status = await self._retry_update_until(confirm_pred)
-        self.coordinator.async_set_updated_data(status)
+        status, ok = await self._retry_update_until(confirm_pred)
+        if ok:
+            self.coordinator.async_set_updated_data(status)
 
     @property
     def is_on(self) -> bool:
