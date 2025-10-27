@@ -21,7 +21,7 @@ This repository contains a Home Assistant custom integration. Use these instruct
 - Use asynchronous patterns (`async_*`); avoid blocking I/O in the event loop.
 - For blocking needs, use `hass.async_add_executor_job`.
 - Prefer `CoordinatorEntity` for entities with push updates.
-- Push-first pattern: the coordinator is push-driven (`update_interval=None").
+- Push-first pattern: the coordinator is push-driven (`update_interval=None`).
 - Optimistic updates:
   - Apply per-key overlays immediately to prevent UI snap-back.
   - Confirm via short retry window; clear overlays on confirm; revert on explicit failures.
@@ -55,7 +55,7 @@ This repository contains a Home Assistant custom integration. Use these instruct
 - Guarded optimistic updates with small retry windows.
 - Early returns over deep nesting.
 - Minimal, high-signal comments; explain non-obvious rationale.
-- Robust casting of coordinator data values (e.g., `int | str` to `int").
+- Robust casting of coordinator data values (e.g., `int | str` to `int`).
 
 ## Patterns to avoid
 - Blocking I/O in the event loop.

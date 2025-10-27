@@ -68,6 +68,14 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         # Per-key optimistic overlay
         self._overlay: dict[str, tuple[int, float]] = {}
 
+    def _status_for(self, payload: dict) -> dict[str, object]:
+        """Return this device's status mapping from an aggregated payload."""
+        if isinstance(payload, dict):
+            inner = payload.get(self._device_id, payload)
+            if isinstance(inner, dict):
+                return inner
+        return {}
+
     def _get_with_overlay(self, key: str, default: int) -> int:
         now = time.monotonic()
         entry = self._overlay.get(key)
@@ -161,11 +169,9 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
             pct = None
 
         def _confirm(s: dict, pb: int | None = pct) -> bool:
-            my = s.get(self._device_id, s) if isinstance(s, dict) else s
-            return (
-                isinstance(my, dict)
-                and my.get(KEY_LIGHT_POWER) == 1
-                and (pb is None or my.get(KEY_LIGHT_BRIGHTNESS) == pb)
+            my = self._status_for(s)
+            return my.get(KEY_LIGHT_POWER) == 1 and (
+                pb is None or my.get(KEY_LIGHT_BRIGHTNESS) == pb
             )
 
         await self._apply_with_optimism(optimistic, payload, _confirm)
@@ -176,11 +182,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         await self._apply_with_optimism(
             optimistic,
             payload,
-            lambda s: (
-                isinstance(s, dict)
-                and isinstance(s.get(self._device_id, s), dict)
-                and s.get(self._device_id, s).get(KEY_LIGHT_POWER) == 0
-            ),
+            lambda s: self._status_for(s).get(KEY_LIGHT_POWER) == 0,
         )
 
     async def async_update(self) -> None:
