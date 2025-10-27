@@ -60,7 +60,9 @@ jobs:
           python -m black --check --diff --color $PY_FILES
 
       - name: Mypy (type check)
-        run: mypy .
+        run: |
+          set -euo pipefail
+          mypy --exclude 'venv|\.venv|examples' custom_components/fansync tests
 
       - name: Pytest (with coverage)
         run: pytest -q --cov=custom_components/fansync --cov-report=term-missing --cov-fail-under=75
