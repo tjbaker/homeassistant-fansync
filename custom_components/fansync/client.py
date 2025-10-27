@@ -34,6 +34,7 @@ class FanSyncClient:
         self._ws: websocket.WebSocket | None = None
         self._token: str | None = None
         self._device_id: str | None = None
+        self._device_ids: list[str] = []
         self._status_callback: Callable[[dict[str, Any]], None] | None = None
         self._running: bool = False
         self._recv_lock: threading.Lock = threading.Lock()
@@ -69,12 +70,15 @@ class FanSyncClient:
             raw = ws.recv()
             payload = json.loads(raw if isinstance(raw, str) else raw.decode())
             devices = payload.get("data") or []
-            device_id = devices[0]["device"] if devices else None
+            device_ids = [d.get("device") for d in devices if isinstance(d, dict)]
+            device_ids = [d for d in device_ids if d]
+            device_id = device_ids[0] if device_ids else None
 
             self._http = session
             self._ws = ws
             self._token = token
             self._device_id = device_id
+            self._device_ids = device_ids
             self._running = True
 
         await self.hass.async_add_executor_job(_connect)
@@ -168,24 +172,21 @@ class FanSyncClient:
             raise RuntimeError("Websocket login failed")
         self._ws = ws
 
-    async def async_get_status(self) -> dict[str, Any]:
+    async def async_get_status(self, device_id: str | None = None) -> dict[str, Any]:
         def _get():
-            assert self._device_id is not None
+            did = device_id or self._device_id
+            assert did is not None
             self._ensure_ws_connected()
             assert self._ws is not None
             with self._recv_lock:
                 try:
-                    self._ws.send(
-                        json.dumps({"id": 3, "request": "get", "device": self._device_id})
-                    )
+                    self._ws.send(json.dumps({"id": 3, "request": "get", "device": did}))
                 except WebSocketConnectionClosedException:
                     # reconnect and retry once
                     self._ws = None
                     self._ensure_ws_connected()
                     assert self._ws is not None
-                    self._ws.send(
-                        json.dumps({"id": 3, "request": "get", "device": self._device_id})
-                    )
+                    self._ws.send(json.dumps({"id": 3, "request": "get", "device": did}))
                 # Bounded read to find the response
                 for _ in range(5):
                     raw = self._ws.recv()
@@ -196,15 +197,16 @@ class FanSyncClient:
 
         return await self.hass.async_add_executor_job(_get)
 
-    async def async_set(self, data: dict[str, int]):
+    async def async_set(self, data: dict[str, int], *, device_id: str | None = None):
         def _set():
-            assert self._device_id is not None
+            did = device_id or self._device_id
+            assert did is not None
             self._ensure_ws_connected()
             assert self._ws is not None
             message = {
                 "id": 4,
                 "request": "set",
-                "device": self._device_id,
+                "device": did,
                 "data": data,
             }
             with self._recv_lock:
@@ -248,6 +250,13 @@ class FanSyncClient:
     @property
     def device_id(self) -> str | None:
         return self._device_id
+
+    @property
+    def device_ids(self) -> list[str]:
+        # Fallback to single device if list is empty
+        if self._device_ids:
+            return list(self._device_ids)
+        return [d for d in [self._device_id] if d]
 
     def set_status_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         self._status_callback = callback

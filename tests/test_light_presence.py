@@ -23,10 +23,10 @@ async def test_light_not_created_when_no_light_keys(hass: HomeAssistant):
         async def async_disconnect(self):
             return None
 
-        async def async_get_status(self):
+        async def async_get_status(self, device_id: str | None = None):
             return self.status
 
-        async def async_set(self, data):
+        async def async_set(self, data, *, device_id: str | None = None):
             self.status.update(data)
 
     client = _Mock()

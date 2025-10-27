@@ -35,13 +35,18 @@ async def async_setup_entry(
     shared = hass.data[DOMAIN][entry.entry_id]
     coordinator: FanSyncCoordinator = shared["coordinator"]
     client: FanSyncClient = shared["client"]
-    # Only add a light entity if the device reports light capabilities
-    status = coordinator.data
-    if not status:
-        status = await client.async_get_status()
-        coordinator.async_set_updated_data(status)
-    if KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status:
-        async_add_entities([FanSyncLight(coordinator, client)])
+    entities: list[FanSyncLight] = []
+    # Ensure coordinator has aggregated data
+    data = coordinator.data
+    if not data:
+        await coordinator.async_request_refresh()
+        data = coordinator.data or {}
+    # Create a light per device if it reports light keys
+    if isinstance(data, dict):
+        for did, status in data.items():
+            if KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status:
+                entities.append(FanSyncLight(coordinator, client, did))
+    async_add_entities(entities)
 
 
 class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
@@ -50,18 +55,26 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
     _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
     _attr_color_mode = ColorMode.BRIGHTNESS
 
-    def __init__(self, coordinator: FanSyncCoordinator, client: FanSyncClient):
+    def __init__(self, coordinator: FanSyncCoordinator, client: FanSyncClient, device_id: str):
         super().__init__(coordinator)
         self.coordinator = coordinator
         self.client = client
-        device_id = client.device_id or "unknown"
-        self._attr_unique_id = f"{DOMAIN}_{device_id}_light"
+        self._device_id = device_id or "unknown"
+        self._attr_unique_id = f"{DOMAIN}_{self._device_id}_light"
         self._retry_attempts = 5
         self._retry_delay = 0.1
         self._optimistic_until: float | None = None
         self._optimistic_predicate: Callable[[dict], bool] | None = None
         # Per-key optimistic overlay
         self._overlay: dict[str, tuple[int, float]] = {}
+
+    def _status_for(self, payload: dict) -> dict[str, object]:
+        """Return this device's status mapping from an aggregated payload."""
+        if isinstance(payload, dict):
+            inner = payload.get(self._device_id, payload)
+            if isinstance(inner, dict):
+                return inner
+        return {}
 
     def _get_with_overlay(self, key: str, default: int) -> int:
         now = time.monotonic()
@@ -71,14 +84,23 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
             if now <= expires:
                 return value
             self._overlay.pop(key, None)
-        status = self.coordinator.data or {}
-        return int(status.get(key, default))
+        status = self._status_for(self.coordinator.data or {})
+        raw = status.get(key, default)
+        if isinstance(raw, int | str):
+            try:
+                return int(raw)
+            except (ValueError, TypeError):
+                pass
+        return int(default)
 
     async def _retry_update_until(self, predicate: Callable[[dict], bool]) -> tuple[dict, bool]:
         """Fetch status until predicate passes or attempts exhausted."""
         status: dict = {}
         for _ in range(self._retry_attempts):
-            status = await self.client.async_get_status()
+            try:
+                status = await self.client.async_get_status(self._device_id)
+            except TypeError:
+                status = await self.client.async_get_status()
             if predicate(status):
                 return status, True
             await asyncio.sleep(self._retry_delay)
@@ -90,27 +112,37 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         payload: dict,
         confirm_pred: Callable[[dict], bool],
     ) -> None:
-        previous = self.coordinator.data or {}
-        optimistic_state = {**previous, **optimistic}
+        all_previous = self.coordinator.data or {}
+        prev_for_device = (
+            all_previous.get(self._device_id, {}) if isinstance(all_previous, dict) else {}
+        )
+        optimistic_state_for_device = {**prev_for_device, **optimistic}
+        optimistic_all = dict(all_previous) if isinstance(all_previous, dict) else {}
+        optimistic_all[self._device_id] = optimistic_state_for_device
         expires = time.monotonic() + 8.0
         for k, v in optimistic.items():
             if k in OVERLAY_KEYS:
                 self._overlay[k] = (int(v), expires)
-        self.coordinator.async_set_updated_data(optimistic_state)
+        self.coordinator.async_set_updated_data(optimistic_all)
         self._optimistic_until = expires
         self._optimistic_predicate = confirm_pred
         try:
-            await self.client.async_set(payload)
+            try:
+                await self.client.async_set(payload, device_id=self._device_id)
+            except TypeError:
+                await self.client.async_set(payload)
         except Exception:
             self._optimistic_until = None
             self._optimistic_predicate = None
             for k in optimistic.keys():
                 self._overlay.pop(k, None)
-            self.coordinator.async_set_updated_data(previous)
+            self.coordinator.async_set_updated_data(all_previous)
             raise
         status, ok = await self._retry_update_until(confirm_pred)
         if ok:
-            self.coordinator.async_set_updated_data(status)
+            new_all = dict(self.coordinator.data or {})
+            new_all[self._device_id] = status
+            self.coordinator.async_set_updated_data(new_all)
             self._optimistic_until = None
             self._optimistic_predicate = None
             for k in optimistic.keys():
@@ -136,7 +168,10 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
             pct = None
 
         def _confirm(s: dict, pb: int | None = pct) -> bool:
-            return s.get(KEY_LIGHT_POWER) == 1 and (pb is None or s.get(KEY_LIGHT_BRIGHTNESS) == pb)
+            my = self._status_for(s)
+            return my.get(KEY_LIGHT_POWER) == 1 and (
+                pb is None or my.get(KEY_LIGHT_BRIGHTNESS) == pb
+            )
 
         await self._apply_with_optimism(optimistic, payload, _confirm)
 
@@ -146,7 +181,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         await self._apply_with_optimism(
             optimistic,
             payload,
-            lambda s: s.get(KEY_LIGHT_POWER) == 0,
+            lambda s: self._status_for(s).get(KEY_LIGHT_POWER) == 0,
         )
 
     async def async_update(self) -> None:
@@ -164,7 +199,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        device_id = self.client.device_id or "unknown"
+        device_id = self._device_id or "unknown"
         return DeviceInfo(
             identifiers={(DOMAIN, device_id)},
             manufacturer="Fanimation",

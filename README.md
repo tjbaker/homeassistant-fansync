@@ -37,9 +37,6 @@ Custom Home Assistant integration for Fanimation FanSync devices.
 | Password    | FanSync account password                                     | –       |
 | Verify SSL  | Verify HTTPS certificates when connecting to FanSync cloud   | True    |
 
-## Notes & limitations
-
-- Multi-device support currently targets the first device returned. Future versions will create one HA device per FanSync device.
 
 ## Development
 
