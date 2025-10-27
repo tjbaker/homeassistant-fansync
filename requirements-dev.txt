@@ -7,7 +7,5 @@ black
 pytest-cov
 mypy
 # Runtime deps required by integration (for local tests)
-bidict
-websocket-client
-pydantic
 httpx
+websocket-client
