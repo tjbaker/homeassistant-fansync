@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.config_entries import ConfigEntry
@@ -55,6 +56,8 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         self._attr_unique_id = f"{DOMAIN}_{device_id}_fan"
         self._retry_attempts = 5
         self._retry_delay = 0.1
+        self._optimistic_until: float | None = None
+        self._optimistic_predicate = None
 
     async def _retry_update_until(self, predicate) -> tuple[dict, bool]:
         """Fetch status until predicate passes or attempts exhausted.
@@ -73,15 +76,23 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         previous = self.coordinator.data or {}
         optimistic_state = {**previous, **optimistic}
         self.coordinator.async_set_updated_data(optimistic_state)
+        # Guard against snap-back from interim coordinator refreshes for ~2s
+        self._optimistic_until = time.monotonic() + 2.0
+        self._optimistic_predicate = confirm_pred
         try:
             await self.client.async_set(payload)
         except Exception:
             # Only revert on explicit failure; otherwise keep optimistic state
+            # Clear guard first so revert is not ignored
+            self._optimistic_until = None
+            self._optimistic_predicate = None
             self.coordinator.async_set_updated_data(previous)
             raise
         status, ok = await self._retry_update_until(confirm_pred)
         if ok:
             self.coordinator.async_set_updated_data(status)
+            self._optimistic_until = None
+            self._optimistic_predicate = None
 
     @property
     def is_on(self) -> bool:
@@ -168,6 +179,19 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
 
     async def async_update(self) -> None:
         await self.coordinator.async_request_refresh()
+
+    def _handle_coordinator_update(self) -> None:
+        # During a grace window after a set, ignore updates that do not
+        # satisfy the optimistic target to avoid UI snap-back.
+        if self._optimistic_until is not None and time.monotonic() < self._optimistic_until:
+            pred = self._optimistic_predicate
+            data = self.coordinator.data or {}
+            if callable(pred) and not pred(data):
+                return
+            # Predicate satisfied; clear the guard.
+            self._optimistic_until = None
+            self._optimistic_predicate = None
+        super()._handle_coordinator_update()
 
     @property
     def device_info(self) -> DeviceInfo:
