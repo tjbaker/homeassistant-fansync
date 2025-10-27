@@ -23,6 +23,9 @@ from .const import (
 )
 from .coordinator import FanSyncCoordinator
 
+# Only overlay keys that directly affect HA UI state to prevent snap-back
+OVERLAY_KEYS = {KEY_LIGHT_POWER, KEY_LIGHT_BRIGHTNESS}
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -91,7 +94,8 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         optimistic_state = {**previous, **optimistic}
         expires = time.monotonic() + 8.0
         for k, v in optimistic.items():
-            self._overlay[k] = (int(v), expires)
+            if k in OVERLAY_KEYS:
+                self._overlay[k] = (int(v), expires)
         self.coordinator.async_set_updated_data(optimistic_state)
         self._optimistic_until = expires
         self._optimistic_predicate = confirm_pred
@@ -130,13 +134,11 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
             payload[KEY_LIGHT_BRIGHTNESS] = pct
         else:
             pct = None
-        check_brightness = pct is not None
-        await self._apply_with_optimism(
-            optimistic,
-            payload,
-            lambda s: s.get(KEY_LIGHT_POWER) == 1
-            and (not check_brightness or s.get(KEY_LIGHT_BRIGHTNESS) == pct),
-        )
+
+        def _confirm(s: dict, pb: int | None = pct) -> bool:
+            return s.get(KEY_LIGHT_POWER) == 1 and (pb is None or s.get(KEY_LIGHT_BRIGHTNESS) == pb)
+
+        await self._apply_with_optimism(optimistic, payload, _confirm)
 
     async def async_turn_off(self, **kwargs):
         optimistic = {KEY_LIGHT_POWER: 0}

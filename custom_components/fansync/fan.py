@@ -25,6 +25,9 @@ from .const import (
 )
 from .coordinator import FanSyncCoordinator
 
+# Only overlay keys that directly affect HA UI state to prevent snap-back
+OVERLAY_KEYS = {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -98,7 +101,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         # Apply per-key overlays to keep UI stable; use an 8s guard window
         expires = time.monotonic() + 8.0
         for k, v in optimistic.items():
-            if k in {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}:
+            if k in OVERLAY_KEYS:
                 self._overlay[k] = (int(v), expires)
         self.coordinator.async_set_updated_data(optimistic_state)
         # Guard against snap-back from interim coordinator refreshes
@@ -164,15 +167,19 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             payload[KEY_PRESET] = target_preset
         else:
             target_preset = None
-        has_speed = target_speed is not None
-        has_preset = target_preset is not None
-        await self._apply_with_optimism(
-            optimistic,
-            payload,
-            lambda s: s.get(KEY_POWER) == 1
-            and (not has_speed or s.get(KEY_SPEED) == target_speed)
-            and (not has_preset or s.get(KEY_PRESET) == target_preset),
-        )
+
+        def _confirm(
+            s: dict,
+            ts: int | None = target_speed,
+            tp: int | None = target_preset,
+        ) -> bool:
+            return (
+                s.get(KEY_POWER) == 1
+                and (ts is None or s.get(KEY_SPEED) == ts)
+                and (tp is None or s.get(KEY_PRESET) == tp)
+            )
+
+        await self._apply_with_optimism(optimistic, payload, _confirm)
 
     async def async_turn_off(self, **kwargs):
         # Toggling power should not change percentage speed
