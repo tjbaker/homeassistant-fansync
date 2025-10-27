@@ -73,7 +73,9 @@ class Websocket:
         # Use default cert verification unless explicitly disabled
         if self._verify_ssl:
             # Prefer user-provided CA bundle if available
-            ca_path = os.getenv("REQUESTS_CA_BUNDLE") or os.getenv("SSL_CERT_FILE") or certifi.where()
+            ca_path = (
+                os.getenv("REQUESTS_CA_BUNDLE") or os.getenv("SSL_CERT_FILE") or certifi.where()
+            )
             self._websocket = websocket.WebSocket(sslopt={"ca_certs": ca_path})
         else:
             self._websocket = websocket.WebSocket(sslopt={"cert_reqs": ssl.CERT_NONE})
@@ -83,7 +85,9 @@ class Websocket:
         print("connected")
 
     def login(self):
-        payload = LoginRequest(id=self._get_id(), data=LoginRequest.Data(token=self._token.get_secret_value()))
+        payload = LoginRequest(
+            id=self._get_id(), data=LoginRequest.Data(token=self._token.get_secret_value())
+        )
         print("Logging in websocket...", end="", flush=True)
         self._send(payload)
 
@@ -141,10 +145,6 @@ class Websocket:
     #         else:
     #             print(message)
 
-
-
-
-
     # def run(self):
     #     # Perform initial enumeration of devices
     #     device_response = self.list_devices()
@@ -152,9 +152,6 @@ class Websocket:
     #     for d in device_response.data:
     #         device = WebsocketDevice(self._device_factory, self._websocket, d)
     #         device.set_device_state(self.get_device(d))
-
-
-
 
     # async def runnnn(self):
     #
@@ -200,30 +197,26 @@ class Websocket:
     #         for d in device_response.data:
     #             getDevice = await self.get_device(websocket, d)
 
-
-
-        #
-        # for i in range(0, 3):
-        #     try:
-        #         self._websocket = ws_connect(endpoint, open_timeout=10, ssl_context=ssl_ctx)
-        #         break
-        #     except TimeoutError as e:
-        #         print("Timed out trying to connect to: %s\n%s" % (endpoint, e))
-        #
-        # if self._websocket is None:
-        #     raise Exception("Could not connect websocket to: %s" % (endpoint))
-        #
-        # self._start_recv_thread()
-        #
-        # self._login()
-        # self._provision_token()
+    #
+    # for i in range(0, 3):
+    #     try:
+    #         self._websocket = ws_connect(endpoint, open_timeout=10, ssl_context=ssl_ctx)
+    #         break
+    #     except TimeoutError as e:
+    #         print("Timed out trying to connect to: %s\n%s" % (endpoint, e))
+    #
+    # if self._websocket is None:
+    #     raise Exception("Could not connect websocket to: %s" % (endpoint))
+    #
+    # self._start_recv_thread()
+    #
+    # self._login()
+    # self._provision_token()
 
     #
     # def _start_recv_thread(self):
     #     print("Starting receive thread")
     #     self._ws_recv_thread.start()
-
-
 
     #
     # def close(self):
@@ -261,8 +254,6 @@ class Websocket:
     #     # if message is None:
     #     #     raise TimeoutError("Timed out waiting for websocket login response")
 
-
-
     # def _provision_token(self):
     #     print("Provisioning token..")
     #     data = json.dumps({
@@ -277,12 +268,8 @@ class Websocket:
     #     # print(f"Received: {message}")
 
     def list_devices(self) -> ListDevicesResponse:
-
         print("Listing devices...")
-        request = ListDevicesRequest(
-            id=self._get_id(),
-            request="lst_device"
-        )
+        request = ListDevicesRequest(id=self._get_id(), request="lst_device")
 
         self._send(request)
         ret = ListDevicesResponse(**json.loads(self._recv()))
@@ -295,17 +282,12 @@ class Websocket:
         # ret = ListDevicesResponse(**json.loads(self._websocket.recv()))
         # print(f"Received: {ret}")
 
-
         #
         # for device in ret.data:
         #     d : Device = self.get_device(device)
 
     def set_device(self, device_id: str, data: dict[str, int]):
-        request = \
-            SetRequest(
-                id=self._get_id(),
-                device=device_id,
-                data=data)
+        request = SetRequest(id=self._get_id(), device=device_id, data=data)
 
         self._send(request)
         # Wait for the set response
@@ -314,9 +296,7 @@ class Websocket:
     def get_device(self, device: ListDevicesResponse.Device) -> GetDeviceResponse:
         # print(f"Querying device '{device.properties.displayName} ({device.device})'")
 
-        request = GetDeviceRequest(
-            id=self._get_id(),
-            device=device.device)
+        request = GetDeviceRequest(id=self._get_id(), device=device.device)
 
         self._send(request)
 
@@ -337,6 +317,8 @@ class Websocket:
         # print(raw)
         #
         # ret = GetDeviceResponse(**raw)
+
+
 #
 #         fan_power = "On" if ret.data.get_fan_power() else "Off"
 #         lgt_power = "On" if ret.data.get_light_power() else "Off"
@@ -357,40 +339,38 @@ class Websocket:
 # """)
 
 
-
-    # def fuzz(self, url, use_auth=False):
-    #
-    #     headers = []
-    #     if use_auth:
-    #         headers = {"Authorization:",  "Bearer %s" % self._token}
-    #
-    #     methods = [
-    #         self._client.get,
-    #         self._client.head,
-    #         self._client.post,
-    #         self._client.put,
-    #         # self._client.delete,
-    #         self._client.options,
-    #         self._client.patch
-    #     ]
-    #
-    #     ignore_codes = set()
-    #     ignore_codes.add(404)
-    #     ignore_codes.add(415)
-    #
-    #     for m in methods:
-    #
-    #         r = m(url, headers=headers)
-    #         if r.status_code in ignore_codes:
-    #             continue
-    #
-    #         print("%s %s - %s" % (m.__name__.upper(), url, r.status_code))
-    #         try:
-    #             if r.content.strip() != "":
-    #                 pass
-    #                 print(r.content)
-    #                 # print(r.headers)
-    #         except:
-    #             # Swallow
-    #             pass
-
+# def fuzz(self, url, use_auth=False):
+#
+#     headers = []
+#     if use_auth:
+#         headers = {"Authorization:",  "Bearer %s" % self._token}
+#
+#     methods = [
+#         self._client.get,
+#         self._client.head,
+#         self._client.post,
+#         self._client.put,
+#         # self._client.delete,
+#         self._client.options,
+#         self._client.patch
+#     ]
+#
+#     ignore_codes = set()
+#     ignore_codes.add(404)
+#     ignore_codes.add(415)
+#
+#     for m in methods:
+#
+#         r = m(url, headers=headers)
+#         if r.status_code in ignore_codes:
+#             continue
+#
+#         print("%s %s - %s" % (m.__name__.upper(), url, r.status_code))
+#         try:
+#             if r.content.strip() != "":
+#                 pass
+#                 print(r.content)
+#                 # print(r.headers)
+#         except:
+#             # Swallow
+#             pass

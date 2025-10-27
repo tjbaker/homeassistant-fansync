@@ -73,7 +73,7 @@ class LoginRequest(Request):
     class Data(BaseModel):
         token: SecretStr
 
-        @field_serializer('token', when_used='json')
+        @field_serializer("token", when_used="json")
         def dump_secret(self, v):
             return v.get_secret_value()
 
@@ -121,7 +121,6 @@ class User(BaseModel):
 
 
 class GetDeviceResponse(Response):
-
     class Module(BaseModel):
         firmware_version: str
         local_ip: str
@@ -136,13 +135,12 @@ class GetDeviceResponse(Response):
         model: str
 
     class Data(BaseModel):
-
         class Profile(BaseModel):
             module: GetDeviceResponse.Module  # forward reference
-            esh: GetDeviceResponse.Esh        # forward reference
+            esh: GetDeviceResponse.Esh  # forward reference
 
             class Config:
-                exclude = ['cert']
+                exclude = ["cert"]
 
         users: list[User]
         status: dict[str, int]

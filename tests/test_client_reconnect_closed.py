@@ -24,10 +24,14 @@ def _lst_device_ok(device_id: str = "id") -> str:
 
 async def test_get_reconnects_on_closed_socket(hass: HomeAssistant):
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
-    with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
-         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+    ):
         http_inst = http_cls.return_value
-        http_inst.post.return_value = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}})()
+        http_inst.post.return_value = type(
+            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
+        )()
         ws = ws_cls.return_value
         ws.connect.return_value = None
 
@@ -56,15 +60,15 @@ async def test_get_reconnects_on_closed_socket(hass: HomeAssistant):
             # after reconnecting in ensure_ws_connected: login ok
             _login_ok(),
             # then get response
-            json.dumps({
-                "status": "ok",
-                "response": "get",
-                "data": {"status": {"H00": 1, "H02": 33}},
-                "id": 3,
-            }),
+            json.dumps(
+                {
+                    "status": "ok",
+                    "response": "get",
+                    "data": {"status": {"H00": 1, "H02": 33}},
+                    "id": 3,
+                }
+            ),
         ]
 
         status = await c.async_get_status()
         assert status.get("H02") == 33
-
-

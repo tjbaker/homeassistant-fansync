@@ -42,10 +42,14 @@ def _get_ok(status: dict[str, int] | None = None) -> str:
 
 async def test_connect_sets_device_id(hass: HomeAssistant):
     c = FanSyncClient(hass, "e@example.com", "p", verify_ssl=True, enable_push=False)
-    with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
-         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+    ):
         http_inst = http_cls.return_value
-        http_inst.post.return_value = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}})()
+        http_inst.post.return_value = type(
+            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
+        )()
         ws = ws_cls.return_value
         ws.connect.return_value = None
         ws.recv.side_effect = [_login_ok(), _lst_device_ok("dev-123")]
@@ -57,10 +61,14 @@ async def test_connect_sets_device_id(hass: HomeAssistant):
 
 async def test_get_status_returns_mapping(hass: HomeAssistant):
     c = FanSyncClient(hass, "e", "p", verify_ssl=False, enable_push=False)
-    with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
-         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+    ):
         http_inst = http_cls.return_value
-        http_inst.post.return_value = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}})()
+        http_inst.post.return_value = type(
+            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
+        )()
         ws = ws_cls.return_value
         ws.connect.return_value = None
         # login, list, then get
@@ -80,10 +88,14 @@ async def test_get_status_returns_mapping(hass: HomeAssistant):
 
 async def test_async_set_triggers_callback(hass: HomeAssistant):
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
-    with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
-         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+    ):
         http_inst = http_cls.return_value
-        http_inst.post.return_value = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}})()
+        http_inst.post.return_value = type(
+            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
+        )()
         ws = ws_cls.return_value
         ws.connect.return_value = None
         # login, list, set ack, get
@@ -109,22 +121,28 @@ async def test_async_set_triggers_callback(hass: HomeAssistant):
 
 async def test_async_set_uses_ack_status_when_present(hass: HomeAssistant):
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
-    with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
-         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+    ):
         http_inst = http_cls.return_value
-        http_inst.post.return_value = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}})()
+        http_inst.post.return_value = type(
+            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
+        )()
         ws = ws_cls.return_value
         ws.connect.return_value = None
         # login, list, then set ACK with embedded status (no subsequent get response provided)
         ws.recv.side_effect = [
             _login_ok(),
             _lst_device_ok("id"),
-            json.dumps({
-                "status": "ok",
-                "response": "set",
-                "id": 4,
-                "data": {"status": {"H00": 0, "H02": 1}},
-            }),
+            json.dumps(
+                {
+                    "status": "ok",
+                    "response": "set",
+                    "id": 4,
+                    "data": {"status": {"H00": 0, "H02": 1}},
+                }
+            ),
         ]
 
         seen: list[dict[str, int]] = []
@@ -137,12 +155,17 @@ async def test_async_set_uses_ack_status_when_present(hass: HomeAssistant):
     # Should have used ACK status directly without needing a separate get
     assert seen and seen[-1].get("H00") == 0 and seen[-1].get("H02") == 1
 
+
 async def test_connect_ws_login_failure_raises(hass: HomeAssistant):
     c = FanSyncClient(hass, "e", "p")
-    with patch("custom_components.fansync.client.httpx.Client") as http_cls, \
-         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls:
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+    ):
         http_inst = http_cls.return_value
-        http_inst.post.return_value = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}})()
+        http_inst.post.return_value = type(
+            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
+        )()
         ws = ws_cls.return_value
         ws.connect.return_value = None
         ws.recv.side_effect = [json.dumps({"status": "fail", "response": "login", "id": 1})]
@@ -158,5 +181,3 @@ async def test_connect_http_error_bubbles(hass: HomeAssistant):
         http_inst.post.side_effect = RuntimeError("boom")
         with pytest.raises(RuntimeError):
             await c.async_connect()
-
-

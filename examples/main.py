@@ -34,6 +34,7 @@ from fansync.models import Credentials, GetDeviceResponse
 
 CREDENTIALS_FILE = ".fansync-credentials"
 
+
 def _load_cached_credentials() -> Credentials | None:
     print("Trying to load cached credential token...", end="")
     _id = None
@@ -56,7 +57,6 @@ def _load_cached_credentials() -> Credentials | None:
     return None
 
 
-
 def _save_cached_credentials(creds: Credentials):
     with open(CREDENTIALS_FILE, "w") as creds_file:
         creds_file.write(json.dumps(creds.model_dump()))
@@ -64,48 +64,48 @@ def _save_cached_credentials(creds: Credentials):
 
 # try:
 
-    # creds = _load_cached_credentials()
-    #
-    # h = HttpApi()
-    #
-    # h.options_session()
-    # credentials: Credentials = h.post_session(EMAIL, PASSWORD)
-    # h.get_session(credentials)
-    #
-    # # credentials: Credentials = Credentials(id=10, token="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjI3MTA2LCJpc3MiOiJodHRwOi8vc3BoaW54LXVzbTo0MDcwL2FwaS92MS91c2VyL2xvZ2luIiwiaWF0IjoxNjkxOTYwMzgyLCJleHAiOjE2OTQ1NTIzODIsIm5iZiI6MTY5MTk2MDM4MiwianRpIjoiejVvNXhzU2NkODFMOFRFNSJ9.MOb2wAr4AVKUUEIe3kgdJpZE_rqEljOCCznHoEigBu8")
-    #
-    # if not credentials:
-    #     raise AuthFailed()
-    #
-    # ws = fansync.Websocket(credentials.token)
-    # ws.connect()
-    #
-    # try:
-    #     ws.login()
-    #     ws.provision_token()
-    # except Exception as e:
-    #     print(e)
-    #     ws.close()
-    #
-    #
-    # def run(self):
-    #     devices: ListDevicesResponse = self.list_devices()
-    #     for device in devices.data:
-    #         d: GetDeviceResponse = self.get_device(device)
-    #         self._devices[d.data.device] = Device(self, device.properties.displayName, d)
-    #
-    #
+# creds = _load_cached_credentials()
+#
+# h = HttpApi()
+#
+# h.options_session()
+# credentials: Credentials = h.post_session(EMAIL, PASSWORD)
+# h.get_session(credentials)
+#
+# # credentials: Credentials = Credentials(id=10, token="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjI3MTA2LCJpc3MiOiJodHRwOi8vc3BoaW54LXVzbTo0MDcwL2FwaS92MS91c2VyL2xvZ2luIiwiaWF0IjoxNjkxOTYwMzgyLCJleHAiOjE2OTQ1NTIzODIsIm5iZiI6MTY5MTk2MDM4MiwianRpIjoiejVvNXhzU2NkODFMOFRFNSJ9.MOb2wAr4AVKUUEIe3kgdJpZE_rqEljOCCznHoEigBu8")
+#
+# if not credentials:
+#     raise AuthFailed()
+#
+# ws = fansync.Websocket(credentials.token)
+# ws.connect()
+#
+# try:
+#     ws.login()
+#     ws.provision_token()
+# except Exception as e:
+#     print(e)
+#     ws.close()
+#
+#
+# def run(self):
+#     devices: ListDevicesResponse = self.list_devices()
+#     for device in devices.data:
+#         d: GetDeviceResponse = self.get_device(device)
+#         self._devices[d.data.device] = Device(self, device.properties.displayName, d)
+#
+#
 
-    # listDeviceResponse = f.ws_list_devices()
-    # for i in range(100):
-    #     time.sleep(0.5)
-    #     for device in listDeviceResponse.data:
-    #         f.ws_get_device(device)
+# listDeviceResponse = f.ws_list_devices()
+# for i in range(100):
+#     time.sleep(0.5)
+#     for device in listDeviceResponse.data:
+#         f.ws_get_device(device)
 
-    # time.sleep(100.0)
+# time.sleep(100.0)
 # finally:
 #     pass
-    # f.close()
+# f.close()
 
 with open("samples/http/info-model.json") as infoModel:
     df: DeviceFactory = DeviceFactory(json.loads(infoModel.read()))
