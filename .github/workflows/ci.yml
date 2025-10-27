@@ -50,7 +50,8 @@ jobs:
         run: ruff check --force-exclude .
 
       - name: Black (format check)
-        run: black --check --diff --color .
+        run: |
+          python -m black --check --diff --color custom_components/fansync fansync tests examples
 
       - name: Mypy (type check)
         run: mypy .
