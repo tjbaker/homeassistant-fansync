@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
+
 from homeassistant.components.light import ColorMode, LightEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -50,34 +53,109 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         self.client = client
         device_id = client.device_id or "unknown"
         self._attr_unique_id = f"{DOMAIN}_{device_id}_light"
+        self._retry_attempts = 5
+        self._retry_delay = 0.1
+        self._optimistic_until: float | None = None
+        self._optimistic_predicate = None
+        # Per-key optimistic overlay
+        self._overlay: dict[str, tuple[int, float]] = {}
+
+    def _get_with_overlay(self, key: str, default: int) -> int:
+        now = time.monotonic()
+        entry = self._overlay.get(key)
+        if entry is not None:
+            value, expires = entry
+            if now <= expires:
+                return value
+            self._overlay.pop(key, None)
+        status = self.coordinator.data or {}
+        return int(status.get(key, default))
+
+    async def _retry_update_until(self, predicate) -> tuple[dict, bool]:
+        """Fetch status until predicate passes or attempts exhausted."""
+        status: dict = {}
+        for _ in range(self._retry_attempts):
+            status = await self.client.async_get_status()
+            if predicate(status):
+                return status, True
+            await asyncio.sleep(self._retry_delay)
+        return status, False
+
+    async def _apply_with_optimism(self, optimistic: dict, payload: dict, confirm_pred):
+        previous = self.coordinator.data or {}
+        optimistic_state = {**previous, **optimistic}
+        expires = time.monotonic() + 8.0
+        for k, v in optimistic.items():
+            try:
+                self._overlay[k] = (int(v), expires)
+            except Exception:
+                self._overlay[k] = (v, expires)  # type: ignore[assignment]
+        self.coordinator.async_set_updated_data(optimistic_state)
+        self._optimistic_until = expires
+        self._optimistic_predicate = confirm_pred
+        try:
+            await self.client.async_set(payload)
+        except Exception:
+            self._optimistic_until = None
+            self._optimistic_predicate = None
+            for k in optimistic.keys():
+                self._overlay.pop(k, None)
+            self.coordinator.async_set_updated_data(previous)
+            raise
+        status, ok = await self._retry_update_until(confirm_pred)
+        if ok:
+            self.coordinator.async_set_updated_data(status)
+            self._optimistic_until = None
+            self._optimistic_predicate = None
+            for k in optimistic.keys():
+                self._overlay.pop(k, None)
 
     @property
     def is_on(self) -> bool:
-        status = self.coordinator.data or {}
-        return status.get(KEY_LIGHT_POWER, 0) == 1
+        return self._get_with_overlay(KEY_LIGHT_POWER, 0) == 1
 
     @property
     def brightness(self) -> int | None:
-        status = self.coordinator.data or {}
-        val = status.get(KEY_LIGHT_BRIGHTNESS, 0)
+        val = self._get_with_overlay(KEY_LIGHT_BRIGHTNESS, 0)
         return pct_to_ha_brightness(val)
 
     async def async_turn_on(self, brightness: int | None = None, **kwargs):
-        data = {KEY_LIGHT_POWER: 1}
+        optimistic = {KEY_LIGHT_POWER: 1}
+        payload = {KEY_LIGHT_POWER: 1}
         if brightness is not None:
             pct = ha_brightness_to_pct(brightness)
-            data[KEY_LIGHT_BRIGHTNESS] = pct
-        await self.client.async_set(data)
-        status = await self.client.async_get_status()
-        self.coordinator.async_set_updated_data(status)
+            optimistic[KEY_LIGHT_BRIGHTNESS] = pct
+            payload[KEY_LIGHT_BRIGHTNESS] = pct
+        else:
+            pct = None
+        await self._apply_with_optimism(
+            optimistic,
+            payload,
+            lambda s: s.get(KEY_LIGHT_POWER) == 1
+            and (pct is None or s.get(KEY_LIGHT_BRIGHTNESS) == pct),
+        )
 
     async def async_turn_off(self, **kwargs):
-        await self.client.async_set({KEY_LIGHT_POWER: 0})
-        status = await self.client.async_get_status()
-        self.coordinator.async_set_updated_data(status)
+        optimistic = {KEY_LIGHT_POWER: 0}
+        payload = {KEY_LIGHT_POWER: 0}
+        await self._apply_with_optimism(
+            optimistic,
+            payload,
+            lambda s: s.get(KEY_LIGHT_POWER) == 0,
+        )
 
     async def async_update(self) -> None:
         await self.coordinator.async_request_refresh()
+
+    def _handle_coordinator_update(self) -> None:
+        if self._optimistic_until is not None and time.monotonic() < self._optimistic_until:
+            pred = self._optimistic_predicate
+            data = self.coordinator.data or {}
+            if callable(pred) and not pred(data):
+                return
+            self._optimistic_until = None
+            self._optimistic_predicate = None
+        super()._handle_coordinator_update()
 
     @property
     def device_info(self) -> DeviceInfo:
