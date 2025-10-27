@@ -34,6 +34,7 @@ async def async_setup_entry(
     client: FanSyncClient = shared["client"]
     async_add_entities([FanSyncFan(coordinator, client)])
 
+
 class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
     _attr_has_entity_name = False
     _attr_name = "fan"
@@ -52,8 +53,8 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         self.client = client
         device_id = client.device_id or "unknown"
         self._attr_unique_id = f"{DOMAIN}_{device_id}_fan"
-        self._retry_attempts = 3
-        self._retry_delay = 0.2
+        self._retry_attempts = 5
+        self._retry_delay = 0.1
 
     async def _retry_update_until(self, predicate) -> dict:
         """Fetch status until predicate passes or attempts exhausted."""
@@ -64,6 +65,18 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
                 break
             await asyncio.sleep(self._retry_delay)
         return status
+
+    async def _apply_with_optimism(self, optimistic: dict, payload: dict, confirm_pred):
+        previous = self.coordinator.data or {}
+        optimistic_state = {**previous, **optimistic}
+        self.coordinator.async_set_updated_data(optimistic_state)
+        try:
+            await self.client.async_set(payload)
+        except Exception:
+            self.coordinator.async_set_updated_data(previous)
+            raise
+        status = await self._retry_update_until(confirm_pred)
+        self.coordinator.async_set_updated_data(status)
 
     @property
     def is_on(self) -> bool:
@@ -91,52 +104,62 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         preset_mode: str | None = None,
         **kwargs,
     ):
-        data = {KEY_POWER: 1}
+        optimistic = {KEY_POWER: 1}
+        payload = {KEY_POWER: 1}
         if percentage is not None:
-            data[KEY_SPEED] = clamp_percentage(percentage)
+            target_speed = clamp_percentage(percentage)
+            optimistic[KEY_SPEED] = target_speed
+            payload[KEY_SPEED] = target_speed
+        else:
+            target_speed = None
         if preset_mode is not None:
             inv = {v: k for k, v in PRESET_MODES.items()}
-            data[KEY_PRESET] = inv.get(preset_mode, 0)
-        await self.client.async_set(data)
-        target_speed = data.get(KEY_SPEED)
-        target_preset = data.get(KEY_PRESET)
-        status = await self._retry_update_until(
+            target_preset = inv.get(preset_mode, 0)
+            optimistic[KEY_PRESET] = target_preset
+            payload[KEY_PRESET] = target_preset
+        else:
+            target_preset = None
+        await self._apply_with_optimism(
+            optimistic,
+            payload,
             lambda s: s.get(KEY_POWER) == 1
             and (target_speed is None or s.get(KEY_SPEED) == target_speed)
-            and (target_preset is None or s.get(KEY_PRESET) == target_preset)
+            and (target_preset is None or s.get(KEY_PRESET) == target_preset),
         )
-        self.coordinator.async_set_updated_data(status)
 
     async def async_turn_off(self, **kwargs):
-        await self.client.async_set({KEY_POWER: 0, KEY_SPEED: 1})
-        status = await self._retry_update_until(
-            lambda s: s.get(KEY_POWER) == 0 and s.get(KEY_SPEED) == 1
+        optimistic = {KEY_POWER: 0, KEY_SPEED: 1}
+        payload = {KEY_POWER: 0, KEY_SPEED: 1}
+        await self._apply_with_optimism(
+            optimistic, payload, lambda s: s.get(KEY_POWER) == 0 and s.get(KEY_SPEED) == 1
         )
-        self.coordinator.async_set_updated_data(status)
 
     async def async_set_percentage(self, percentage: int) -> None:
         target = clamp_percentage(percentage)
-        await self.client.async_set({KEY_POWER: 1, KEY_SPEED: target})
-        status = await self._retry_update_until(lambda s: s.get(KEY_SPEED) == target)
-        self.coordinator.async_set_updated_data(status)
+        optimistic = {KEY_POWER: 1, KEY_SPEED: target}
+        payload = {KEY_POWER: 1, KEY_SPEED: target}
+        await self._apply_with_optimism(optimistic, payload, lambda s: s.get(KEY_SPEED) == target)
 
     async def async_set_direction(self, direction: str) -> None:
-        await self.client.async_set(
-            {
-                KEY_POWER: 1,
-                KEY_DIRECTION: 0 if direction == "forward" else 1,
-            }
-        )
         target_dir = 0 if direction == "forward" else 1
-        status = await self._retry_update_until(lambda s: s.get(KEY_DIRECTION) == target_dir)
-        self.coordinator.async_set_updated_data(status)
+        optimistic = {KEY_POWER: 1, KEY_DIRECTION: target_dir}
+        payload = {KEY_POWER: 1, KEY_DIRECTION: target_dir}
+        await self._apply_with_optimism(
+            optimistic,
+            payload,
+            lambda s: s.get(KEY_DIRECTION) == target_dir,
+        )
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         inv = {v: k for k, v in PRESET_MODES.items()}
         target_preset = inv.get(preset_mode, 0)
-        await self.client.async_set({KEY_POWER: 1, KEY_PRESET: target_preset})
-        status = await self._retry_update_until(lambda s: s.get(KEY_PRESET) == target_preset)
-        self.coordinator.async_set_updated_data(status)
+        optimistic = {KEY_POWER: 1, KEY_PRESET: target_preset}
+        payload = {KEY_POWER: 1, KEY_PRESET: target_preset}
+        await self._apply_with_optimism(
+            optimistic,
+            payload,
+            lambda s: s.get(KEY_PRESET) == target_preset,
+        )
 
     async def async_update(self) -> None:
         await self.coordinator.async_request_refresh()
