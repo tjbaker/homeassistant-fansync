@@ -37,7 +37,14 @@ async def async_setup_entry(
     shared = hass.data[DOMAIN][entry.entry_id]
     coordinator: FanSyncCoordinator = shared["coordinator"]
     client: FanSyncClient = shared["client"]
-    async_add_entities([FanSyncFan(coordinator, client)])
+    # Create one Fan entity per device ID
+    device_ids = getattr(client, "device_ids", []) or [client.device_id]
+    entities: list[FanSyncFan] = []
+    for did in device_ids:
+        if not did:
+            continue
+        entities.append(FanSyncFan(coordinator, client, did))
+    async_add_entities(entities)
 
 
 class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
@@ -52,12 +59,12 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
     )
     _attr_preset_modes = list(PRESET_MODES.values())
 
-    def __init__(self, coordinator: FanSyncCoordinator, client: FanSyncClient):
+    def __init__(self, coordinator: FanSyncCoordinator, client: FanSyncClient, device_id: str):
         super().__init__(coordinator)
         self.coordinator = coordinator
         self.client = client
-        device_id = client.device_id or "unknown"
-        self._attr_unique_id = f"{DOMAIN}_{device_id}_fan"
+        self._device_id = device_id or "unknown"
+        self._attr_unique_id = f"{DOMAIN}_{self._device_id}_fan"
         self._retry_attempts = 5
         self._retry_delay = 0.1
         self._optimistic_until: float | None = None
@@ -74,8 +81,15 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             if now <= expires:
                 return value
             self._overlay.pop(key, None)
-        status = self.coordinator.data or {}
-        return int(status.get(key, default))
+        all_status = self.coordinator.data or {}
+        status: dict[str, object] = dict(all_status.get(self._device_id, {}))
+        raw = status.get(key, default)
+        if isinstance(raw, int | str):
+            try:
+                return int(raw)
+            except Exception:
+                pass
+        return int(default)
 
     async def _retry_update_until(self, predicate: Callable[[dict], bool]) -> tuple[dict, bool]:
         """Fetch status until predicate passes or attempts exhausted.
@@ -84,7 +98,10 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         """
         status: dict = {}
         for _ in range(self._retry_attempts):
-            status = await self.client.async_get_status()
+            try:
+                status = await self.client.async_get_status(self._device_id)
+            except TypeError:
+                status = await self.client.async_get_status()
             if predicate(status):
                 return status, True
             await asyncio.sleep(self._retry_delay)
@@ -96,19 +113,29 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         payload: dict,
         confirm_pred: Callable[[dict], bool],
     ) -> None:
-        previous = self.coordinator.data or {}
-        optimistic_state = {**previous, **optimistic}
+        # Merge optimistic values into this device's status within the
+        # coordinator's aggregated mapping
+        all_previous = self.coordinator.data or {}
+        prev_for_device = (
+            all_previous.get(self._device_id, {}) if isinstance(all_previous, dict) else {}
+        )
+        optimistic_state_for_device = {**prev_for_device, **optimistic}
+        optimistic_all = dict(all_previous) if isinstance(all_previous, dict) else {}
+        optimistic_all[self._device_id] = optimistic_state_for_device
         # Apply per-key overlays to keep UI stable; use an 8s guard window
         expires = time.monotonic() + 8.0
         for k, v in optimistic.items():
             if k in OVERLAY_KEYS:
                 self._overlay[k] = (int(v), expires)
-        self.coordinator.async_set_updated_data(optimistic_state)
+        self.coordinator.async_set_updated_data(optimistic_all)
         # Guard against snap-back from interim coordinator refreshes
         self._optimistic_until = expires
         self._optimistic_predicate = confirm_pred
         try:
-            await self.client.async_set(payload)
+            try:
+                await self.client.async_set(payload, device_id=self._device_id)
+            except TypeError:
+                await self.client.async_set(payload)
         except Exception:
             # Only revert on explicit failure; otherwise keep optimistic state
             # Clear guard first so revert is not ignored
@@ -117,11 +144,14 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             # Clear overlays
             for k in optimistic.keys():
                 self._overlay.pop(k, None)
-            self.coordinator.async_set_updated_data(previous)
+            self.coordinator.async_set_updated_data(all_previous)
             raise
         status, ok = await self._retry_update_until(confirm_pred)
         if ok:
-            self.coordinator.async_set_updated_data(status)
+            # Merge confirmed per-device status into aggregated mapping
+            new_all = dict(self.coordinator.data or {})
+            new_all[self._device_id] = status
+            self.coordinator.async_set_updated_data(new_all)
             self._optimistic_until = None
             self._optimistic_predicate = None
             # Clear overlays on confirm
@@ -237,7 +267,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        device_id = self.client.device_id or "unknown"
+        device_id = self._device_id or "unknown"
         return DeviceInfo(
             identifiers={(DOMAIN, device_id)},
             manufacturer="Fanimation",

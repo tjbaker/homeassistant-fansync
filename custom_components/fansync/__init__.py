@@ -30,8 +30,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if hasattr(client, "set_status_callback"):
 
         def _on_status(status: dict[str, object]) -> None:
-            # Called in HA loop via call_soon_threadsafe
-            coordinator.async_set_updated_data(status)
+            # Merge push status into the coordinator:
+            # - If coordinator holds a per-device mapping, update only this device_id
+            # - Otherwise (single-device fallback), set the flat status directly
+            current = coordinator.data
+            if isinstance(current, dict):
+                did = getattr(client, "device_id", None) or "unknown"
+                merged = dict(current)
+                merged[did] = status
+                coordinator.async_set_updated_data(merged)
+            else:
+                coordinator.async_set_updated_data(status)
 
         client.set_status_callback(_on_status)
     await coordinator.async_config_entry_first_refresh()

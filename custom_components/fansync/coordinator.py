@@ -12,7 +12,7 @@ from .client import FanSyncClient
 SCAN_INTERVAL = None  # push-first; no periodic polling
 
 
-class FanSyncCoordinator(DataUpdateCoordinator):
+class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
     def __init__(self, hass: HomeAssistant, client: FanSyncClient):
         super().__init__(
             hass,
@@ -24,6 +24,18 @@ class FanSyncCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         try:
-            return await self.client.async_get_status()
+            # Aggregate status for all devices into a mapping
+            statuses: dict[str, dict[str, object]] = {}
+            ids = getattr(self.client, "device_ids", [])
+            if not ids:
+                # Fallback to single current device
+                s = await self.client.async_get_status()
+                did = self.client.device_id or "unknown"
+                statuses[did] = s
+                return statuses
+            for did in ids:
+                s = await self.client.async_get_status(did)
+                statuses[did] = s
+            return statuses
         except Exception as err:
             raise UpdateFailed(str(err)) from err

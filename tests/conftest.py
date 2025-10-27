@@ -29,6 +29,7 @@ def mock_client():
         def __init__(self):
             self.status = {"H00": 1, "H02": 41, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
             self.device_id = "test-device"
+            self.device_ids = [self.device_id]
 
         async def async_connect(self):
             return None
@@ -36,10 +37,13 @@ def mock_client():
         async def async_disconnect(self):
             return None
 
-        async def async_get_status(self):
-            return self.status
+        async def async_get_status(self, device_id: str | None = None):
+            # Default tests expect a flat status dict
+            if device_id is None or device_id == self.device_id:
+                return self.status
+            return {}
 
-        async def async_set(self, data):
+        async def async_set(self, data, *, device_id: str | None = None):
             self.status.update(data)
 
     return _Mock()

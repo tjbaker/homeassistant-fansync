@@ -22,10 +22,10 @@ class ClientWithCallback:
     async def async_disconnect(self):
         self.disconnected = True
 
-    async def async_get_status(self):
+    async def async_get_status(self, device_id: str | None = None):
         return dict(self.status)
 
-    async def async_set(self, data):
+    async def async_set(self, data, *, device_id: str | None = None):
         self.status.update(data)
 
     def set_status_callback(self, cb):

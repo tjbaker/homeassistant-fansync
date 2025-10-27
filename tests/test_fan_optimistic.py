@@ -21,10 +21,10 @@ class FailingClient:
     async def async_disconnect(self):
         return None
 
-    async def async_get_status(self):
+    async def async_get_status(self, device_id: str | None = None):
         return dict(self.status)
 
-    async def async_set(self, data: dict[str, int]):
+    async def async_set(self, data: dict[str, int], *, device_id: str | None = None):
         # Simulate backend failure
         raise RuntimeError("boom")
 
