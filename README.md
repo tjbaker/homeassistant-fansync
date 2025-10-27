@@ -76,6 +76,15 @@ ruff --fix .
 black .
 ```
 
+### Pull requests and commit messages
+
+- Prefer Conventional Commit-style PR titles for clean release notes, e.g.:
+  - `feat: add optimistic light updates`
+  - `fix: prevent UI snap-back on interim refresh`
+  - `docs: reorganize README`
+  - `ci: run black via git ls-files in CI`
+  The repo includes a PR template and a semantic PR title check.
+
 ## Testing
 
 Run tests with coverage:
