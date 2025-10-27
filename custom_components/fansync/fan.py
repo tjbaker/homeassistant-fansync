@@ -58,6 +58,20 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         self._retry_delay = 0.1
         self._optimistic_until: float | None = None
         self._optimistic_predicate = None
+        # Per-key optimistic overlay to avoid snap-back during short races
+        # key -> (value, expires_at_monotonic)
+        self._overlay: dict[str, tuple[int, float]] = {}
+
+    def _get_with_overlay(self, key: str, default: int) -> int:
+        now = time.monotonic()
+        entry = self._overlay.get(key)
+        if entry is not None:
+            value, expires = entry
+            if now <= expires:
+                return value
+            self._overlay.pop(key, None)
+        status = self.coordinator.data or {}
+        return int(status.get(key, default))
 
     async def _retry_update_until(self, predicate) -> tuple[dict, bool]:
         """Fetch status until predicate passes or attempts exhausted.
@@ -75,9 +89,17 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
     async def _apply_with_optimism(self, optimistic: dict, payload: dict, confirm_pred):
         previous = self.coordinator.data or {}
         optimistic_state = {**previous, **optimistic}
+        # Apply per-key overlays for ~2s to keep UI stable
+        expires = time.monotonic() + 2.0
+        for k, v in optimistic.items():
+            if k in {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}:
+                try:
+                    self._overlay[k] = (int(v), expires)
+                except Exception:
+                    self._overlay[k] = (v, expires)  # type: ignore[assignment]
         self.coordinator.async_set_updated_data(optimistic_state)
         # Guard against snap-back from interim coordinator refreshes for ~2s
-        self._optimistic_until = time.monotonic() + 2.0
+        self._optimistic_until = expires
         self._optimistic_predicate = confirm_pred
         try:
             await self.client.async_set(payload)
@@ -86,6 +108,9 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             # Clear guard first so revert is not ignored
             self._optimistic_until = None
             self._optimistic_predicate = None
+            # Clear overlays
+            for k in optimistic.keys():
+                self._overlay.pop(k, None)
             self.coordinator.async_set_updated_data(previous)
             raise
         status, ok = await self._retry_update_until(confirm_pred)
@@ -93,26 +118,27 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             self.coordinator.async_set_updated_data(status)
             self._optimistic_until = None
             self._optimistic_predicate = None
+            # Clear overlays on confirm
+            for k in optimistic.keys():
+                self._overlay.pop(k, None)
 
     @property
     def is_on(self) -> bool:
-        status = self.coordinator.data or {}
-        return status.get(KEY_POWER, 0) == 1
+        return self._get_with_overlay(KEY_POWER, 0) == 1
 
     @property
     def percentage(self) -> int | None:
-        status = self.coordinator.data or {}
-        return status.get(KEY_SPEED, 0)
+        return self._get_with_overlay(KEY_SPEED, 0)
 
     @property
     def current_direction(self) -> str:
-        status = self.coordinator.data or {}
-        return "forward" if status.get(KEY_DIRECTION, 0) == 0 else "reverse"
+        dir_val = self._get_with_overlay(KEY_DIRECTION, 0)
+        return "forward" if dir_val == 0 else "reverse"
 
     @property
     def preset_mode(self) -> str | None:
-        status = self.coordinator.data or {}
-        return PRESET_MODES.get(status.get(KEY_PRESET, 0))
+        preset_val = self._get_with_overlay(KEY_PRESET, 0)
+        return PRESET_MODES.get(preset_val)
 
     async def async_turn_on(
         self,
@@ -152,9 +178,14 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
 
     async def async_set_percentage(self, percentage: int) -> None:
         target = clamp_percentage(percentage)
-        optimistic = {KEY_POWER: 1, KEY_SPEED: target}
-        payload = {KEY_POWER: 1, KEY_SPEED: target}
-        await self._apply_with_optimism(optimistic, payload, lambda s: s.get(KEY_SPEED) == target)
+        # Adjusting percentage exits fresh-air (breeze) mode -> set preset to normal (0)
+        optimistic = {KEY_POWER: 1, KEY_SPEED: target, KEY_PRESET: 0}
+        payload = {KEY_POWER: 1, KEY_SPEED: target, KEY_PRESET: 0}
+        await self._apply_with_optimism(
+            optimistic,
+            payload,
+            lambda s: s.get(KEY_SPEED) == target and s.get(KEY_PRESET) == 0,
+        )
 
     async def async_set_direction(self, direction: str) -> None:
         target_dir = 0 if direction == "forward" else 1
