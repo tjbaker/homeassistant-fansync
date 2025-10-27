@@ -35,4 +35,5 @@ warn_unreachable = true
 no_implicit_optional = true
 show_error_codes = true
 ignore_missing_imports = true  # Home Assistant stubs not installed in CI
-exclude = "^(venv|\\.venv|tests|examples|fansync)(/|$)"
+# Do not exclude tests; CI runs mypy over custom_components/fansync and tests
+exclude = "^(venv|\\.venv|examples|fansync)(/|$)"
