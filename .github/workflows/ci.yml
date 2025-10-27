@@ -47,7 +47,7 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Ruff (lint)
-        run: ruff check --force-exclude .
+        run: ruff check --force-exclude custom_components/fansync tests
 
       - name: Black (format check)
         run: |
