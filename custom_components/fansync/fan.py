@@ -52,6 +52,18 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         self.client = client
         device_id = client.device_id or "unknown"
         self._attr_unique_id = f"{DOMAIN}_{device_id}_fan"
+        self._retry_attempts = 3
+        self._retry_delay = 0.2
+
+    async def _retry_update_until(self, predicate) -> dict:
+        """Fetch status until predicate passes or attempts exhausted."""
+        status: dict = {}
+        for _ in range(self._retry_attempts):
+            status = await self.client.async_get_status()
+            if predicate(status):
+                break
+            await asyncio.sleep(self._retry_delay)
+        return status
 
     @property
     def is_on(self) -> bool:
@@ -86,33 +98,26 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             inv = {v: k for k, v in PRESET_MODES.items()}
             data[KEY_PRESET] = inv.get(preset_mode, 0)
         await self.client.async_set(data)
-        # Push latest status into coordinator (best-effort)
-        status = await self.client.async_get_status()
+        target_speed = data.get(KEY_SPEED)
+        target_preset = data.get(KEY_PRESET)
+        status = await self._retry_update_until(
+            lambda s: s.get(KEY_POWER) == 1
+            and (target_speed is None or s.get(KEY_SPEED) == target_speed)
+            and (target_preset is None or s.get(KEY_PRESET) == target_preset)
+        )
         self.coordinator.async_set_updated_data(status)
 
     async def async_turn_off(self, **kwargs):
         await self.client.async_set({KEY_POWER: 0, KEY_SPEED: 1})
-        # Retry briefly until power reflects off to avoid UI lag
-        attempts = 3
-        status = {}
-        for _ in range(attempts):
-            status = await self.client.async_get_status()
-            if status.get(KEY_POWER) == 0:
-                break
-            await asyncio.sleep(0.2)
+        status = await self._retry_update_until(
+            lambda s: s.get(KEY_POWER) == 0 and s.get(KEY_SPEED) == 1
+        )
         self.coordinator.async_set_updated_data(status)
 
     async def async_set_percentage(self, percentage: int) -> None:
         target = clamp_percentage(percentage)
         await self.client.async_set({KEY_POWER: 1, KEY_SPEED: target})
-        # Retry briefly until reported speed matches target to ensure UI updates
-        attempts = 3
-        status = {}
-        for _ in range(attempts):
-            status = await self.client.async_get_status()
-            if status.get(KEY_SPEED) == target:
-                break
-            await asyncio.sleep(0.2)
+        status = await self._retry_update_until(lambda s: s.get(KEY_SPEED) == target)
         self.coordinator.async_set_updated_data(status)
 
     async def async_set_direction(self, direction: str) -> None:
@@ -122,13 +127,15 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
                 KEY_DIRECTION: 0 if direction == "forward" else 1,
             }
         )
-        status = await self.client.async_get_status()
+        target_dir = 0 if direction == "forward" else 1
+        status = await self._retry_update_until(lambda s: s.get(KEY_DIRECTION) == target_dir)
         self.coordinator.async_set_updated_data(status)
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         inv = {v: k for k, v in PRESET_MODES.items()}
-        await self.client.async_set({KEY_POWER: 1, KEY_PRESET: inv.get(preset_mode, 0)})
-        status = await self.client.async_get_status()
+        target_preset = inv.get(preset_mode, 0)
+        await self.client.async_set({KEY_POWER: 1, KEY_PRESET: target_preset})
+        status = await self._retry_update_until(lambda s: s.get(KEY_PRESET) == target_preset)
         self.coordinator.async_set_updated_data(status)
 
     async def async_update(self) -> None:
