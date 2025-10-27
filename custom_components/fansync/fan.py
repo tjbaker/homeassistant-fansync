@@ -90,7 +90,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         previous = self.coordinator.data or {}
         optimistic_state = {**previous, **optimistic}
         # Apply per-key overlays for ~2s to keep UI stable
-        expires = time.monotonic() + 2.0
+        expires = time.monotonic() + 4.0
         for k, v in optimistic.items():
             if k in {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}:
                 try:
