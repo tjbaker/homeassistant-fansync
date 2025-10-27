@@ -40,14 +40,14 @@ async def test_light_not_created_when_no_light_keys(hass: HomeAssistant):
     entry.add_to_hass(hass)
 
     # Patch both platform imports to use our mock client
-    with patch("custom_components.fansync.fan.FanSyncClient", return_value=client), \
-         patch("custom_components.fansync.light.FanSyncClient", return_value=client), \
-         patch("custom_components.fansync.FanSyncClient", return_value=client):
+    with (
+        patch("custom_components.fansync.fan.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.light.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.FanSyncClient", return_value=client),
+    ):
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
     # Fan should exist, light should not
     assert hass.states.get("fan.fan") is not None
     assert hass.states.get("light.light") is None
-
-

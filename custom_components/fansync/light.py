@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
 
 from homeassistant.components.light import ColorMode, LightEntity
 from homeassistant.config_entries import ConfigEntry
@@ -36,10 +37,9 @@ async def async_setup_entry(
     if not status:
         status = await client.async_get_status()
         coordinator.async_set_updated_data(status)
-    if not isinstance(status, dict):
-        return
     if KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status:
         async_add_entities([FanSyncLight(coordinator, client)])
+
 
 class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
     _attr_has_entity_name = False
@@ -56,7 +56,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         self._retry_attempts = 5
         self._retry_delay = 0.1
         self._optimistic_until: float | None = None
-        self._optimistic_predicate = None
+        self._optimistic_predicate: Callable[[dict], bool] | None = None
         # Per-key optimistic overlay
         self._overlay: dict[str, tuple[int, float]] = {}
 
@@ -71,7 +71,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         status = self.coordinator.data or {}
         return int(status.get(key, default))
 
-    async def _retry_update_until(self, predicate) -> tuple[dict, bool]:
+    async def _retry_update_until(self, predicate: Callable[[dict], bool]) -> tuple[dict, bool]:
         """Fetch status until predicate passes or attempts exhausted."""
         status: dict = {}
         for _ in range(self._retry_attempts):
@@ -81,15 +81,17 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
             await asyncio.sleep(self._retry_delay)
         return status, False
 
-    async def _apply_with_optimism(self, optimistic: dict, payload: dict, confirm_pred):
+    async def _apply_with_optimism(
+        self,
+        optimistic: dict,
+        payload: dict,
+        confirm_pred: Callable[[dict], bool],
+    ) -> None:
         previous = self.coordinator.data or {}
         optimistic_state = {**previous, **optimistic}
         expires = time.monotonic() + 8.0
         for k, v in optimistic.items():
-            try:
-                self._overlay[k] = (int(v), expires)
-            except Exception:
-                self._overlay[k] = (v, expires)  # type: ignore[assignment]
+            self._overlay[k] = (int(v), expires)
         self.coordinator.async_set_updated_data(optimistic_state)
         self._optimistic_until = expires
         self._optimistic_predicate = confirm_pred
@@ -128,11 +130,12 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
             payload[KEY_LIGHT_BRIGHTNESS] = pct
         else:
             pct = None
+        check_brightness = pct is not None
         await self._apply_with_optimism(
             optimistic,
             payload,
             lambda s: s.get(KEY_LIGHT_POWER) == 1
-            and (pct is None or s.get(KEY_LIGHT_BRIGHTNESS) == pct),
+            and (not check_brightness or s.get(KEY_LIGHT_BRIGHTNESS) == pct),
         )
 
     async def async_turn_off(self, **kwargs):

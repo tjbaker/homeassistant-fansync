@@ -15,10 +15,10 @@ class FailingLightClient:
         self.status = {
             "H00": 1 if initially_on else 0,  # power
             "H02": 20,  # fan speed
-            "H06": 0,   # direction
-            "H01": 0,   # preset
-            "H0B": 50 if initially_on else 0,  # light brightness pct
-            "H0C": 1 if initially_on else 0,   # light power
+            "H06": 0,  # direction
+            "H01": 0,  # preset
+            "H0B": 1 if initially_on else 0,  # light power
+            "H0C": 50 if initially_on else 0,  # light brightness pct
         }
         self.device_id = "light-optimistic-fail"
 
@@ -44,9 +44,11 @@ async def setup_entry_with_client(hass: HomeAssistant, client) -> MockConfigEntr
         unique_id="light-optimistic-test",
     )
     entry.add_to_hass(hass)
-    with patch("custom_components.fansync.fan.FanSyncClient", return_value=client), \
-         patch("custom_components.fansync.light.FanSyncClient", return_value=client), \
-         patch("custom_components.fansync.FanSyncClient", return_value=client):
+    with (
+        patch("custom_components.fansync.fan.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.light.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.FanSyncClient", return_value=client),
+    ):
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     return entry
@@ -96,5 +98,3 @@ async def test_light_turn_off_reverts_on_error(hass: HomeAssistant):
 
     state = hass.states.get("light.light")
     assert state.state == "on"
-
-

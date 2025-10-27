@@ -35,9 +35,7 @@ class HttpApi:
 
     @staticmethod
     def _get_headers(token: SecretStr | None = None):
-        headers = {
-            "Content-Type": "application/json",
-            "charset": "utf-8"}
+        headers = {"Content-Type": "application/json", "charset": "utf-8"}
 
         if token:
             headers["Authorization"] = f"Bearer {token.get_secret_value()}"
@@ -62,12 +60,11 @@ class HttpApi:
         return "valid" == response.status
 
     def post_session(self, email: str, password: str) -> Credentials | None:
-
         url = f"{self.API_URL}/api:1/session"
         print(f"POST {url} ", end="", flush=True)
-        result = self._session.post(url,
-                               headers=HttpApi._get_headers(),
-                               json={"email": email, "password": password})
+        result = self._session.post(
+            url, headers=HttpApi._get_headers(), json={"email": email, "password": password}
+        )
 
         print(f"{result.status_code}")
 
@@ -77,8 +74,6 @@ class HttpApi:
 
         login_response = LoginResponse(**json.loads(result.text))
         return Credentials(id=login_response.id, token=login_response.token)
-
-
 
     # def _get_network_credentials(self, email: str, password: str) -> Optional[Credentials]:
     #     print("GET'ing network credentials")
@@ -107,8 +102,7 @@ class HttpApi:
 
         url = f"{self.API_URL}/api:1/session"
         print(f"OPTIONS {url} ", end="", flush=True)
-        result = self._session.options(url,
-                                       headers=options_headers)
+        result = self._session.options(url, headers=options_headers)
         print(f"{result.text}({result.status_code})")
         if result.status_code != 200 or result.text != "OK":
             raise AuthFailed("Failed to set login OPTIONS")
@@ -123,22 +117,18 @@ class HttpApi:
     #     pass
 
     def open(self, email, password):
-
         # Try and load token from disk. If we can, use it. If we can't then get it from HTTP
         creds = HttpApi._load_cached_credentials()
         # if creds:
 
-            # We do this if we are doing a "cold" auth, not a "warm" auth
-            # is_valid = self._get_session_token_is_valid(creds)
-            # print(f"Token is{'' if is_valid else ' not'} valid")
+        # We do this if we are doing a "cold" auth, not a "warm" auth
+        # is_valid = self._get_session_token_is_valid(creds)
+        # print(f"Token is{'' if is_valid else ' not'} valid")
         # else:
 
         if not creds:
             self.options_session()  # Preflight the authentication
             creds = self.post_session(email, password)
-
-
-
 
         # Our authentication loop
         for i in range(0, HttpApi.MAX_AUTH_RETRIES):
@@ -155,9 +145,8 @@ class HttpApi:
                 # Well, websocket couldn't auth.  Try and get a new token?
                 creds = self.post_session(email, password)
 
-            if i >= (HttpApi.MAX_AUTH_RETRIES-1):
+            if i >= (HttpApi.MAX_AUTH_RETRIES - 1):
                 raise AuthFailed()
 
         # Save the credentials we finally got
         HttpApi._save_cached_credentials(creds)
-

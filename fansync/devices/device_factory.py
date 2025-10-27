@@ -23,7 +23,6 @@ LIGHT_TURN_ON_TIMER
 """
 
 
-
 class DeviceFactory:
     def __init__(self, info_model: dict[str, dict]):
         # self._info_model: dict[str, dict] = info_model
@@ -33,7 +32,7 @@ class DeviceFactory:
             info_model: InfoModel = InfoModel(**value)
             for family_member in info_model.informationModel.familyMembers:
                 regex = re.compile(family_member)
-                self._regex_to_model.append((regex,info_model))
+                self._regex_to_model.append((regex, info_model))
 
             for c in info_model.informationModel.components.keys():
                 if not c:
@@ -42,7 +41,6 @@ class DeviceFactory:
                 print(c)
 
     def get_device(self, device_response: GetDeviceResponse) -> Device | None:
-
         found_model: InfoModel | None = None
         for regex, info_model in self._regex_to_model:
             if regex.match(device_response.data.profile.esh.model):
@@ -52,9 +50,3 @@ class DeviceFactory:
 
         if not found_model:
             return None
-
-
-
-
-
-

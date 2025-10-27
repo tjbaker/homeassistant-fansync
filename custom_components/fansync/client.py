@@ -81,6 +81,7 @@ class FanSyncClient:
 
         # Start background receive loop to push unsolicited updates
         if self._enable_push:
+
             def _recv_loop():
                 while self._running:
                     ws = self._ws
@@ -114,9 +115,11 @@ class FanSyncClient:
                     if isinstance(data, dict) and isinstance(data.get("status"), dict):
                         pushed_status = data["status"]
                         if self._status_callback is not None:
+
                             def _notify(s: dict[str, Any] = pushed_status) -> None:
                                 assert self._status_callback is not None
                                 self._status_callback(s)
+
                             self.hass.loop.call_soon_threadsafe(_notify)
 
             thread = threading.Thread(target=_recv_loop, name="_recv_loop", daemon=True)

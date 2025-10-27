@@ -6,10 +6,12 @@
 Validates initial off state, turning on with brightness, and acceptable rounding
 differences from percentage-to-brightness mapping.
 """
+
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 DOMAIN = "fansync"
+
 
 async def test_light_entity_lifecycle(hass: HomeAssistant, patch_client):
     """Create light entity, turn on with brightness, verify mapping/rounding."""
@@ -29,7 +31,9 @@ async def test_light_entity_lifecycle(hass: HomeAssistant, patch_client):
     assert state.state == "off"
 
     # Turn on with brightness
-    await hass.services.async_call("light", "turn_on", {"entity_id": "light.light", "brightness": 128}, blocking=True)
+    await hass.services.async_call(
+        "light", "turn_on", {"entity_id": "light.light", "brightness": 128}, blocking=True
+    )
     await hass.async_block_till_done()
     state = hass.states.get("light.light")
     assert state.state == "on"

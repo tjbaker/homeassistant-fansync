@@ -46,10 +46,7 @@ class Sprocket:
     enabled = property(_get_enabled, _set_enabled)
 
 
-
-
 class Light:
-
     def turn_on(self):
         pass
 
@@ -81,4 +78,3 @@ class Fan:
 
     def is_on(self):
         pass
-
