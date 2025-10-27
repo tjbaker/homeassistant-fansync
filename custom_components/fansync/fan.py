@@ -87,7 +87,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         if isinstance(raw, int | str):
             try:
                 return int(raw)
-            except Exception:
+            except (ValueError, TypeError):
                 pass
         return int(default)
 

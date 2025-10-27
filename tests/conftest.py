@@ -38,10 +38,9 @@ def mock_client():
             return None
 
         async def async_get_status(self, device_id: str | None = None):
-            # Backward compatibility: many tests and callers expect a "flat" status dict
-            # (a single mapping of keys to values, not keyed by device). Supporting an
-            # optional device_id parameter allows both the legacy single-device path and
-            # the new multi-device path to use this mock seamlessly.
+            # Return flat status dict for this mock device; empty dict for unknown device_id.
+            # Supports optional device_id for compatibility with legacy single-device and
+            # newer multi-device caller paths.
             if device_id is None or device_id == self.device_id:
                 return self.status
             return {}
