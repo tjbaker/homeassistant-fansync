@@ -65,7 +65,8 @@ async def test_retry_turn_off_updates_ui(hass: HomeAssistant, monkeypatch):
 
     state = hass.states.get("fan.fan")
     assert state.state == "off"
-    assert state.attributes.get("percentage") == 1
+    # preserves prior speed (20 from DelayedClient)
+    assert state.attributes.get("percentage") == 20
 
 
 async def test_retry_set_percentage_updates_ui(hass: HomeAssistant, monkeypatch):

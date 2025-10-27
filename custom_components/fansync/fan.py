@@ -90,7 +90,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         previous = self.coordinator.data or {}
         optimistic_state = {**previous, **optimistic}
         # Apply per-key overlays for ~2s to keep UI stable
-        expires = time.monotonic() + 2.0
+        expires = time.monotonic() + 4.0
         for k, v in optimistic.items():
             if k in {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}:
                 try:
@@ -170,10 +170,11 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         )
 
     async def async_turn_off(self, **kwargs):
-        optimistic = {KEY_POWER: 0, KEY_SPEED: 1}
-        payload = {KEY_POWER: 0, KEY_SPEED: 1}
+        # Toggling power should not change percentage speed
+        optimistic = {KEY_POWER: 0}
+        payload = {KEY_POWER: 0}
         await self._apply_with_optimism(
-            optimistic, payload, lambda s: s.get(KEY_POWER) == 0 and s.get(KEY_SPEED) == 1
+            optimistic, payload, lambda s: s.get(KEY_POWER) == 0
         )
 
     async def async_set_percentage(self, percentage: int) -> None:
