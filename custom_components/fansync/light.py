@@ -28,7 +28,15 @@ async def async_setup_entry(
     shared = hass.data[DOMAIN][entry.entry_id]
     coordinator: FanSyncCoordinator = shared["coordinator"]
     client: FanSyncClient = shared["client"]
-    async_add_entities([FanSyncLight(coordinator, client)])
+    # Only add a light entity if the device reports light capabilities
+    status = coordinator.data
+    if not status:
+        status = await client.async_get_status()
+        coordinator.async_set_updated_data(status)
+    if not isinstance(status, dict):
+        return
+    if KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status:
+        async_add_entities([FanSyncLight(coordinator, client)])
 
 class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
     _attr_has_entity_name = False
