@@ -57,6 +57,33 @@ async def test_percentage_bounds(hass: HomeAssistant, patch_client):
     state = hass.states.get("fan.fan")
     assert state.attributes.get("percentage") == 100
 
+async def test_percentage_exits_fresh_air(hass: HomeAssistant, patch_client):
+    """Changing percentage exits fresh-air preset and sets preset to normal."""
+    await setup_entry(hass, patch_client, entry_id="test6")
+
+    # Start in fresh_air
+    await hass.services.async_call(
+        "fan",
+        "set_preset_mode",
+        {"entity_id": "fan.fan", "preset_mode": "fresh_air"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get("fan.fan")
+    assert state.attributes.get("preset_mode") == "fresh_air"
+
+    # Changing percentage should exit fresh_air -> normal
+    await hass.services.async_call(
+        "fan",
+        "set_percentage",
+        {"entity_id": "fan.fan", "percentage": 50},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get("fan.fan")
+    assert state.attributes.get("percentage") == 50
+    assert state.attributes.get("preset_mode") == "normal"
+
 async def test_turn_off_sets_min_speed(hass: HomeAssistant, patch_client):
     """Turning off sets internal min speed while entity state reads off."""
     await setup_entry(hass, patch_client, entry_id="test5")
