@@ -39,6 +39,12 @@ pytest -q
 - Restart Home Assistant, then add the integration via Settings → Devices & services → Add integration → “FanSync”.
 - During setup, provide your FanSync account email and password. You can choose whether to verify SSL (default: on).
 
+### One-click install via HACS
+
+<a href="http://homeassistant.local:8123/hacs/repository?owner=tjbaker&repository=homeassistant-fansync">
+  <img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.">
+</a>
+
 ### Configuration options
 
 | Option | Description | Default |
@@ -54,7 +60,6 @@ pytest -q
 
 ### Notes & limitations
 
-- Updates are push-based over a persistent websocket. Manifest `iot_class` is `cloud_push`, and entities refresh immediately after service calls.
 - Multi-device support is limited to the first device returned today. Future versions will create one HA device per FanSync device.
 
 ## Examples
