@@ -89,8 +89,8 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
     async def _apply_with_optimism(self, optimistic: dict, payload: dict, confirm_pred):
         previous = self.coordinator.data or {}
         optimistic_state = {**previous, **optimistic}
-        # Apply per-key overlays for ~2s to keep UI stable
-        expires = time.monotonic() + 4.0
+        # Apply per-key overlays to keep UI stable; use an 8s guard window
+        expires = time.monotonic() + 8.0
         for k, v in optimistic.items():
             if k in {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}:
                 try:
@@ -98,7 +98,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
                 except Exception:
                     self._overlay[k] = (v, expires)  # type: ignore[assignment]
         self.coordinator.async_set_updated_data(optimistic_state)
-        # Guard against snap-back from interim coordinator refreshes for ~2s
+        # Guard against snap-back from interim coordinator refreshes
         self._optimistic_until = expires
         self._optimistic_predicate = confirm_pred
         try:
