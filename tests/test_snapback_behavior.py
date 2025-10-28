@@ -50,16 +50,20 @@ async def setup(hass: HomeAssistant, client: SnapbackClient) -> None:
         await hass.async_block_till_done()
 
 
+def make_fake_monotonic(base: float):
+    def _fake():
+        return _fake.t
+
+    _fake.t = base  # type: ignore[attr-defined]
+    return _fake
+
+
 async def test_fan_snapback_after_guard_expiry(hass: HomeAssistant):
     client = SnapbackClient()
     await setup(hass, client)
 
     base = time.monotonic()
-
-    def fake_monotonic():
-        return fake_monotonic.t
-
-    fake_monotonic.t = base
+    fake_monotonic = make_fake_monotonic(base)
 
     # Initiate optimistic change to 55%
     with patch(
@@ -76,7 +80,7 @@ async def test_fan_snapback_after_guard_expiry(hass: HomeAssistant):
         assert state.attributes.get("percentage") == 55
 
         # Advance time beyond guard window, then push old backend state (20%)
-        fake_monotonic.t = base + OPTIMISTIC_GUARD_SEC + 1.0
+        fake_monotonic.t = base + OPTIMISTIC_GUARD_SEC + 1.0  # type: ignore[attr-defined]
         if client._cb:
             client._cb({"H00": 1, "H02": 20, "H06": 0, "H01": 0})
         await hass.async_block_till_done()
@@ -91,11 +95,7 @@ async def test_light_snapback_after_guard_expiry(hass: HomeAssistant):
     await setup(hass, client)
 
     base = time.monotonic()
-
-    def fake_monotonic():
-        return fake_monotonic.t
-
-    fake_monotonic.t = base
+    fake_monotonic = make_fake_monotonic(base)
 
     # Initiate optimistic light on with brightness ~50%
     with patch(
@@ -111,7 +111,7 @@ async def test_light_snapback_after_guard_expiry(hass: HomeAssistant):
         assert state.attributes.get("brightness") is not None
 
         # Advance beyond guard window and push old brightness (20%)
-        fake_monotonic.t = base + OPTIMISTIC_GUARD_SEC + 1.0
+        fake_monotonic.t = base + OPTIMISTIC_GUARD_SEC + 1.0  # type: ignore[attr-defined]
         if client._cb:
             client._cb({"H0B": 1, "H0C": 20})
         await hass.async_block_till_done()
