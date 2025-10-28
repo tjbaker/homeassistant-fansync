@@ -113,6 +113,7 @@ class FanSyncClient:
         if self._enable_push:
 
             def _recv_loop():
+                timeout_errors = 0
                 while self._running:
                     ws = self._ws
                     if ws is None:
@@ -126,9 +127,24 @@ class FanSyncClient:
                     try:
                         try:
                             raw = ws.recv()
+                            timeout_errors = 0
                         except Exception as err:
                             if _LOGGER.isEnabledFor(logging.DEBUG):
                                 _LOGGER.debug("recv error=%s", type(err).__name__)
+                            # Count consecutive timeouts/closed errors and reconnect after a few
+                            if isinstance(
+                                err,
+                                websocket.WebSocketTimeoutException
+                                | websocket.WebSocketConnectionClosedException,
+                            ):
+                                timeout_errors += 1
+                                if timeout_errors >= 3:
+                                    self._ws = None
+                                    try:
+                                        self._ensure_ws_connected()
+                                        timeout_errors = 0
+                                    except Exception:
+                                        time.sleep(0.5)
                             time.sleep(0.1)
                             continue
                     finally:
