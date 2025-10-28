@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.4](https://github.com/tjbaker/homeassistant-fansync/compare/v0.2.3...v0.2.4) (2025-10-28)
+
+
+### Performance Improvements
+
+* reduce recv-loop CPU (lock timeout) and drop redundant decode ([#44](https://github.com/tjbaker/homeassistant-fansync/issues/44)) ([cb059e6](https://github.com/tjbaker/homeassistant-fansync/commit/cb059e6ef04b45f8b80d789b5417df29fa12feb4))
+
 ## [0.2.3](https://github.com/tjbaker/homeassistant-fansync/compare/v0.2.2...v0.2.3) (2025-10-28)
 
 
