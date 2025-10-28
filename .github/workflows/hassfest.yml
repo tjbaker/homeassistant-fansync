@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Hassfest
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'custom_components/**'
+      - 'custom_components/**/manifest.json'
+      - '.github/workflows/hassfest.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'custom_components/**'
+      - 'custom_components/**/manifest.json'
+      - '.github/workflows/hassfest.yml'
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run hassfest
+        uses: home-assistant/actions/hassfest@v1
+
