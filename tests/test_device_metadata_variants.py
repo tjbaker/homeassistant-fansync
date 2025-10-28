@@ -126,7 +126,7 @@ async def test_attributes_and_connections_single(hass: HomeAssistant):
     state = hass.states.get(f"fan.{fan_ent.original_name}")
     assert state is not None
     assert state.attributes.get("local_ip") == "192.0.2.10"
-    assert state.attributes.get("mac_address") == "AA:BB:CC:DD:EE:FF"
+    assert state.attributes.get("mac_address") == "aa:bb:cc:dd:ee:ff"
 
 
 async def test_missing_profile_fallbacks(hass: HomeAssistant):

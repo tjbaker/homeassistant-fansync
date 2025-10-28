@@ -33,7 +33,7 @@ def create_device_info(client: Any, device_id: str) -> DeviceInfo:
                     sw = fv
                 m = module.get("mac_address")
                 if isinstance(m, str) and m:
-                    mac = m
+                    mac = m.lower()
     except Exception:
         # Best-effort device info; ignore profile errors
         pass
@@ -65,5 +65,5 @@ def module_attrs(client: Any, device_id: str) -> dict[str, object] | None:
         if isinstance(ip, str) and ip:
             attrs["local_ip"] = ip
         if isinstance(mac, str) and mac:
-            attrs["mac_address"] = mac
+            attrs["mac_address"] = mac.lower()
     return attrs or None
