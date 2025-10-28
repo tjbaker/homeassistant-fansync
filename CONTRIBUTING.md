@@ -2,6 +2,11 @@
 
 Thanks for your interest in contributing! Community pull requests and issues are very welcome.
 
+## Code of conduct
+
+- Be respectful and constructive. Assume good intent. We aim for a welcoming and inclusive
+  environment for all contributors.
+
 ## How to contribute
 
 - Open an issue
@@ -24,13 +29,8 @@ Thanks for your interest in contributing! Community pull requests and issues are
 
 ## License and attribution
 
-- This project is licensed under GPL-2.0-only. By contributing, you agree your contributions
-  will be licensed under the same terms. See LICENSE and NOTICE for details.
-
-## Code of conduct
-
-- Be respectful and constructive. Assume good intent. We aim for a welcoming and inclusive
-  environment for all contributors.
+- This project is licensed under the Apache License, Version 2.0. By contributing, you
+  agree your contributions will be licensed under the same terms. See LICENSE for details.
 
 ## Getting help
 
