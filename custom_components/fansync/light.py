@@ -287,9 +287,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
             prof = self.client.device_profile(self._device_id)
         except Exception:
             prof = {}
-        if not isinstance(prof, dict):
-            return None
-        module = prof.get("module") if isinstance(prof, dict) else None
+        module = prof.get("module")
         attrs: dict[str, object] = {}
         if isinstance(module, dict):
             ip = module.get("local_ip")
