@@ -51,6 +51,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Apply options-driven fallback polling
     secs = entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
     coordinator.update_interval = None if secs == 0 else timedelta(seconds=int(secs))
+    if _LOGGER.isEnabledFor(logging.DEBUG):
+        _LOGGER.debug(
+            "setup interval=%s verify_ssl=%s",
+            coordinator.update_interval,
+            entry.data.get(CONF_VERIFY_SSL, True),
+        )
 
     # Register a push callback if supported by the client
     if hasattr(client, "set_status_callback"):
@@ -76,11 +82,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry):
         new_secs = updated_entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
+        old = coordinator.update_interval
         coordinator.update_interval = None if new_secs == 0 else timedelta(seconds=int(new_secs))
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("interval changed old=%s new=%s", old, coordinator.update_interval)
 
     entry.add_update_listener(_async_options_updated)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    if _LOGGER.isEnabledFor(logging.DEBUG):
+        try:
+            ids = getattr(client, "device_ids", []) or [client.device_id]
+        except Exception:  # pragma: no cover
+            ids = []
+        _LOGGER.debug("connected device_ids=%s", ids)
     return True
 
 
