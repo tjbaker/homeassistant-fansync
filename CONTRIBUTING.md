@@ -19,8 +19,8 @@ Thanks for your interest in contributing! Community pull requests and issues are
   - Coding style: Black + Ruff, Python 3.13, modern typing.
   - Home Assistant specifics: async patterns, CoordinatorEntity, push-first updates.
   - Tests: pytest with no real network calls; coverage enforced in CI.
-- A single canonical AI instruction file lives at  in the repo root; a pre-commit
-  sync copies it to other locations (e.g., GitHub Copilot instructions). Edit only .
+- A single canonical AI instruction file lives at `.cursorrules` in the repo root; a pre-commit
+  sync copies it to other locations (e.g., GitHub Copilot instructions). Edit only `.cursorrules`.
 
 ## License and attribution
 
