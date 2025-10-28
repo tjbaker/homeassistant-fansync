@@ -114,6 +114,8 @@ class FanSyncClient:
 
             def _recv_loop():
                 timeout_errors = 0
+                backoff_sec = 0.5
+                max_backoff_sec = 5.0
                 while self._running:
                     ws = self._ws
                     if ws is None:
@@ -142,8 +144,10 @@ class FanSyncClient:
                                     try:
                                         self._ensure_ws_connected()
                                         timeout_errors = 0
+                                        backoff_sec = 0.5
                                     except Exception:
-                                        time.sleep(0.5)
+                                        time.sleep(backoff_sec)
+                                        backoff_sec = min(max_backoff_sec, backoff_sec * 2)
                             time.sleep(0.1)
                             continue
                     finally:
@@ -231,8 +235,9 @@ class FanSyncClient:
                 if ws is None:
                     raise RuntimeError("Websocket not connected")
                 sent = False
+                req_id = 3  # keep stable for compatibility; match responses by id when present
                 try:
-                    ws.send(json.dumps({"id": 3, "request": "get", "device": did}))
+                    ws.send(json.dumps({"id": req_id, "request": "get", "device": did}))
                     sent = True
                 except Exception:
                     sent = False
@@ -244,12 +249,16 @@ class FanSyncClient:
                     if ws2 is None:
                         raise RuntimeError("Websocket not connected after reconnect")
                     # mypy may flag this as unreachable; it's a valid retry after reconnect
-                    ws2.send(json.dumps({"id": 3, "request": "get", "device": did}))  # type: ignore[unreachable]
+                    ws2.send(json.dumps({"id": req_id, "request": "get", "device": did}))  # type: ignore[unreachable]
                 # Bounded read to find the response
                 for _ in range(5):
                     raw = self._ws.recv()
                     payload = json.loads(raw)
                     if isinstance(payload, dict) and payload.get("response") == "get":
+                        pid = payload.get("id")
+                        if pid is not None and pid != req_id:
+                            # different reply; keep waiting
+                            continue
                         if _LOGGER.isEnabledFor(logging.DEBUG):
                             _LOGGER.debug("get rtt ms=%d", int((time.monotonic() - t0) * 1000))
                         return payload["data"]["status"]
