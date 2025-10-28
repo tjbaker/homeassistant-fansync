@@ -246,14 +246,9 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
     @property
     def device_info(self) -> DeviceInfo:
         device_id = self._device_id or "unknown"
-        name = None
-        try:
-            name = self.client.device_display_name(device_id)
-        except Exception:
-            name = None
         return DeviceInfo(
             identifiers={(DOMAIN, device_id)},
             manufacturer="Fanimation",
             model="FanSync",
-            name=name or "FanSync",
+            name="FanSync",
         )
