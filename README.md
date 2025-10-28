@@ -38,6 +38,17 @@ Custom Home Assistant integration for Fanimation FanSync devices.
 | Verify SSL  | Verify HTTPS certificates when connecting to FanSync cloud   | True    |
 
 
+### Options
+
+Push-first updates are used by default. A low-frequency fallback poll can be configured:
+
+| Option                 | Description                                                       | Default |
+|------------------------|-------------------------------------------------------------------|---------|
+| fallback_poll_seconds  | Poll interval in seconds when push is unavailable (0 disables).  | 60      |
+
+Set via: Settings → Devices & Services → FanSync → Configure → Options. Allowed range: 15–600.
+
+
 ## Development
 
 - Optional pre-commit hooks (recommended):
