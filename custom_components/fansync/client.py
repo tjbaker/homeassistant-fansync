@@ -47,6 +47,7 @@ class FanSyncClient:
         self._token: str | None = None
         self._device_id: str | None = None
         self._device_ids: list[str] = []
+        self._device_meta: dict[str, dict[str, Any]] = {}
         self._status_callback: Callable[[dict[str, Any]], None] | None = None
         self._running: bool = False
         self._recv_lock: threading.Lock = threading.Lock()
@@ -90,11 +91,14 @@ class FanSyncClient:
             devices = payload.get("data") or []
             # Build a strictly typed list of device IDs (strings only)
             _ids: list[str] = []
+            meta: dict[str, dict[str, Any]] = {}
             for d in devices:
                 if isinstance(d, dict):
                     dev = d.get("device")
                     if isinstance(dev, str) and dev:
                         _ids.append(dev)
+                        # Keep full metadata for the device (owner, properties, etc.)
+                        meta[dev] = d
             device_ids: list[str] = _ids
             device_id = device_ids[0] if device_ids else None
             if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -105,6 +109,7 @@ class FanSyncClient:
             self._token = token
             self._device_id = device_id
             self._device_ids = device_ids
+            self._device_meta = meta
             self._running = True
 
         await self.hass.async_add_executor_job(_connect)
@@ -343,6 +348,9 @@ class FanSyncClient:
         if self._device_ids:
             return list(self._device_ids)
         return [d for d in [self._device_id] if d]
+
+    def device_metadata(self, device_id: str) -> dict[str, Any]:
+        return dict(self._device_meta.get(device_id, {}))
 
     def set_status_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         self._status_callback = callback

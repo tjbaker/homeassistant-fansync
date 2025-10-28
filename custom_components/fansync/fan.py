@@ -314,9 +314,31 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
     @property
     def device_info(self) -> DeviceInfo:
         device_id = self._device_id or "unknown"
+        sw = None
+        model = "FanSync"
+        serial = device_id
+        try:
+            meta = self.client.device_metadata(device_id)
+            props = meta.get("properties", {}) if isinstance(meta, dict) else {}
+            if isinstance(props, dict):
+                # Common keys for firmware/model/ip derived from reverse engineering
+                sw = (
+                    props.get("firmware")
+                    or props.get("firmwareVersion")
+                    or props.get("fwVersion")
+                    or props.get("ignoreUpdateVersion")
+                )
+                model = props.get("model", model)
+                sn = props.get("serial") or props.get("sn")
+                if isinstance(sn, str) and sn:
+                    serial = sn
+        except Exception:
+            pass
         return DeviceInfo(
             identifiers={(DOMAIN, device_id)},
             manufacturer="Fanimation",
-            model="FanSync",
+            model=model,
             name="FanSync",
+            sw_version=str(sw) if sw else None,
+            serial_number=serial,
         )
