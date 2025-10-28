@@ -66,6 +66,7 @@ async def test_recv_loop_reconnects_after_timeouts(hass: HomeAssistant):
             # Allow background thread to process exceptions, reconnect and receive push
             for _ in range(20):
                 await asyncio.sleep(0.05)
+                await hass.async_block_till_done()
 
             assert ensure_wrap.call_count >= 1
             assert any(s.get("H02") == 33 for s in seen)
