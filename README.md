@@ -45,8 +45,6 @@ Custom Home Assistant integration for Fanimation FanSync devices.
 pre-commit install
 pre-commit install --hook-type commit-msg
 ```
-- Commit messages are validated by a Commitizen commit-msg hook. Conventional
-  Commits and ≤72-character subjects are required.
 - Manual checks:
 ```bash
 ruff --fix .
