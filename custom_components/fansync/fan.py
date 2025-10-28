@@ -15,11 +15,14 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .client import FanSyncClient
 from .const import (
+    CONFIRM_RETRY_ATTEMPTS,
+    CONFIRM_RETRY_DELAY_SEC,
     DOMAIN,
     KEY_DIRECTION,
     KEY_POWER,
     KEY_PRESET,
     KEY_SPEED,
+    OPTIMISTIC_GUARD_SEC,
     PRESET_MODES,
     clamp_percentage,
 )
@@ -65,8 +68,8 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         self.client = client
         self._device_id = device_id or "unknown"
         self._attr_unique_id = f"{DOMAIN}_{self._device_id}_fan"
-        self._retry_attempts = 5
-        self._retry_delay = 0.1
+        self._retry_attempts = CONFIRM_RETRY_ATTEMPTS
+        self._retry_delay = CONFIRM_RETRY_DELAY_SEC
         self._optimistic_until: float | None = None
         self._optimistic_predicate: Callable[[dict], bool] | None = None
         # Per-key optimistic overlay to avoid snap-back during short races
@@ -122,8 +125,8 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         optimistic_state_for_device = {**prev_for_device, **optimistic}
         optimistic_all = dict(all_previous) if isinstance(all_previous, dict) else {}
         optimistic_all[self._device_id] = optimistic_state_for_device
-        # Apply per-key overlays to keep UI stable; use an 8s guard window
-        expires = time.monotonic() + 8.0
+        # Apply per-key overlays to keep UI stable; use a shared guard window
+        expires = time.monotonic() + OPTIMISTIC_GUARD_SEC
         for k, v in optimistic.items():
             if k in OVERLAY_KEYS:
                 self._overlay[k] = (int(v), expires)
