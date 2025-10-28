@@ -80,7 +80,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "coordinator": coordinator,
     }
 
-    async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry):
+    async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry) -> None:
         new_secs = updated_entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
         old = coordinator.update_interval
         coordinator.update_interval = None if new_secs == 0 else timedelta(seconds=int(new_secs))

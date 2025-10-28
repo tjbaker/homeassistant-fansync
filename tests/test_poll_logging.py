@@ -7,6 +7,7 @@ import logging
 from unittest.mock import AsyncMock
 
 from homeassistant.core import HomeAssistant
+import pytest
 
 from custom_components.fansync.coordinator import FanSyncCoordinator
 
@@ -18,7 +19,9 @@ class DummyClient:
         self.async_get_status = AsyncMock()
 
 
-async def test_poll_logs_mismatch_single_device(hass: HomeAssistant, caplog):
+async def test_poll_logs_mismatch_single_device(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+):
     caplog.set_level(logging.DEBUG)
     client = DummyClient()
     coord = FanSyncCoordinator(hass, client)
