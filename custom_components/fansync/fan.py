@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from collections.abc import Callable
 
@@ -40,6 +41,8 @@ from .coordinator import FanSyncCoordinator
 
 # Only overlay keys that directly affect HA UI state to prevent snap-back
 OVERLAY_KEYS = {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -136,6 +139,13 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         optimistic_all = dict(all_previous) if isinstance(all_previous, dict) else {}
         optimistic_all[self._device_id] = optimistic_state_for_device
         # Apply per-key overlays to keep UI stable; use a shared guard window
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "optimism start d=%s optimistic=%s expires_in=%.2fs",
+                self._device_id,
+                optimistic,
+                OPTIMISTIC_GUARD_SEC,
+            )
         expires = time.monotonic() + OPTIMISTIC_GUARD_SEC
         for k, v in optimistic.items():
             if k in OVERLAY_KEYS:
@@ -149,7 +159,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
                 await self.client.async_set(payload, device_id=self._device_id)
             except TypeError:
                 await self.client.async_set(payload)
-        except Exception:
+        except Exception as exc:
             # Only revert on explicit failure; otherwise keep optimistic state
             # Clear guard first so revert is not ignored
             self._optimistic_until = None
@@ -157,6 +167,13 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             # Clear overlays
             for k in optimistic.keys():
                 self._overlay.pop(k, None)
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "optimism revert d=%s keys=%s error=%s",
+                    self._device_id,
+                    list(optimistic.keys()),
+                    type(exc).__name__,
+                )
             self.coordinator.async_set_updated_data(all_previous)
             raise
         status, ok = await self._retry_update_until(confirm_pred)
@@ -170,6 +187,12 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             # Clear overlays on confirm
             for k in optimistic.keys():
                 self._overlay.pop(k, None)
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "optimism confirm d=%s keys=%s",
+                    self._device_id,
+                    list(optimistic.keys()),
+                )
 
     @property
     def is_on(self) -> bool:
@@ -272,6 +295,8 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             pred = self._optimistic_predicate
             data = self.coordinator.data or {}
             if callable(pred) and not pred(data):
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("guard ignore d=%s during optimistic window", self._device_id)
                 return
             # Predicate satisfied; clear the guard.
             self._optimistic_until = None
