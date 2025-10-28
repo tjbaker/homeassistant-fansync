@@ -212,14 +212,24 @@ class FanSyncClient:
             self._ensure_ws_connected()
             assert self._ws is not None
             with self._recv_lock:
+                ws: websocket.WebSocket | None = self._ws
+                if ws is None:
+                    raise RuntimeError("Websocket not connected")
+                sent = False
                 try:
-                    self._ws.send(json.dumps({"id": 3, "request": "get", "device": did}))
+                    ws.send(json.dumps({"id": 3, "request": "get", "device": did}))
+                    sent = True
                 except Exception:
+                    sent = False
+                if not sent:
                     # reconnect and retry once
                     self._ws = None
                     self._ensure_ws_connected()
-                    assert self._ws is not None
-                    self._ws.send(json.dumps({"id": 3, "request": "get", "device": did}))  # type: ignore[unreachable]
+                    ws2 = self._ws
+                    if ws2 is None:
+                        raise RuntimeError("Websocket not connected after reconnect")
+                    # mypy may flag this as unreachable; it's a valid retry after reconnect
+                    ws2.send(json.dumps({"id": 3, "request": "get", "device": did}))  # type: ignore[unreachable]
                 # Bounded read to find the response
                 for _ in range(5):
                     raw = self._ws.recv()
@@ -247,14 +257,24 @@ class FanSyncClient:
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("set start d=%s keys=%s", did, list(data.keys()))
             with self._recv_lock:
+                ws: websocket.WebSocket | None = self._ws
+                if ws is None:
+                    raise RuntimeError("Websocket not connected")
+                sent = False
                 try:
-                    self._ws.send(json.dumps(message))
+                    ws.send(json.dumps(message))
+                    sent = True
                 except Exception:
+                    sent = False
+                if not sent:
                     # reconnect and retry once
                     self._ws = None
                     self._ensure_ws_connected()
-                    assert self._ws is not None
-                    self._ws.send(json.dumps(message))  # type: ignore[unreachable]
+                    ws2 = self._ws
+                    if ws2 is None:
+                        raise RuntimeError("Websocket not connected after reconnect")
+                    # mypy may flag this as unreachable; it's a valid retry after reconnect
+                    ws2.send(json.dumps(message))  # type: ignore[unreachable]
                 # Best-effort ack read; ignore errors
                 try:
                     raw = self._ws.recv()
