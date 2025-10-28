@@ -77,7 +77,7 @@ class FanSyncClient:
             ws.connect("wss://fanimation.apps.exosite.io/api:1/phone")
             ws.send(json.dumps({"id": 1, "request": "login", "data": {"token": token}}))
             raw = ws.recv()
-            payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+            payload = json.loads(raw)
             if not (isinstance(payload, dict) and payload.get("status") == "ok"):
                 raise RuntimeError("Websocket login failed")
             if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -86,7 +86,7 @@ class FanSyncClient:
             # List devices
             ws.send(json.dumps({"id": 2, "request": "lst_device"}))
             raw = ws.recv()
-            payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+            payload = json.loads(raw)
             devices = payload.get("data") or []
             # Build a strictly typed list of device IDs (strings only)
             _ids: list[str] = []
@@ -120,9 +120,8 @@ class FanSyncClient:
                         time.sleep(0.1)
                         continue
                     # avoid racing with explicit get/set operations
-                    acquired = self._recv_lock.acquire(blocking=False)
+                    acquired = self._recv_lock.acquire(timeout=0.2)
                     if not acquired:
-                        time.sleep(0.02)
                         continue
                     try:
                         try:
@@ -151,7 +150,7 @@ class FanSyncClient:
                         self._recv_lock.release()
 
                     try:
-                        payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+                        payload = json.loads(raw)
                     except Exception:
                         continue
                     if not isinstance(payload, dict):
@@ -215,7 +214,7 @@ class FanSyncClient:
         ws.connect("wss://fanimation.apps.exosite.io/api:1/phone")
         ws.send(json.dumps({"id": 1, "request": "login", "data": {"token": token}}))
         raw = ws.recv()
-        payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+        payload = json.loads(raw)
         if not (isinstance(payload, dict) and payload.get("status") == "ok"):
             raise RuntimeError("Websocket login failed")
         self._ws = ws
@@ -249,7 +248,7 @@ class FanSyncClient:
                 # Bounded read to find the response
                 for _ in range(5):
                     raw = self._ws.recv()
-                    payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+                    payload = json.loads(raw)
                     if isinstance(payload, dict) and payload.get("response") == "get":
                         if _LOGGER.isEnabledFor(logging.DEBUG):
                             _LOGGER.debug("get rtt ms=%d", int((time.monotonic() - t0) * 1000))
@@ -295,7 +294,7 @@ class FanSyncClient:
                 try:
                     raw = self._ws.recv()
                     try:
-                        payload = json.loads(raw if isinstance(raw, str) else raw.decode())
+                        payload = json.loads(raw)
                         if isinstance(payload, dict) and payload.get("response") == "set":
                             d = payload.get("data")
                             if isinstance(d, dict) and isinstance(d.get("status"), dict):
