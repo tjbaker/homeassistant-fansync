@@ -71,9 +71,7 @@ async def test_fan_emits_debug_logs(hass: HomeAssistant, caplog):
 
     fake_monotonic.t = base
 
-    with patch(
-        "custom_components.fansync.fan.time.monotonic", side_effect=lambda: fake_monotonic()
-    ):
+    with patch("custom_components.fansync.fan.time.monotonic", side_effect=fake_monotonic):
         await hass.services.async_call(
             "fan",
             "set_percentage",

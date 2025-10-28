@@ -51,10 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             merged[did] = status
             coordinator.async_set_updated_data(merged)
             if _LOGGER.isEnabledFor(logging.DEBUG):
-                try:
-                    keys = list(status.keys())
-                except Exception:  # pragma: no cover - extremely defensive
-                    keys = []
+                keys = list(status.keys()) if isinstance(status, dict) else []
                 _LOGGER.debug("push merge d=%s keys=%s", did, keys)
 
         client.set_status_callback(_on_status)

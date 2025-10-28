@@ -244,7 +244,7 @@ class FanSyncClient:
                             d = payload.get("data")
                             if isinstance(d, dict) and isinstance(d.get("status"), dict):
                                 if _LOGGER.isEnabledFor(logging.DEBUG):
-                                    _LOGGER.debug("set ack includes status")
+                                    _LOGGER.debug("set ack includes status d=%s", did)
                                 return d["status"]
                     except Exception:
                         pass
