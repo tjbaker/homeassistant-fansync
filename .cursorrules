@@ -1,4 +1,4 @@
-# Cursor Code Style Rules for this repository
+# AI Code Style Rules for this repository
 
 # Style & Formatting
 - Use Black/Ruff exactly as configured in pyproject.toml (line length 100, Python 3.13).

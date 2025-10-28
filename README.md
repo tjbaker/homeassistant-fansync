@@ -45,6 +45,9 @@ Custom Home Assistant integration for Fanimation FanSync devices.
 ```bash
 pre-commit install
 ```
+- AI agent instructions: the canonical file is `.cursorrules` in the repo root. A pre-commit
+  hook syncs this content into other well-known locations (e.g., `.github/copilot-instructions.md`).
+  Only edit `.cursorrules`; the hook will propagate updates as needed.
 - Manual checks:
 ```bash
 ruff --fix .

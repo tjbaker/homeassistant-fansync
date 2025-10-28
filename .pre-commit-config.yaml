@@ -10,3 +10,11 @@ repos:
     hooks:
       - id: black
         args: ["--line-length", "100"]
+  # use a single ai instruction file (.cursorrules) that is kept in sync for all tools
+  - repo: local
+    hooks:
+      - id: sync-ai-instructions
+        name: sync ai instructions
+        entry: bash -c 'cp .cursorrules .github/copilot-instructions.md'
+        language: system
+        files: ^\.cursorrules$
