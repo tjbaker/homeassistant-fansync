@@ -20,6 +20,8 @@ PRESET_MODES = {0: "normal", 1: "fresh_air"}
 
 # Optimistic update timing (shared by entities)
 # Guard window to prevent UI snap-back while awaiting confirmation
+# Increased from 8.0s to 12.0s to accommodate observed device/network latency;
+# prevents premature UI snap-back for users with slower confirmation responses.
 OPTIMISTIC_GUARD_SEC = 12.0
 # Confirmation polling attempts and delay between polls
 CONFIRM_RETRY_ATTEMPTS = 20
