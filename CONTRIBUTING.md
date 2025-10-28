@@ -11,7 +11,7 @@ Thanks for your interest in contributing! Community pull requests and issues are
 - Submit a pull request (PR)
   - Small, focused PRs are easier to review and merge.
   - Reference any related issue(s) in the PR description (e.g., "Fixes #123").
-  - Follow Conventional Commits for PR titles (e.g., , , ).
+  - Follow Conventional Commits for PR titles (e.g., feat, fix, docs).
 
 ## Development guidelines
 
