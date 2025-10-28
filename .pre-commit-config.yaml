@@ -15,6 +15,6 @@ repos:
     hooks:
       - id: sync-ai-instructions
         name: sync ai instructions
-        entry: bash -c 'cp .cursorrules .github/copilot-instructions.md'
+        entry: bash -c 'cp .cursorrules .github/copilot-instructions.md && git add .github/copilot-instructions.md'
         language: system
         files: ^\.cursorrules$
