@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import ssl
 import threading
 import time
@@ -23,6 +24,8 @@ import httpx
 import websocket
 from homeassistant.core import HomeAssistant
 from websocket import WebSocketConnectionClosedException
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class FanSyncClient:
@@ -128,6 +131,8 @@ class FanSyncClient:
                     data = payload.get("data")
                     if isinstance(data, dict) and isinstance(data.get("status"), dict):
                         pushed_status = data["status"]
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug("recv push status keys=%s", list(pushed_status.keys()))
                         if self._status_callback is not None:
 
                             def _notify(s: dict[str, Any] = pushed_status) -> None:
@@ -219,6 +224,8 @@ class FanSyncClient:
                 "device": did,
                 "data": data,
             }
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("set start d=%s keys=%s", did, list(data.keys()))
             with self._recv_lock:
                 try:
                     self._ws.send(json.dumps(message))
@@ -236,6 +243,8 @@ class FanSyncClient:
                         if isinstance(payload, dict) and payload.get("response") == "set":
                             d = payload.get("data")
                             if isinstance(d, dict) and isinstance(d.get("status"), dict):
+                                if _LOGGER.isEnabledFor(logging.DEBUG):
+                                    _LOGGER.debug("set ack includes status d=%s", did)
                                 return d["status"]
                     except Exception:
                         pass

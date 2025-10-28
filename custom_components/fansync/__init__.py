@@ -12,6 +12,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
@@ -19,6 +21,8 @@ from homeassistant.helpers.typing import ConfigType
 from .client import FanSyncClient
 from .const import CONF_EMAIL, CONF_PASSWORD, CONF_VERIFY_SSL, DOMAIN, PLATFORMS
 from .coordinator import FanSyncCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -46,6 +50,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             merged: dict[str, dict[str, object]] = dict(current)
             merged[did] = status
             coordinator.async_set_updated_data(merged)
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                keys = list(status.keys()) if isinstance(status, dict) else []
+                _LOGGER.debug("push merge d=%s keys=%s", did, keys)
 
         client.set_status_callback(_on_status)
     await coordinator.async_config_entry_first_refresh()
