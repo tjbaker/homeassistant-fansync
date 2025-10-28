@@ -23,7 +23,6 @@ from typing import Any
 import httpx
 import websocket
 from homeassistant.core import HomeAssistant
-from websocket import WebSocketConnectionClosedException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -83,8 +82,14 @@ class FanSyncClient:
             raw = ws.recv()
             payload = json.loads(raw if isinstance(raw, str) else raw.decode())
             devices = payload.get("data") or []
-            device_ids = [d.get("device") for d in devices if isinstance(d, dict)]
-            device_ids = [d for d in device_ids if d]
+            # Build a strictly typed list of device IDs (strings only)
+            _ids: list[str] = []
+            for d in devices:
+                if isinstance(d, dict):
+                    dev = d.get("device")
+                    if isinstance(dev, str) and dev:
+                        _ids.append(dev)
+            device_ids: list[str] = _ids
             device_id = device_ids[0] if device_ids else None
 
             self._http = session
@@ -196,12 +201,12 @@ class FanSyncClient:
             with self._recv_lock:
                 try:
                     self._ws.send(json.dumps({"id": 3, "request": "get", "device": did}))
-                except WebSocketConnectionClosedException:
+                except Exception:
                     # reconnect and retry once
                     self._ws = None
                     self._ensure_ws_connected()
                     assert self._ws is not None
-                    self._ws.send(json.dumps({"id": 3, "request": "get", "device": did}))
+                    self._ws.send(json.dumps({"id": 3, "request": "get", "device": did}))  # type: ignore[unreachable]
                 # Bounded read to find the response
                 for _ in range(5):
                     raw = self._ws.recv()
@@ -229,12 +234,12 @@ class FanSyncClient:
             with self._recv_lock:
                 try:
                     self._ws.send(json.dumps(message))
-                except WebSocketConnectionClosedException:
+                except Exception:
                     # reconnect and retry once
                     self._ws = None
                     self._ensure_ws_connected()
                     assert self._ws is not None
-                    self._ws.send(json.dumps(message))
+                    self._ws.send(json.dumps(message))  # type: ignore[unreachable]
                 # Best-effort ack read; ignore errors
                 try:
                     raw = self._ws.recv()
