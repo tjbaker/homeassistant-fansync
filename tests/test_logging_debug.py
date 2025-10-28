@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import time
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -64,12 +64,15 @@ async def test_fan_emits_debug_logs(hass: HomeAssistant, caplog):
     client = LogClient()
     await setup(hass, client)
 
+    class FakeMonotonic:
+        def __init__(self, t: float):
+            self.t = t
+
+        def __call__(self) -> float:
+            return self.t
+
     base = time.monotonic()
-
-    def fake_monotonic():
-        return fake_monotonic.t
-
-    fake_monotonic.t = base
+    fake_monotonic = FakeMonotonic(base)
 
     with patch("custom_components.fansync.fan.time.monotonic", side_effect=fake_monotonic):
         await hass.services.async_call(
@@ -97,9 +100,10 @@ async def test_client_logs_ack_status(hass: HomeAssistant, caplog):
         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
     ):
         http_inst = http_cls.return_value
-        http_inst.post.return_value = type(
-            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
-        )()
+        mock_resp = Mock()
+        mock_resp.raise_for_status = Mock(return_value=None)
+        mock_resp.json = Mock(return_value={"token": "t"})
+        http_inst.post.return_value = mock_resp
         ws = ws_cls.return_value
         ws.connect.return_value = None
         # login, list, then set ACK with embedded status (no subsequent get response provided)

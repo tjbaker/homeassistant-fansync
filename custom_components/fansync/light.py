@@ -154,7 +154,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
                 await self.client.async_set(payload, device_id=self._device_id)
             except TypeError:
                 await self.client.async_set(payload)
-        except Exception as exc:
+        except RuntimeError as exc:
             self._optimistic_until = None
             self._optimistic_predicate = None
             for k in optimistic.keys():

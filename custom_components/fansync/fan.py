@@ -159,7 +159,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
                 await self.client.async_set(payload, device_id=self._device_id)
             except TypeError:
                 await self.client.async_set(payload)
-        except Exception as exc:
+        except RuntimeError as exc:
             # Only revert on explicit failure; otherwise keep optimistic state
             # Clear guard first so revert is not ignored
             self._optimistic_until = None
