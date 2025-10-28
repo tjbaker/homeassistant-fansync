@@ -72,10 +72,6 @@ pytest -q --cov=custom_components/fansync
 ```
 CI enforces coverage on the integration code (threshold set in the workflow).
 
-## Security
-
-- Do not commit real credentials. Rotate any credentials that may have been exposed.
-
 ## License
 
 GPL-2.0-only (see `LICENSE`). A `NOTICE` file includes attribution.
