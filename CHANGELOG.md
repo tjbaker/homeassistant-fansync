@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.2](https://github.com/tjbaker/homeassistant-fansync/compare/v0.2.1...v0.2.2) (2025-10-28)
+
+
+### Features
+
+* add targeted DEBUG logs; tests for fan/client logging ([#34](https://github.com/tjbaker/homeassistant-fansync/issues/34)) ([d1335e4](https://github.com/tjbaker/homeassistant-fansync/commit/d1335e4051a5a9cc298d4d87f382a5bdfc38afba))
+
 ## [0.2.1](https://github.com/tjbaker/homeassistant-fansync/compare/v0.2.0...v0.2.1) (2025-10-28)
 
 
