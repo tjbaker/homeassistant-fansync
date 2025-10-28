@@ -265,15 +265,17 @@ class FanSyncClient:
                         if pid is not None and pid != req_id:
                             # different reply; keep waiting
                             continue
-                        # Cache profile metadata if present
+                        # Opportunistically cache device profile metadata from get() responses
+                        # so we can enrich DeviceInfo/attributes without extra requests.
                         try:
                             data_obj = payload.get("data")
                             if isinstance(data_obj, dict):
                                 prof = data_obj.get("profile")
                                 if isinstance(prof, dict):
                                     self._device_profile[did] = prof
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            if _LOGGER.isEnabledFor(logging.DEBUG):
+                                _LOGGER.debug("profile cache failed for %s: %s", did, exc)
                         if _LOGGER.isEnabledFor(logging.DEBUG):
                             _LOGGER.debug("get rtt ms=%d", int((time.monotonic() - t0) * 1000))
                         return payload["data"]["status"]

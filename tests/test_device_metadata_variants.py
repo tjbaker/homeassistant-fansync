@@ -123,7 +123,7 @@ async def test_attributes_and_connections_single(hass: HomeAssistant):
     assert (CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff") in dev.connections
 
     # Check state attributes for IP and MAC
-    state = hass.states.get(f"fan.{fan_ent.original_name}")
+    state = hass.states.get(fan_ent.entity_id)
     assert state is not None
     assert state.attributes.get("local_ip") == "192.0.2.10"
     assert state.attributes.get("mac_address") == "aa:bb:cc:dd:ee:ff"
@@ -152,7 +152,7 @@ async def test_missing_profile_fallbacks(hass: HomeAssistant):
     assert dev.model == "FanSync"  # default
     assert dev.sw_version is None
     # No attributes when module keys missing
-    state = hass.states.get(f"fan.{fan_ent.original_name}")
+    state = hass.states.get(fan_ent.entity_id)
     assert state is not None
     assert "local_ip" not in state.attributes
     assert "mac_address" not in state.attributes
@@ -183,7 +183,7 @@ async def test_multi_device_isolation(hass: HomeAssistant):
     for ent in fans:
         dev = d_registry.async_get(ent.device_id)
         assert dev is not None
-        state = hass.states.get(f"fan.{ent.original_name}")
+        state = hass.states.get(ent.entity_id)
         assert state is not None
         ip = state.attributes.get("local_ip")
         if isinstance(ip, str):
