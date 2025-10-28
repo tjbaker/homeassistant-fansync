@@ -296,7 +296,15 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             data = self.coordinator.data or {}
             if callable(pred) and not pred(data):
                 if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug("guard ignore d=%s during optimistic window", self._device_id)
+                    remaining = (
+                        self._optimistic_until - time.monotonic() if self._optimistic_until else 0.0
+                    )
+                    _LOGGER.debug(
+                        "guard ignore d=%s overlays=%d remaining=%.2fs",
+                        self._device_id,
+                        len(self._overlay),
+                        max(0.0, remaining),
+                    )
                 return
             # Predicate satisfied; clear the guard.
             self._optimistic_until = None

@@ -12,11 +12,22 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import voluptuous as vol
 from homeassistant import config_entries
 
 from .client import FanSyncClient
-from .const import CONF_EMAIL, CONF_PASSWORD, CONF_VERIFY_SSL, DOMAIN
+from .const import (
+    CONF_EMAIL,
+    CONF_PASSWORD,
+    CONF_VERIFY_SSL,
+    DEFAULT_FALLBACK_POLL_SECS,
+    DOMAIN,
+    MAX_FALLBACK_POLL_SECS,
+    MIN_FALLBACK_POLL_SECS,
+    OPTION_FALLBACK_POLL_SECS,
+)
 
 DATA_SCHEMA = vol.Schema(
     {
@@ -30,7 +41,7 @@ DATA_SCHEMA = vol.Schema(
 class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(self, user_input: dict[str, Any] | None = None):
         if user_input is None:
             return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA)
 
@@ -54,3 +65,37 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA, errors=errors)
 
         return self.async_create_entry(title="FanSync", data=user_input)
+
+    @staticmethod
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
+        return FanSyncOptionsFlowHandler(config_entry)
+
+
+class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        self.config_entry = config_entry
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None):
+        if user_input is not None:
+            # Clamp value into allowed range; 0 disables polling
+            secs = int(user_input.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS))
+            if secs != 0:
+                secs = max(MIN_FALLBACK_POLL_SECS, min(MAX_FALLBACK_POLL_SECS, secs))
+            return self.async_create_entry(
+                title="FanSync Options", data={OPTION_FALLBACK_POLL_SECS: secs}
+            )
+
+        current = self.config_entry.options.get(
+            OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS
+        )
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    OPTION_FALLBACK_POLL_SECS,
+                    default=current,
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=MAX_FALLBACK_POLL_SECS)),
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema)

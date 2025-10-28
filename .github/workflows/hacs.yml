@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+name: HACS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'custom_components/fansync/**'
+      - 'hacs.json'
+      - 'README.md'
+      - '.github/workflows/hacs.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'custom_components/fansync/**'
+      - 'hacs.json'
+      - 'README.md'
+      - '.github/workflows/hacs.yml'
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: "integration"
+          ignore: "brands"
+

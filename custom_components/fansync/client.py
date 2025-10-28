@@ -23,7 +23,6 @@ from typing import Any
 import httpx
 import websocket
 from homeassistant.core import HomeAssistant
-from websocket import WebSocketConnectionClosedException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,7 +55,7 @@ class FanSyncClient:
     async def async_connect(self):
         def _connect():
             session = httpx.Client(verify=self.verify_ssl)
-
+            t0 = time.monotonic()
             # Authenticate over HTTP
             url = "https://fanimation.apps.exosite.io/api:1/session"
             resp = session.post(
@@ -66,8 +65,12 @@ class FanSyncClient:
             )
             resp.raise_for_status()
             token = resp.json()["token"]
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                elapsed_ms = int((time.monotonic() - t0) * 1000)
+                _LOGGER.debug("http login ms=%d verify_ssl=%s", elapsed_ms, self.verify_ssl)
 
             # Websocket connect and login
+            t1 = time.monotonic()
             ws_opts = {} if self.verify_ssl else {"cert_reqs": ssl.CERT_NONE}
             ws = websocket.WebSocket(sslopt=ws_opts)
             ws.timeout = 10
@@ -77,15 +80,25 @@ class FanSyncClient:
             payload = json.loads(raw if isinstance(raw, str) else raw.decode())
             if not (isinstance(payload, dict) and payload.get("status") == "ok"):
                 raise RuntimeError("Websocket login failed")
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("ws connect+login ms=%d", int((time.monotonic() - t1) * 1000))
 
             # List devices
             ws.send(json.dumps({"id": 2, "request": "lst_device"}))
             raw = ws.recv()
             payload = json.loads(raw if isinstance(raw, str) else raw.decode())
             devices = payload.get("data") or []
-            device_ids = [d.get("device") for d in devices if isinstance(d, dict)]
-            device_ids = [d for d in device_ids if d]
+            # Build a strictly typed list of device IDs (strings only)
+            _ids: list[str] = []
+            for d in devices:
+                if isinstance(d, dict):
+                    dev = d.get("device")
+                    if isinstance(dev, str) and dev:
+                        _ids.append(dev)
+            device_ids: list[str] = _ids
             device_id = device_ids[0] if device_ids else None
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("discovered device_ids=%s", device_ids)
 
             self._http = session
             self._ws = ws
@@ -113,7 +126,9 @@ class FanSyncClient:
                     try:
                         try:
                             raw = ws.recv()
-                        except Exception:
+                        except Exception as err:
+                            if _LOGGER.isEnabledFor(logging.DEBUG):
+                                _LOGGER.debug("recv error=%s", type(err).__name__)
                             time.sleep(0.1)
                             continue
                     finally:
@@ -127,6 +142,8 @@ class FanSyncClient:
                         continue
                     # Ignore direct responses to our own requests except set when it includes status
                     if payload.get("response") in {"login", "lst_device", "get"}:
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug("ignored frame response=%s", payload.get("response"))
                         continue
                     data = payload.get("data")
                     if isinstance(data, dict) and isinstance(data.get("status"), dict):
@@ -189,24 +206,37 @@ class FanSyncClient:
 
     async def async_get_status(self, device_id: str | None = None) -> dict[str, Any]:
         def _get():
+            t0 = time.monotonic()
             did = device_id or self._device_id
             assert did is not None
             self._ensure_ws_connected()
             assert self._ws is not None
             with self._recv_lock:
+                ws: websocket.WebSocket | None = self._ws
+                if ws is None:
+                    raise RuntimeError("Websocket not connected")
+                sent = False
                 try:
-                    self._ws.send(json.dumps({"id": 3, "request": "get", "device": did}))
-                except WebSocketConnectionClosedException:
+                    ws.send(json.dumps({"id": 3, "request": "get", "device": did}))
+                    sent = True
+                except Exception:
+                    sent = False
+                if not sent:
                     # reconnect and retry once
                     self._ws = None
                     self._ensure_ws_connected()
-                    assert self._ws is not None
-                    self._ws.send(json.dumps({"id": 3, "request": "get", "device": did}))
+                    ws2 = self._ws
+                    if ws2 is None:
+                        raise RuntimeError("Websocket not connected after reconnect")
+                    # mypy may flag this as unreachable; it's a valid retry after reconnect
+                    ws2.send(json.dumps({"id": 3, "request": "get", "device": did}))  # type: ignore[unreachable]
                 # Bounded read to find the response
                 for _ in range(5):
                     raw = self._ws.recv()
                     payload = json.loads(raw if isinstance(raw, str) else raw.decode())
                     if isinstance(payload, dict) and payload.get("response") == "get":
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug("get rtt ms=%d", int((time.monotonic() - t0) * 1000))
                         return payload["data"]["status"]
                 raise RuntimeError("Get status response not received")
 
@@ -227,14 +257,24 @@ class FanSyncClient:
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("set start d=%s keys=%s", did, list(data.keys()))
             with self._recv_lock:
+                ws: websocket.WebSocket | None = self._ws
+                if ws is None:
+                    raise RuntimeError("Websocket not connected")
+                sent = False
                 try:
-                    self._ws.send(json.dumps(message))
-                except WebSocketConnectionClosedException:
+                    ws.send(json.dumps(message))
+                    sent = True
+                except Exception:
+                    sent = False
+                if not sent:
                     # reconnect and retry once
                     self._ws = None
                     self._ensure_ws_connected()
-                    assert self._ws is not None
-                    self._ws.send(json.dumps(message))
+                    ws2 = self._ws
+                    if ws2 is None:
+                        raise RuntimeError("Websocket not connected after reconnect")
+                    # mypy may flag this as unreachable; it's a valid retry after reconnect
+                    ws2.send(json.dumps(message))  # type: ignore[unreachable]
                 # Best-effort ack read; ignore errors
                 try:
                     raw = self._ws.recv()
@@ -252,6 +292,7 @@ class FanSyncClient:
                     return None
             return None
 
+        t_total = time.monotonic()
         ack_status = await self.hass.async_add_executor_job(_set)
         # After a successful set, fetch latest status and notify listeners, if any.
         if self._status_callback is not None:
@@ -265,6 +306,8 @@ class FanSyncClient:
                 self._status_callback(status)
 
             self.hass.loop.call_soon_threadsafe(_notify)
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("set total rtt ms=%d", int((time.monotonic() - t_total) * 1000))
 
     @property
     def device_id(self) -> str | None:
