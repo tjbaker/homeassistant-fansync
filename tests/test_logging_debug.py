@@ -18,6 +18,7 @@ from unittest.mock import patch
 
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from custom_components.fansync.client import FanSyncClient
 
 
 class LogClient:
@@ -92,17 +93,29 @@ async def test_fan_emits_debug_logs(hass: HomeAssistant, caplog):
 
 async def test_client_logs_ack_status(hass: HomeAssistant, caplog):
     caplog.set_level(logging.DEBUG)
-    client = LogClient()
-    await setup(hass, client)
+    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+    ):
+        http_inst = http_cls.return_value
+        http_inst.post.return_value = type(
+            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
+        )()
+        ws = ws_cls.return_value
+        ws.connect.return_value = None
+        # login, list, then set ACK with embedded status (no subsequent get response provided)
+        ws.recv.side_effect = [
+            # login ok
+            '{"status": "ok", "response": "login", "id": 1}',
+            # list devices
+            '{"status": "ok", "response": "lst_device", "data": [{"device": "id"}], "id": 2}',
+            # set ack with status
+            '{"status": "ok", "response": "set", "id": 4, "data": {"status": {"H00": 1, "H02": 33}}}',
+        ]
+        await c.async_connect()
+        await c.async_set({"H02": 33})
 
-    await hass.services.async_call(
-        "fan",
-        "set_percentage",
-        {"entity_id": "fan.fan", "percentage": 33},
-        blocking=True,
-    )
-
-    # The client should log that set started and ack included status
     msgs = [r.getMessage() for r in caplog.records]
     assert any("set start" in m for m in msgs)
     assert any("ack includes status" in m for m in msgs)
