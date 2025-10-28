@@ -38,3 +38,14 @@ ignore_missing_imports = true  # Home Assistant stubs not installed in CI
 # Do not exclude tests; CI runs mypy over custom_components/fansync and tests
 exclude = "^(venv|\\.venv|examples|fansync)(/|$)"
 explicit_package_bases = true
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.0"
+tag_format = "v$version"
+major_version_zero = true
+update_changelog_on_bump = true
+changelog_start_rev = ""
+use_shortcuts = true
+allow_abort = true
+max_header_length = 72

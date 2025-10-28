@@ -44,7 +44,10 @@ Custom Home Assistant integration for Fanimation FanSync devices.
 - Optional pre-commit hooks:
 ```bash
 pre-commit install
+pre-commit install --hook-type commit-msg
 ```
+- Commit messages are validated by a Commitizen commit-msg hook. Conventional
+  Commits and ≤72-character subjects are required.
 - AI agent instructions: the canonical file is `.cursorrules` in the repo root. A pre-commit
   hook syncs this content into other well-known locations (e.g., `.github/copilot-instructions.md`).
   Only edit `.cursorrules`; the hook will propagate updates as needed.
