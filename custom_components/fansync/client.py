@@ -48,6 +48,7 @@ class FanSyncClient:
         self._device_id: str | None = None
         self._device_ids: list[str] = []
         self._device_meta: dict[str, dict[str, Any]] = {}
+        self._device_profile: dict[str, dict[str, Any]] = {}
         self._status_callback: Callable[[dict[str, Any]], None] | None = None
         self._running: bool = False
         self._recv_lock: threading.Lock = threading.Lock()
@@ -264,6 +265,15 @@ class FanSyncClient:
                         if pid is not None and pid != req_id:
                             # different reply; keep waiting
                             continue
+                        # Cache profile metadata if present
+                        try:
+                            data_obj = payload.get("data")
+                            if isinstance(data_obj, dict):
+                                prof = data_obj.get("profile")
+                                if isinstance(prof, dict):
+                                    self._device_profile[did] = prof
+                        except Exception:
+                            pass
                         if _LOGGER.isEnabledFor(logging.DEBUG):
                             _LOGGER.debug("get rtt ms=%d", int((time.monotonic() - t0) * 1000))
                         return payload["data"]["status"]
@@ -351,6 +361,9 @@ class FanSyncClient:
 
     def device_metadata(self, device_id: str) -> dict[str, Any]:
         return dict(self._device_meta.get(device_id, {}))
+
+    def device_profile(self, device_id: str) -> dict[str, Any]:
+        return dict(self._device_profile.get(device_id, {}))
 
     def set_status_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         self._status_callback = callback

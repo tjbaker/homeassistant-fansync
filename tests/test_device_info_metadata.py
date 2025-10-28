@@ -24,14 +24,15 @@ class MetaClient:
         self.device_ids = ["alpha"]
         self.device_id = "alpha"
         self.status = {"H00": 1, "H02": 10, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
-        self._meta = {
+        self._profile = {
             "alpha": {
-                "device": "alpha",
-                "properties": {
-                    "model": "OdynCustom-FDR1L2",
-                    "firmwareVersion": "1.7.1",
-                    "serial": "SN123",
+                "module": {
+                    "firmware_version": "1.7.1",
+                    "local_ip": "192.0.2.10",
+                    "ssid": "my-wifi",
+                    "mac_address": "AA:BB:CC:DD:EE:FF",
                 },
+                "esh": {"brand": "Fanimation", "model": "OdynCustom-FDR1L2"},
             }
         }
 
@@ -47,8 +48,8 @@ class MetaClient:
     async def async_set(self, data: dict[str, int], *, device_id: str | None = None):
         self.status.update(data)
 
-    def device_metadata(self, device_id: str):
-        return self._meta.get(device_id, {})
+    def device_profile(self, device_id: str):
+        return self._profile.get(device_id, {})
 
 
 async def test_device_info_metadata(hass: HomeAssistant):
@@ -75,6 +76,6 @@ async def test_device_info_metadata(hass: HomeAssistant):
     )
     dev = d_registry.async_get(ent.device_id)
     assert dev is not None
+    assert dev.manufacturer == "Fanimation"
     assert dev.model == "OdynCustom-FDR1L2"
     assert dev.sw_version == "1.7.1"
-    assert dev.serial_number == "SN123"

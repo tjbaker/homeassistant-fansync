@@ -20,6 +20,7 @@ from collections.abc import Callable
 from homeassistant.components.light import ColorMode, LightEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -248,28 +249,53 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         device_id = self._device_id or "unknown"
         sw = None
         model = "FanSync"
+        brand = "Fanimation"
         serial = device_id
+        mac: str | None = None
         try:
-            meta = self.client.device_metadata(device_id)
-            props = meta.get("properties", {}) if isinstance(meta, dict) else {}
-            if isinstance(props, dict):
-                sw = (
-                    props.get("firmware")
-                    or props.get("firmwareVersion")
-                    or props.get("fwVersion")
-                    or props.get("ignoreUpdateVersion")
-                )
-                model = props.get("model", model)
-                sn = props.get("serial") or props.get("sn")
-                if isinstance(sn, str) and sn:
-                    serial = sn
+            prof = self.client.device_profile(device_id)
+            if isinstance(prof, dict):
+                esh = prof.get("esh")
+                if isinstance(esh, dict):
+                    model = esh.get("model", model)
+                    brand = esh.get("brand", brand)
+                module = prof.get("module")
+                if isinstance(module, dict):
+                    fv = module.get("firmware_version")
+                    if isinstance(fv, str) and fv:
+                        sw = fv
+                    m = module.get("mac_address")
+                    if isinstance(m, str) and m:
+                        mac = m
         except Exception:
             pass
-        return DeviceInfo(
+        info = DeviceInfo(
             identifiers={(DOMAIN, device_id)},
-            manufacturer="Fanimation",
+            manufacturer=brand,
             model=model,
             name="FanSync",
             sw_version=str(sw) if sw else None,
             serial_number=serial,
         )
+        if mac:
+            info["connections"] = {(CONNECTION_NETWORK_MAC, mac)}
+        return info
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        try:
+            prof = self.client.device_profile(self._device_id)
+        except Exception:
+            prof = {}
+        if not isinstance(prof, dict):
+            return None
+        module = prof.get("module") if isinstance(prof, dict) else None
+        attrs: dict[str, object] = {}
+        if isinstance(module, dict):
+            ip = module.get("local_ip")
+            mac = module.get("mac_address")
+            if isinstance(ip, str) and ip:
+                attrs["local_ip"] = ip
+            if isinstance(mac, str) and mac:
+                attrs["mac_address"] = mac
+        return attrs or None
