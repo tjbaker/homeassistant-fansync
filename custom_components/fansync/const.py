@@ -24,6 +24,8 @@ PRESET_MODES = {0: "normal", 1: "fresh_air"}
 # prevents premature UI snap-back for users with slower confirmation responses.
 OPTIMISTIC_GUARD_SEC = 12.0
 # Confirmation polling attempts and delay between polls
+# Increased retry duration (20 × 0.25s = 5s) is intentional to accommodate
+# occasional network/device latency and improve reliability of confirmation.
 CONFIRM_RETRY_ATTEMPTS = 20
 CONFIRM_RETRY_DELAY_SEC = 0.25
 
