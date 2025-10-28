@@ -74,4 +74,4 @@ CI enforces coverage on the integration code (threshold set in the workflow).
 
 ## License
 
-GPL-2.0-only (see `LICENSE`). A `NOTICE` file includes attribution.
+Apache-2.0 (see `LICENSE`). A `NOTICE` file includes attribution.

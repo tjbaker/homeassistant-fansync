@@ -24,8 +24,9 @@ Thanks for your interest in contributing! Community pull requests and issues are
 
 ## License and attribution
 
-- This project is licensed under GPL-2.0-only. By contributing, you agree your contributions
-  will be licensed under the same terms. See LICENSE and NOTICE for details.
+- This project is licensed under the Apache License, Version 2.0. By contributing, you
+  agree your contributions will be licensed under the same terms. See LICENSE and NOTICE
+  for details.
 
 ## Code of conduct
 

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-2.0-only
+# SPDX-License-Identifier: Apache-2.0
 # Copyright 2025 Trevor Baker, all rights reserved.
 
 """Client construction and SSL verification behavior tests.
