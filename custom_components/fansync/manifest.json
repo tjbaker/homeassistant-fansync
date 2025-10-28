@@ -3,6 +3,7 @@
     "name": "FanSync",
     "version": "0.2.2",
     "documentation": "https://github.com/tjbaker/homeassistant-fansync",
+    "issue_tracker": "https://github.com/tjbaker/homeassistant-fansync/issues",
     "requirements": [
         "httpx",
         "websocket-client",
