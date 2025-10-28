@@ -44,7 +44,6 @@ OPTION_FALLBACK_POLL_SECS = "fallback_poll_seconds"
 DEFAULT_FALLBACK_POLL_SECS = 60
 MIN_FALLBACK_POLL_SECS = 15
 MAX_FALLBACK_POLL_SECS = 600
-
 # Fallback polling interval (seconds) when push updates are missing
 FALLBACK_POLL_SECONDS = 30
 

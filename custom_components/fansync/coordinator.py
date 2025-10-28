@@ -19,9 +19,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import FanSyncClient
-from .const import FALLBACK_POLL_SECONDS
+from .const import DEFAULT_FALLBACK_POLL_SECS
 
-SCAN_INTERVAL = timedelta(seconds=FALLBACK_POLL_SECONDS)
+SCAN_INTERVAL = timedelta(seconds=DEFAULT_FALLBACK_POLL_SECS)
 
 
 class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
@@ -52,9 +52,8 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 prev = current.get(did, {}) if isinstance(current, dict) else {}
                 if isinstance(prev, dict) and isinstance(s, dict) and prev != s:
                     if self.logger.isEnabledFor(logging.DEBUG):
-                        changed = {k for k in set(prev) | set(s) if prev.get(k) != s.get(k)}
                         self.logger.debug(
-                            "poll mismatch d=%s changed_keys=%s", did, sorted(changed)
+                            "poll mismatch d=%s changed_keys=%s", did, _changed_keys(prev, s)
                         )
                 if self.logger.isEnabledFor(logging.DEBUG):
                     self.logger.debug("poll sync done devices=%d", len(statuses))
@@ -69,12 +68,16 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     prev = current.get(did, {})
                     if isinstance(prev, dict) and isinstance(s, dict) and prev != s:
                         if self.logger.isEnabledFor(logging.DEBUG):
-                            changed = {k for k in set(prev) | set(s) if prev.get(k) != s.get(k)}
                             self.logger.debug(
-                                "poll mismatch d=%s changed_keys=%s", did, sorted(changed)
+                                "poll mismatch d=%s changed_keys=%s", did, _changed_keys(prev, s)
                             )
             if self.logger.isEnabledFor(logging.DEBUG):
                 self.logger.debug("poll sync done devices=%d", len(statuses))
             return statuses
         except Exception as err:
             raise UpdateFailed(str(err)) from err
+
+
+def _changed_keys(prev: dict[str, object], new: dict[str, object]) -> list[str]:
+    changed = {k for k in set(prev) | set(new) if prev.get(k) != new.get(k)}
+    return sorted(changed)

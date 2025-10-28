@@ -64,6 +64,10 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_create_entry(title="FanSync", data=user_input)
 
+    @staticmethod
+    async def async_get_options_flow(config_entry: config_entries.ConfigEntry):
+        return FanSyncOptionsFlowHandler(config_entry)
+
 
 class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
@@ -91,7 +95,3 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
-
-
-async def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-    return FanSyncOptionsFlowHandler(config_entry)
