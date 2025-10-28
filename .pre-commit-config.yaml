@@ -19,3 +19,11 @@ repos:
         language: system
         pass_filenames: false
         files: ^\.cursorrules$
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.28.0
+    hooks:
+      - id: commitizen
+        name: commitizen check (conventional + 72-char)
+        stages: [commit-msg]
+        args:
+          ["check", "--commit-msg-file", ".git/COMMIT_EDITMSG", "--allow-abort", "--max-header-length", "72"]
