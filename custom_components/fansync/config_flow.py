@@ -65,7 +65,7 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_create_entry(title="FanSync", data=user_input)
 
     @staticmethod
-    async def async_get_options_flow(config_entry: config_entries.ConfigEntry):
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry):
         return FanSyncOptionsFlowHandler(config_entry)
 
 
