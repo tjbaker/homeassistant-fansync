@@ -74,4 +74,12 @@ CI enforces coverage on the integration code (threshold set in the workflow).
 
 ## License
 
-Apache-2.0 (see `LICENSE`). A `NOTICE` file includes attribution.
+Apache-2.0 (see `LICENSE`).
+
+## Acknowledgments
+
+- Reverse‑engineering notes and sample payloads that informed this work were
+  originally published in rotinom/fansync:
+  https://github.com/rotinom/fansync
+  
+  No files from that repository are included here; any remaining mistakes are ours.
