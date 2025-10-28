@@ -40,19 +40,20 @@ Custom Home Assistant integration for Fanimation FanSync devices.
 
 ## Development
 
-- Formatting and linting: configured via `pyproject.toml` (Black + Ruff)
-- Optional pre-commit hooks:
+- Optional pre-commit hooks (recommended):
 ```bash
 pre-commit install
+pre-commit install --hook-type commit-msg
 ```
-- AI agent instructions: the canonical file is `.cursorrules` in the repo root. A pre-commit
-  hook syncs this content into other well-known locations (e.g., `.github/copilot-instructions.md`).
-  Only edit `.cursorrules`; the hook will propagate updates as needed.
 - Manual checks:
 ```bash
 ruff --fix .
 black .
 ```
+- Formatting and linting are configured via `pyproject.toml` (Black + Ruff)
+- AI agent instructions: the canonical file is `.cursorrules` in the repo root. A pre-commit
+  hook syncs this content into other well-known locations (e.g., `.github/copilot-instructions.md`).
+  Only edit `.cursorrules`; the hook will propagate updates as needed.
 
 ### Pull requests and commit messages
 

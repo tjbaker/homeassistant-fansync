@@ -18,6 +18,18 @@ KEY_LIGHT_BRIGHTNESS = "H0C"
 PRESET_MODES = {0: "normal", 1: "fresh_air"}
 
 
+# Optimistic update timing (shared by entities)
+# Guard window to prevent UI snap-back while awaiting confirmation
+# Increased from 8.0s to 12.0s to accommodate observed device/network latency;
+# prevents premature UI snap-back for users with slower confirmation responses.
+OPTIMISTIC_GUARD_SEC = 12.0
+# Confirmation polling attempts and delay between polls
+# Increased retry duration (20 × 0.25s = 5s) is intentional to accommodate
+# occasional network/device latency and improve reliability of confirmation.
+CONFIRM_RETRY_ATTEMPTS = 20
+CONFIRM_RETRY_DELAY_SEC = 0.25
+
+
 def clamp_percentage(value: int) -> int:
     """Clamp percentage to FanSync allowed range [1, 100]."""
     return max(1, min(100, int(value)))

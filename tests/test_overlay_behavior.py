@@ -75,8 +75,10 @@ async def test_overlay_ignores_interim_update_then_confirms(hass: HomeAssistant)
         state = hass.states.get("fan.fan")
         assert state.attributes.get("percentage") == 55
 
-        # Advance time beyond guard window (~8s)
-        fake_monotonic.t = base + 9.0
+        # Advance time beyond guard window
+        from custom_components.fansync.const import OPTIMISTIC_GUARD_SEC
+
+        fake_monotonic.t = base + OPTIMISTIC_GUARD_SEC + 1.0
         await hass.async_block_till_done()
         # State remains at confirmed value because callback already applied; no snap-back
         state = hass.states.get("fan.fan")
