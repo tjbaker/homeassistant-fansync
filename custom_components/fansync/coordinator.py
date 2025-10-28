@@ -13,13 +13,15 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import FanSyncClient
+from .const import FALLBACK_POLL_SECONDS
 
-SCAN_INTERVAL = None  # push-first; no periodic polling
+SCAN_INTERVAL = timedelta(seconds=FALLBACK_POLL_SECONDS)
 
 
 class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):

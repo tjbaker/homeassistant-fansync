@@ -39,6 +39,9 @@ OPTIMISTIC_GUARD_SEC = 12.0
 CONFIRM_RETRY_ATTEMPTS = 20
 CONFIRM_RETRY_DELAY_SEC = 0.25
 
+# Fallback polling interval (seconds) when push updates are missing
+FALLBACK_POLL_SECONDS = 30
+
 
 def clamp_percentage(value: int) -> int:
     """Clamp percentage to FanSync allowed range [1, 100]."""
