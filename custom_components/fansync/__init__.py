@@ -13,13 +13,22 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 
 from .client import FanSyncClient
-from .const import CONF_EMAIL, CONF_PASSWORD, CONF_VERIFY_SSL, DOMAIN, PLATFORMS
+from .const import (
+    CONF_EMAIL,
+    CONF_PASSWORD,
+    CONF_VERIFY_SSL,
+    DEFAULT_FALLBACK_POLL_SECS,
+    DOMAIN,
+    OPTION_FALLBACK_POLL_SECS,
+    PLATFORMS,
+)
 from .coordinator import FanSyncCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,6 +48,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     await client.async_connect()
     coordinator = FanSyncCoordinator(hass, client)
+    # Apply options-driven fallback polling
+    secs = entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
+    coordinator.update_interval = None if secs == 0 else timedelta(seconds=int(secs))
 
     # Register a push callback if supported by the client
     if hasattr(client, "set_status_callback"):
@@ -61,6 +73,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "client": client,
         "coordinator": coordinator,
     }
+
+    async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry):
+        new_secs = updated_entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
+        coordinator.update_interval = None if new_secs == 0 else timedelta(seconds=int(new_secs))
+
+    entry.add_update_listener(_async_options_updated)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

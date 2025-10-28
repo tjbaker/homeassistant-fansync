@@ -39,6 +39,12 @@ OPTIMISTIC_GUARD_SEC = 12.0
 CONFIRM_RETRY_ATTEMPTS = 20
 CONFIRM_RETRY_DELAY_SEC = 0.25
 
+# Options: fallback polling
+OPTION_FALLBACK_POLL_SECS = "fallback_poll_seconds"
+DEFAULT_FALLBACK_POLL_SECS = 60
+MIN_FALLBACK_POLL_SECS = 15
+MAX_FALLBACK_POLL_SECS = 600
+
 # Fallback polling interval (seconds) when push updates are missing
 FALLBACK_POLL_SECONDS = 30
 
