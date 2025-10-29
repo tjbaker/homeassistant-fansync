@@ -8,6 +8,7 @@
     "documentation": "https://github.com/tjbaker/homeassistant-fansync",
     "iot_class": "cloud_push",
     "issue_tracker": "https://github.com/tjbaker/homeassistant-fansync/issues",
+    "homeassistant": "2025.10.0",
     "requirements": [
         "httpx",
         "websocket-client",
