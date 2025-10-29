@@ -20,11 +20,9 @@ ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["E501", "F401", "I001"]
-"examples/**/*.py" = ["E501", "F401", "F403", "B904"]
-"fansync/**/*.py" = ["E501", "F401", "F403"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["fansync", "custom_components"]
+known-first-party = ["custom_components"]
 force-single-line = false
 
 [tool.mypy]
@@ -36,7 +34,7 @@ no_implicit_optional = true
 show_error_codes = true
 ignore_missing_imports = true  # Home Assistant stubs not installed in CI
 # Do not exclude tests; CI runs mypy over custom_components/fansync and tests
-exclude = "^(venv|\\.venv|examples|fansync)(/|$)"
+exclude = "^(venv|\\.venv)(/|$)"
 explicit_package_bases = true
 check_untyped_defs = true
 
