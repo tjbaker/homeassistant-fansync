@@ -100,6 +100,14 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
             value, expires = entry
             if now <= expires:
                 return value
+            # Overlay expired without confirmation
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "overlay expired d=%s key=%s value=%s",
+                    self._device_id,
+                    key,
+                    value,
+                )
             self._overlay.pop(key, None)
         status = self._status_for(self.coordinator.data or {})
         raw = status.get(key, default)
@@ -242,6 +250,18 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
                 return
             self._optimistic_until = None
             self._optimistic_predicate = None
+
+        # Log state transitions
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            status = self._status_for(self.coordinator.data or {})
+            if isinstance(status, dict):
+                _LOGGER.debug(
+                    "state update d=%s power=%s brightness=%s",
+                    self._device_id,
+                    status.get(KEY_LIGHT_POWER),
+                    status.get(KEY_LIGHT_BRIGHTNESS),
+                )
+
         super()._handle_coordinator_update()
 
     @property

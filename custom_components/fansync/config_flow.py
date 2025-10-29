@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -37,6 +38,8 @@ DATA_SCHEMA = vol.Schema(
     }
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 
 class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -58,7 +61,13 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input.get(CONF_VERIFY_SSL, True),
             )
             await client.async_connect()
-        except Exception:
+        except Exception as exc:
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "config flow connection failed: %s: %s",
+                    type(exc).__name__,
+                    str(exc),
+                )
             errors["base"] = "cannot_connect"
 
         if errors:
@@ -84,9 +93,15 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
             # Clamp value into allowed range; 0 disables polling
-            secs = int(user_input.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS))
+            raw_secs = user_input.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
+            secs = int(raw_secs)
             if secs != 0:
                 secs = max(MIN_FALLBACK_POLL_SECS, min(MAX_FALLBACK_POLL_SECS, secs))
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                if raw_secs != secs:
+                    _LOGGER.debug("options poll interval clamped: %s -> %s", raw_secs, secs)
+                else:
+                    _LOGGER.debug("options poll interval set: %s", secs)
             return self.async_create_entry(
                 title="FanSync Options", data={OPTION_FALLBACK_POLL_SECS: secs}
             )

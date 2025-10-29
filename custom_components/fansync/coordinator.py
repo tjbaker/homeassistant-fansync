@@ -41,7 +41,13 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             ids = getattr(self.client, "device_ids", [])
             # Debug: mark start of polling sync
             if self.logger.isEnabledFor(logging.DEBUG):
-                self.logger.debug("poll sync start ids=%s", ids or [self.client.device_id])
+                trigger = "timer" if self.update_interval else "manual"
+                self.logger.debug(
+                    "poll sync start trigger=%s interval=%s ids=%s",
+                    trigger,
+                    self.update_interval,
+                    ids or [self.client.device_id],
+                )
             if not ids:
                 # Fallback to single current device
                 s = await self.client.async_get_status()

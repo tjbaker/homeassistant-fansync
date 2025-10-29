@@ -97,6 +97,14 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             value, expires = entry
             if now <= expires:
                 return value
+            # Overlay expired without confirmation
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "overlay expired d=%s key=%s value=%s",
+                    self._device_id,
+                    key,
+                    value,
+                )
             self._overlay.pop(key, None)
         all_status = self.coordinator.data or {}
         status: dict[str, object] = dict(all_status.get(self._device_id, {}))
@@ -310,6 +318,21 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
             # Predicate satisfied; clear the guard.
             self._optimistic_until = None
             self._optimistic_predicate = None
+
+        # Log state transitions
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            all_status = self.coordinator.data or {}
+            status = all_status.get(self._device_id, {}) if isinstance(all_status, dict) else {}
+            if isinstance(status, dict):
+                _LOGGER.debug(
+                    "state update d=%s power=%s speed=%s dir=%s preset=%s",
+                    self._device_id,
+                    status.get(KEY_POWER),
+                    status.get(KEY_SPEED),
+                    status.get(KEY_DIRECTION),
+                    status.get(KEY_PRESET),
+                )
+
         super()._handle_coordinator_update()
 
     @property
