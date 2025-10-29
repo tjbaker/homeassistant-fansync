@@ -100,6 +100,12 @@ class FanSyncClient:
                         _ids.append(dev)
                         # Keep full metadata for the device (owner, properties, etc.)
                         meta[dev] = d
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug(
+                                "device metadata cached: device_id=%s owner=%s",
+                                dev,
+                                d.get("owner", "unknown"),
+                            )
             device_ids: list[str] = _ids
             device_id = device_ids[0] if device_ids else None
             if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -146,12 +152,25 @@ class FanSyncClient:
                             ):
                                 timeout_errors += 1
                                 if timeout_errors >= 3:
+                                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                                        _LOGGER.debug(
+                                            "triggering reconnect after %d consecutive errors",
+                                            timeout_errors,
+                                        )
                                     self._ws = None
                                     try:
                                         self._ensure_ws_connected()
                                         timeout_errors = 0
                                         backoff_sec = 0.5
-                                    except Exception:
+                                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                                            _LOGGER.debug("reconnect successful, backoff reset")
+                                    except Exception as reconnect_err:
+                                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                                            _LOGGER.debug(
+                                                "reconnect failed: %s, backoff=%.1fs",
+                                                type(reconnect_err).__name__,
+                                                backoff_sec,
+                                            )
                                         time.sleep(backoff_sec)
                                         backoff_sec = min(max_backoff_sec, backoff_sec * 2)
                             time.sleep(0.1)
@@ -166,10 +185,19 @@ class FanSyncClient:
                     if not isinstance(payload, dict):
                         continue
                     # Ignore direct responses to our own requests except set when it includes status
-                    if payload.get("response") in {"login", "lst_device", "get"}:
+                    response_type = payload.get("response")
+                    if response_type in {"login", "lst_device", "get"}:
                         if _LOGGER.isEnabledFor(logging.DEBUG):
-                            _LOGGER.debug("ignored frame response=%s", payload.get("response"))
+                            _LOGGER.debug("ignored frame response=%s", response_type)
                         continue
+                    # Log set responses with status
+                    if response_type == "set":
+                        data = payload.get("data")
+                        if isinstance(data, dict) and isinstance(data.get("status"), dict):
+                            if _LOGGER.isEnabledFor(logging.DEBUG):
+                                status_keys = list(data["status"].keys())
+                                _LOGGER.debug("recv set ack with status keys=%s", status_keys)
+                    # Process unsolicited push updates
                     data = payload.get("data")
                     if isinstance(data, dict) and isinstance(data.get("status"), dict):
                         pushed_status = data["status"]
@@ -206,8 +234,13 @@ class FanSyncClient:
         if self._http is None:
             raise RuntimeError("HTTP session not initialized")
 
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("_ensure_ws_connected: reconnecting websocket")
+
         token = self._token
         if not token:
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("_ensure_ws_connected: refreshing auth token")
             url = "https://fanimation.apps.exosite.io/api:1/session"
             resp = self._http.post(
                 url,
@@ -217,6 +250,8 @@ class FanSyncClient:
             resp.raise_for_status()
             token = resp.json()["token"]
             self._token = token
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("_ensure_ws_connected: token refreshed")
 
         ws_opts = {} if self.verify_ssl else {"cert_reqs": ssl.CERT_NONE}
         ws = websocket.WebSocket(sslopt=ws_opts)
@@ -228,6 +263,8 @@ class FanSyncClient:
         if not (isinstance(payload, dict) and payload.get("status") == "ok"):
             raise RuntimeError("Websocket login failed")
         self._ws = ws
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("_ensure_ws_connected: websocket reconnected successfully")
 
     async def async_get_status(self, device_id: str | None = None) -> dict[str, Any]:
         def _get():
