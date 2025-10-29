@@ -9,9 +9,16 @@ Thanks for your interest in contributing! Community pull requests and issues are
 
 ## How to contribute
 
-- Open an issue
+- Open an issue (with debug logging)
   - Use GitHub Issues to report bugs, propose features, or ask questions.
-  - Include clear steps to reproduce, logs if relevant, and expected behavior.
+  - Include clear steps to reproduce, expected behavior, and a debug log snippet for this
+    integration when reporting bugs.
+  - Enable debug logging via the UI: Settings → Devices & Services → FanSync → three‑dot menu →
+    Enable debug logging. Reproduce the issue, then Disable debug logging and download the log.
+  - Review the log for sensitive data (e.g., email, IPs, tokens) and redact as appropriate before
+    attaching to the issue.
+  - Home Assistant docs on enabling debug logging:
+    https://www.home-assistant.io/docs/configuration/troubleshooting/#enabling-debug-logging
 
 - Submit a pull request (PR)
   - Small, focused PRs are easier to review and merge.
