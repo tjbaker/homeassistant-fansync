@@ -38,6 +38,7 @@ from .const import (
     clamp_percentage,
 )
 from .coordinator import FanSyncCoordinator
+from .device_utils import create_device_info, module_attrs
 
 # Only overlay keys that directly affect HA UI state to prevent snap-back
 OVERLAY_KEYS = {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}
@@ -313,10 +314,8 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        device_id = self._device_id or "unknown"
-        return DeviceInfo(
-            identifiers={(DOMAIN, device_id)},
-            manufacturer="Fanimation",
-            model="FanSync",
-            name="FanSync",
-        )
+        return create_device_info(self.client, self._device_id)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        return module_attrs(self.client, self._device_id)
