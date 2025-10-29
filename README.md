@@ -48,6 +48,38 @@ Push-first updates are used by default. A low-frequency fallback poll can be con
 
 Set via: Settings → Devices & Services → FanSync → Configure → Options. Allowed range: 15–600.
 
+## Troubleshooting
+
+### Login issues
+
+Because the login happens during the config flow (before the integration is added), enable logging for the HTTP stack to capture details:
+
+- Temporarily via service (recommended):
+  - Developer Tools → Services → `logger.set_level`
+  - Data:
+    ```yaml
+    httpcore: debug
+    httpx: debug
+    custom_components.fansync: debug
+    ```
+  - Start the FanSync setup, reproduce the error, then restore levels (run `logger.set_default_level` to `info`) or restart.
+
+- Persistent (advanced): add to `configuration.yaml` and restart:
+  ```yaml
+  logger:
+    default: info
+    logs:
+      httpcore: debug
+      httpx: debug
+      custom_components.fansync: debug
+  ```
+
+What to look for in the logs:
+- `httpcore.connection` / `httpcore.httpXXX` lines with the POST to the FanSync session endpoint and the response status (e.g., 400/401).
+- After the integration is added, `custom_components.fansync.client` lines like `http login ms=…`, `ws connect+login ms=…`, or any error messages.
+
+Reference: Home Assistant debug logging docs:
+https://www.home-assistant.io/docs/configuration/troubleshooting/#enabling-debug-logging
 
 ## Development
 
