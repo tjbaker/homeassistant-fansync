@@ -19,6 +19,17 @@
 - Respect per-file ignores from pyproject:
   - tests/**/*.py: [E501, F401, I001]
 
+# License Headers
+- All Python and YAML files MUST include the repository-standard license header at the top:
+  - SPDX identifier and full Apache-2.0 header block used in this repo.
+  - Python: hash-prefixed lines (e.g., `# SPDX-License-Identifier: Apache-2.0`, followed by the Apache block lines).
+  - YAML: hash-prefixed lines at the top of the file.
+  - Markdown: use an HTML comment block with the same content (recommended for docs like tests/README.md).
+- Markdown files must use the lowercase `.md` extension (e.g., `README.md`).
+- JSON does not support comments; do not attempt to add headers there.
+- Tests are code; apply headers to test files (Python) as well.
+- When creating or editing files, ensure the header is present and matches the canonical format already used in the repo.
+
 # Comments
 - Keep comments concise and only when adding non-obvious context.
 - Explain complex logic, non-obvious patterns, or HA-specific requirements.
@@ -58,6 +69,17 @@
   - Explain the "why" and "what", not just the "how"
   - Mention coverage changes, test additions, breaking changes
   - Wrap body lines at ~72 characters
+  - For multi-line bodies, prefer a here-doc to stdin with `-F -`, or a file
+    with `-F <file>`. Do NOT rely on multiple `-m` flags; ensure a blank line
+    between subject and body to preserve formatting. Example:
+    ```bash
+    git commit --amend -F - <<'EOF'
+    feat: add optimistic updates
+
+    - Apply overlay immediately and guard for 8s
+    - Reconcile on push ack; revert only on explicit failure
+    EOF
+    ```
 - PR titles must be semantic; a workflow enforces this.
 
 # Debug Logging
@@ -103,3 +125,4 @@
 - [ ] Non-trivial changes have detailed commit body
 - [ ] New functionality has corresponding tests
 - [ ] Debug logging tested with caplog
+- [ ] Required headers present in Python/YAML files (SPDX + Apache-2.0)

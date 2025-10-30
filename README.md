@@ -83,6 +83,14 @@ https://www.home-assistant.io/docs/configuration/troubleshooting/#enabling-debug
 
 ## Development
 
+- Set up a virtual environment and dev tools:
+```bash
+python3.13 -m venv venv
+source venv/bin/activate
+pip install -U pip
+pip install -r requirements-dev.txt
+```
+
 - Optional pre-commit hooks (recommended):
 ```bash
 pre-commit install
