@@ -100,8 +100,13 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if client is not None:
                 try:
                     await client.async_disconnect()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug(
+                            "Exception during client disconnect: %s: %s",
+                            type(exc).__name__,
+                            str(exc),
+                        )
 
         if errors:
             return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA, errors=errors)
