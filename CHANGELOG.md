@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.9](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.8...0.2.9) (2025-10-30)
+
+
+### Features
+
+* **ui:** add default icons for fan and light entities ([#63](https://github.com/tjbaker/homeassistant-fansync/issues/63)) ([efd9a37](https://github.com/tjbaker/homeassistant-fansync/commit/efd9a376d54cad189c56e2a24425dbc9b9c39dac))
+
 ## [0.2.8](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.7...0.2.8) (2025-10-30)
 
 
