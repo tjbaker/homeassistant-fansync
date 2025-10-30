@@ -71,3 +71,23 @@ def patch_client(mock_client):
         patch("custom_components.fansync.FanSyncClient", return_value=instance),
     ):
         yield instance
+
+
+@pytest.fixture
+def ensure_fansync_importable():
+    """Ensure the custom_components.fansync package trees are importable for tests.
+
+    Relies on ROOT being added to sys.path above and HA's enable_custom_integrations fixture.
+    This avoids per-test sys.path/sys.modules manipulation.
+    """
+    import importlib
+
+    importlib.invalidate_caches()
+    importlib.import_module("custom_components")
+    try:
+        importlib.import_module("custom_components.fansync.config_flow")
+    except Exception:  # pragma: no cover - environment specific
+        import pytest
+
+        pytest.skip("custom_components.fansync not importable in this environment")
+    yield

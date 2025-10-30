@@ -71,10 +71,13 @@ async def test_config_flow_connection_error_logged(
     hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ):
     """Test that config flow connection errors are logged at DEBUG level."""
+    import httpx
+
     with caplog.at_level(logging.DEBUG, logger="custom_components.fansync.config_flow"):
         with patch("custom_components.fansync.config_flow.FanSyncClient") as mock_client_cls:
             mock_client = AsyncMock()
-            mock_client.async_connect.side_effect = RuntimeError("Connection failed")
+            # Use httpx.ConnectError to trigger specific cannot_connect error
+            mock_client.async_connect.side_effect = httpx.ConnectError("Connection refused")
             mock_client_cls.return_value = mock_client
 
             result = await hass.config_entries.flow.async_init(
@@ -89,8 +92,9 @@ async def test_config_flow_connection_error_logged(
 
     assert result["type"] == "form"
     assert result["errors"] == {"base": "cannot_connect"}
+    # Verify network error was logged
     assert any(
-        "config flow connection failed" in record.message and "RuntimeError" in record.message
+        "Network connection failed" in record.message and "ConnectError" in record.message
         for record in caplog.records
     )
 

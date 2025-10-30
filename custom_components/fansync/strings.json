@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "FanSync Setup",
+        "description": "Enter your Fanimation account credentials",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "verify_ssl": "Verify SSL certificate"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Fanimation servers. Check your network connection or try again later.",
+      "invalid_auth": "Invalid email or password. Please check your credentials.",
+      "no_devices": "No FanSync devices found on your account. Please verify devices are registered in the Fanimation app.",
+      "unknown": "An unexpected error occurred. Please check the logs for details."
+    },
+    "abort": {
+      "already_configured": "This account is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "FanSync Options",
+        "description": "Configure fallback polling to catch external changes",
+        "data": {
+          "fallback_poll_seconds": "Fallback poll interval (seconds, 0 to disable)"
+        }
+      }
+    }
+  }
+}
+
