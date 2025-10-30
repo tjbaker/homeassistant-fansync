@@ -271,3 +271,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
     @property
     def extra_state_attributes(self) -> dict[str, object] | None:
         return module_attrs(self.client, self._device_id)
+
+    @property
+    def icon(self) -> str | None:
+        return "mdi:ceiling-light"
