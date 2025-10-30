@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import httpx
 import voluptuous as vol
 from homeassistant import config_entries
 
@@ -53,22 +54,54 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
 
         errors = {}
+        client: FanSyncClient | None = None
         try:
             client = FanSyncClient(
                 self.hass,
                 user_input[CONF_EMAIL],
                 user_input[CONF_PASSWORD],
                 user_input.get(CONF_VERIFY_SSL, True),
+                enable_push=False,
             )
             await client.async_connect()
-        except Exception as exc:
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug(
-                    "config flow connection failed: %s: %s",
-                    type(exc).__name__,
-                    str(exc),
+
+            # Verify at least one device was discovered
+            if not client.device_ids:
+                _LOGGER.warning(
+                    "Login successful but no devices found for %s", user_input[CONF_EMAIL]
                 )
+                errors["base"] = "no_devices"
+
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code if getattr(exc, "response", None) else "unknown"
+            _LOGGER.error(
+                "Authentication failed: HTTP %s - check credentials",
+                status,
+            )
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("HTTP error details: %s", str(exc))
+            errors["base"] = "invalid_auth"
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            _LOGGER.error("Network connection failed: %s", type(exc).__name__)
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("Network error details: %s", str(exc))
             errors["base"] = "cannot_connect"
+        except Exception as exc:
+            _LOGGER.error(
+                "Unexpected error during setup: %s: %s",
+                type(exc).__name__,
+                str(exc),
+            )
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("Full exception:", exc_info=True)
+            errors["base"] = "unknown"
+        finally:
+            # Always clean up validation client to avoid background resources lingering
+            if client is not None:
+                try:
+                    await client.async_disconnect()
+                except Exception:
+                    pass
 
         if errors:
             return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA, errors=errors)

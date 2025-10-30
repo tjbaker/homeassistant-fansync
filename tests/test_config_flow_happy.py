@@ -12,23 +12,25 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from homeassistant import data_entry_flow
 
 
-async def test_config_flow_creates_entry(hass):
-    result = await hass.config_entries.flow.async_init("fansync", context={"source": "user"})
-    assert result["type"] == data_entry_flow.FlowResultType.FORM
+async def test_config_flow_creates_entry(hass, ensure_fansync_importable):
+    # Use HA flow helpers directly with data to mirror typical happy path
+    with patch("custom_components.fansync.config_flow.FanSyncClient") as client_cls:
+        instance = client_cls.return_value
+        instance.async_connect = AsyncMock(return_value=None)
+        instance.async_disconnect = AsyncMock(return_value=None)
+        instance.device_ids = ["dev"]
 
-    with patch(
-        "custom_components.fansync.config_flow.FanSyncClient.async_connect", return_value=None
-    ):
-        result2 = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            {"email": "ux@example.com", "password": "p", "verify_ssl": True},
+        result = await hass.config_entries.flow.async_init(
+            "fansync",
+            context={"source": "user"},
+            data={"email": "ux@example.com", "password": "p", "verify_ssl": True},
         )
 
-    assert result2["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert result2["title"] == "FanSync"
-    assert result2["data"]["email"] == "ux@example.com"
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert result["title"] == "FanSync"
+    assert result["data"]["email"] == "ux@example.com"

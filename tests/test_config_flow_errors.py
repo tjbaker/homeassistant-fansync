@@ -12,8 +12,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+import httpx
 from homeassistant import data_entry_flow
 
 
@@ -22,9 +23,10 @@ async def test_config_flow_cannot_connect(hass):
     result = await hass.config_entries.flow.async_init("fansync", context={"source": "user"})
     assert result["type"] == data_entry_flow.FlowResultType.FORM
 
+    # Test generic connection error
     with patch(
         "custom_components.fansync.config_flow.FanSyncClient.async_connect",
-        side_effect=Exception("boom"),
+        side_effect=httpx.ConnectError("Connection refused"),
     ):
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"],
@@ -33,3 +35,56 @@ async def test_config_flow_cannot_connect(hass):
 
     assert result2["type"] == data_entry_flow.FlowResultType.FORM
     assert result2["errors"].get("base") == "cannot_connect"
+
+
+async def test_config_flow_invalid_auth(hass):
+    # Start the config flow
+    result = await hass.config_entries.flow.async_init("fansync", context={"source": "user"})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+
+    # Test authentication error
+    mock_response = Mock(status_code=401)
+    mock_request = Mock(spec=httpx.Request)
+    with patch(
+        "custom_components.fansync.config_flow.FanSyncClient.async_connect",
+        side_effect=httpx.HTTPStatusError(
+            "Unauthorized", request=mock_request, response=mock_response
+        ),
+    ):
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"email": "bad@email.com", "password": "wrongpass", "verify_ssl": True},
+        )
+
+    assert result2["type"] == data_entry_flow.FlowResultType.FORM
+    assert result2["errors"].get("base") == "invalid_auth"
+
+
+async def test_config_flow_no_devices(hass):
+    # Start the config flow
+    result = await hass.config_entries.flow.async_init("fansync", context={"source": "user"})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+
+    # Mock a client that connects successfully but has no devices
+    class EmptyClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def async_connect(self):
+            pass
+
+        @property
+        def device_ids(self):
+            return []
+
+    with patch(
+        "custom_components.fansync.config_flow.FanSyncClient",
+        EmptyClient,
+    ):
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"email": "e", "password": "p", "verify_ssl": True},
+        )
+
+    assert result2["type"] == data_entry_flow.FlowResultType.FORM
+    assert result2["errors"].get("base") == "no_devices"

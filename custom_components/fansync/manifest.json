@@ -10,9 +10,7 @@
     "issue_tracker": "https://github.com/tjbaker/homeassistant-fansync/issues",
     "requirements": [
         "httpx",
-        "websocket-client",
-        "pydantic",
-        "bidict"
+        "websocket-client"
     ],
     "version": "0.2.6"
 }
