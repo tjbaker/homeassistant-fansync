@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.8](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.7...0.2.8) (2025-10-30)
+
+
+### Bug Fixes
+
+* **i18n:** use translations/en.json for config flow errors ([#61](https://github.com/tjbaker/homeassistant-fansync/issues/61)) ([d6c4309](https://github.com/tjbaker/homeassistant-fansync/commit/d6c430999aafba14b5cdcc995649ca287f1d143c))
+
 ## [0.2.7](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.6...0.2.7) (2025-10-30)
 
 
