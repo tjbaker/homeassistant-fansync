@@ -22,12 +22,20 @@ from homeassistant import config_entries
 from .client import FanSyncClient
 from .const import (
     CONF_EMAIL,
+    CONF_HTTP_TIMEOUT,
     CONF_PASSWORD,
     CONF_VERIFY_SSL,
+    CONF_WS_TIMEOUT,
     DEFAULT_FALLBACK_POLL_SECS,
+    DEFAULT_HTTP_TIMEOUT_SECS,
+    DEFAULT_WS_TIMEOUT_SECS,
     DOMAIN,
     MAX_FALLBACK_POLL_SECS,
+    MAX_HTTP_TIMEOUT_SECS,
+    MAX_WS_TIMEOUT_SECS,
     MIN_FALLBACK_POLL_SECS,
+    MIN_HTTP_TIMEOUT_SECS,
+    MIN_WS_TIMEOUT_SECS,
     OPTION_FALLBACK_POLL_SECS,
 )
 
@@ -36,6 +44,12 @@ DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_EMAIL): str,
         vol.Required(CONF_PASSWORD): str,
         vol.Optional(CONF_VERIFY_SSL, default=True): bool,
+        vol.Optional(CONF_HTTP_TIMEOUT, default=DEFAULT_HTTP_TIMEOUT_SECS): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_HTTP_TIMEOUT_SECS, max=MAX_HTTP_TIMEOUT_SECS)
+        ),
+        vol.Optional(CONF_WS_TIMEOUT, default=DEFAULT_WS_TIMEOUT_SECS): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_WS_TIMEOUT_SECS, max=MAX_WS_TIMEOUT_SECS)
+        ),
     }
 )
 
@@ -62,6 +76,8 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input[CONF_PASSWORD],
                 user_input.get(CONF_VERIFY_SSL, True),
                 enable_push=False,
+                http_timeout_s=user_input.get(CONF_HTTP_TIMEOUT, DEFAULT_HTTP_TIMEOUT_SECS),
+                ws_timeout_s=user_input.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
             )
             await client.async_connect()
 
@@ -135,17 +151,56 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
             secs = int(raw_secs)
             if secs != 0:
                 secs = max(MIN_FALLBACK_POLL_SECS, min(MAX_FALLBACK_POLL_SECS, secs))
+            # Clamp timeouts with explicit type checks to satisfy static typing
+            raw_data = getattr(self.config_entry, "data", {})
+            data_defaults = raw_data if isinstance(raw_data, dict) else {}
+
+            http_raw = user_input.get(
+                CONF_HTTP_TIMEOUT,
+                data_defaults.get(CONF_HTTP_TIMEOUT, DEFAULT_HTTP_TIMEOUT_SECS),
+            )
+            if isinstance(http_raw, int | float | str):
+                http_t = int(http_raw)
+            else:
+                http_t = int(DEFAULT_HTTP_TIMEOUT_SECS)
+            http_t = max(MIN_HTTP_TIMEOUT_SECS, min(MAX_HTTP_TIMEOUT_SECS, http_t))
+
+            ws_raw = user_input.get(
+                CONF_WS_TIMEOUT,
+                data_defaults.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
+            )
+            if isinstance(ws_raw, int | float | str):
+                ws_t = int(ws_raw)
+            else:
+                ws_t = int(DEFAULT_WS_TIMEOUT_SECS)
+            ws_t = max(MIN_WS_TIMEOUT_SECS, min(MAX_WS_TIMEOUT_SECS, ws_t))
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 if raw_secs != secs:
                     _LOGGER.debug("options poll interval clamped: %s -> %s", raw_secs, secs)
                 else:
                     _LOGGER.debug("options poll interval set: %s", secs)
+                _LOGGER.debug("options timeouts set: http=%s ws=%s", http_t, ws_t)
             return self.async_create_entry(
-                title="FanSync Options", data={OPTION_FALLBACK_POLL_SECS: secs}
+                title="FanSync Options",
+                data={
+                    OPTION_FALLBACK_POLL_SECS: secs,
+                    CONF_HTTP_TIMEOUT: http_t,
+                    CONF_WS_TIMEOUT: ws_t,
+                },
             )
 
         current = self.config_entry.options.get(
             OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS
+        )
+        raw_data = getattr(self.config_entry, "data", {})
+        data_defaults = raw_data if isinstance(raw_data, dict) else {}
+        current_http = self.config_entry.options.get(
+            CONF_HTTP_TIMEOUT,
+            data_defaults.get(CONF_HTTP_TIMEOUT, DEFAULT_HTTP_TIMEOUT_SECS),
+        )
+        current_ws = self.config_entry.options.get(
+            CONF_WS_TIMEOUT,
+            data_defaults.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
         )
         schema = vol.Schema(
             {
@@ -153,6 +208,20 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
                     OPTION_FALLBACK_POLL_SECS,
                     default=current,
                 ): vol.All(vol.Coerce(int), vol.Range(min=0, max=MAX_FALLBACK_POLL_SECS)),
+                vol.Optional(
+                    CONF_HTTP_TIMEOUT,
+                    default=current_http,
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=MIN_HTTP_TIMEOUT_SECS, max=MAX_HTTP_TIMEOUT_SECS),
+                ),
+                vol.Optional(
+                    CONF_WS_TIMEOUT,
+                    default=current_ws,
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=MIN_WS_TIMEOUT_SECS, max=MAX_WS_TIMEOUT_SECS),
+                ),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
