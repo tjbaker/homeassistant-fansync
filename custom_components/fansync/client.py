@@ -239,6 +239,30 @@ class FanSyncClient:
             await self.hass.async_add_executor_job(thread.join, 1.0)
         self._recv_thread = None
 
+    # Apply timeout changes at runtime; safe to call from executor
+    def apply_timeouts(
+        self,
+        http_timeout_s: int | float | None = None,
+        ws_timeout_s: int | float | None = None,
+    ) -> None:
+        if http_timeout_s is not None:
+            self._http_timeout_s = http_timeout_s
+            # Recreate HTTP session with new timeout if it exists
+            if self._http is not None:
+                try:
+                    self._http.close()
+                except Exception:
+                    pass
+                timeout = httpx.Timeout(connect=float(http_timeout_s), read=float(http_timeout_s))
+                self._http = httpx.Client(verify=self.verify_ssl, timeout=timeout)
+        if ws_timeout_s is not None:
+            self._ws_timeout_s = ws_timeout_s
+            if self._ws is not None:
+                try:
+                    self._ws.timeout = float(ws_timeout_s)
+                except Exception:
+                    pass
+
     # Internal helper: ensure websocket is connected and logged in (called in executor)
     def _ensure_ws_connected(self) -> None:
         if self._ws is not None:

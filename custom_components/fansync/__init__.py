@@ -28,6 +28,8 @@ from .const import (
     CONF_VERIFY_SSL,
     CONF_WS_TIMEOUT,
     DEFAULT_FALLBACK_POLL_SECS,
+    DEFAULT_HTTP_TIMEOUT_SECS,
+    DEFAULT_WS_TIMEOUT_SECS,
     DOMAIN,
     OPTION_FALLBACK_POLL_SECS,
     PLATFORMS,
@@ -96,6 +98,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator.update_interval = None if new_secs == 0 else timedelta(seconds=int(new_secs))
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug("interval changed old=%s new=%s", old, coordinator.update_interval)
+
+        # Apply timeout changes immediately when options are updated
+        http_t = updated_entry.options.get(
+            CONF_HTTP_TIMEOUT,
+            updated_entry.data.get(CONF_HTTP_TIMEOUT, DEFAULT_HTTP_TIMEOUT_SECS),
+        )
+        ws_t = updated_entry.options.get(
+            CONF_WS_TIMEOUT,
+            updated_entry.data.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
+        )
+        try:
+            await hass.async_add_executor_job(client.apply_timeouts, http_t, ws_t)
+        except Exception as exc:  # pragma: no cover
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("apply_timeouts failed: %s", exc)
 
     entry.add_update_listener(_async_options_updated)
 
