@@ -151,22 +151,28 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
             secs = int(raw_secs)
             if secs != 0:
                 secs = max(MIN_FALLBACK_POLL_SECS, min(MAX_FALLBACK_POLL_SECS, secs))
-            # Clamp timeouts
+            # Clamp timeouts with explicit type checks to satisfy static typing
             raw_data = getattr(self.config_entry, "data", {})
             data_defaults = raw_data if isinstance(raw_data, dict) else {}
-            http_t = int(
-                user_input.get(
-                    CONF_HTTP_TIMEOUT,
-                    data_defaults.get(CONF_HTTP_TIMEOUT, DEFAULT_HTTP_TIMEOUT_SECS),
-                )
+
+            http_raw = user_input.get(
+                CONF_HTTP_TIMEOUT,
+                data_defaults.get(CONF_HTTP_TIMEOUT, DEFAULT_HTTP_TIMEOUT_SECS),
             )
+            if isinstance(http_raw, int | float | str):
+                http_t = int(http_raw)
+            else:
+                http_t = int(DEFAULT_HTTP_TIMEOUT_SECS)
             http_t = max(MIN_HTTP_TIMEOUT_SECS, min(MAX_HTTP_TIMEOUT_SECS, http_t))
-            ws_t = int(
-                user_input.get(
-                    CONF_WS_TIMEOUT,
-                    data_defaults.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
-                )
+
+            ws_raw = user_input.get(
+                CONF_WS_TIMEOUT,
+                data_defaults.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
             )
+            if isinstance(ws_raw, int | float | str):
+                ws_t = int(ws_raw)
+            else:
+                ws_t = int(DEFAULT_WS_TIMEOUT_SECS)
             ws_t = max(MIN_WS_TIMEOUT_SECS, min(MAX_WS_TIMEOUT_SECS, ws_t))
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 if raw_secs != secs:
