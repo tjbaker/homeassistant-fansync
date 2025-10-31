@@ -62,9 +62,12 @@ class FanSyncClient:
         def _connect():
             timeout = None
             if self._http_timeout_s is not None:
+                timeout_value = float(self._http_timeout_s)
                 timeout = httpx.Timeout(
-                    connect=float(self._http_timeout_s),
-                    read=float(self._http_timeout_s),
+                    connect=timeout_value,
+                    read=timeout_value,
+                    write=timeout_value,
+                    pool=timeout_value,
                 )
                 session = httpx.Client(verify=self.verify_ssl, timeout=timeout)
             else:
@@ -253,7 +256,13 @@ class FanSyncClient:
                     self._http.close()
                 except Exception:
                     pass
-                timeout = httpx.Timeout(connect=float(http_timeout_s), read=float(http_timeout_s))
+                timeout_value = float(http_timeout_s)
+                timeout = httpx.Timeout(
+                    connect=timeout_value,
+                    read=timeout_value,
+                    write=timeout_value,
+                    pool=timeout_value,
+                )
                 self._http = httpx.Client(verify=self.verify_ssl, timeout=timeout)
         if ws_timeout_s is not None:
             self._ws_timeout_s = ws_timeout_s
