@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.11](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.10...0.2.11) (2025-10-31)
+
+
+### Bug Fixes
+
+* avoid httpx.Timeout error by setting total timeout ([c76da1a](https://github.com/tjbaker/homeassistant-fansync/commit/c76da1a6a10a30654197d64e217a6357f37bb8d1))
+
 ## [0.2.10](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.9...0.2.10) (2025-10-31)
 
 
