@@ -12,10 +12,15 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant import data_entry_flow
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from custom_components.fansync.const import (
+    CONF_HTTP_TIMEOUT,
+    CONF_WS_TIMEOUT,
+    OPTION_FALLBACK_POLL_SECS,
+)
 
 
 async def test_config_flow_passes_default_timeouts(hass, ensure_fansync_importable):
@@ -100,3 +105,46 @@ async def test_options_flow_sets_timeouts_and_setup_uses_them(hass):
     _, kwargs = client_cls.call_args
     assert kwargs.get("http_timeout_s") == 14
     assert kwargs.get("ws_timeout_s") == 22
+
+
+async def test_options_update_listener_applies_timeouts_runtime(hass):
+    entry = MockConfigEntry(
+        domain="fansync",
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": True},
+        unique_id="timeouts-apply",
+    )
+    entry.add_to_hass(hass)
+
+    with patch("custom_components.fansync.FanSyncClient") as client_cls:
+        client = client_cls.return_value
+        client.async_connect = AsyncMock(return_value=None)
+        client.set_status_callback = lambda cb: None
+        client.async_disconnect = AsyncMock(return_value=None)
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Verify initial setup passed no explicit timeouts
+        _, setup_kwargs = client_cls.call_args
+        assert setup_kwargs.get("http_timeout_s") is None
+        assert setup_kwargs.get("ws_timeout_s") is None
+
+        # When options change, listener should apply timeouts at runtime
+        def _apply(ht, wt):  # side effect to mutate client state
+            client._http_timeout_s = ht
+            client._ws_timeout_s = wt
+
+        client.apply_timeouts = MagicMock(side_effect=_apply)  # type: ignore[attr-defined]
+        hass.config_entries.async_update_entry(
+            entry,
+            options={
+                OPTION_FALLBACK_POLL_SECS: 60,
+                CONF_HTTP_TIMEOUT: 11,
+                CONF_WS_TIMEOUT: 21,
+            },
+        )
+        await hass.async_block_till_done()
+
+    client.apply_timeouts.assert_called_with(11, 21)  # type: ignore[attr-defined]
+    assert getattr(client, "_http_timeout_s", None) == 11
+    assert getattr(client, "_ws_timeout_s", None) == 21
