@@ -54,11 +54,6 @@ Thanks for your interest in contributing! Community pull requests and issues are
   - Reference any related issue(s) in the PR description (e.g., "Fixes #123").
   - Follow Conventional Commits for PR titles (e.g., feat, fix, docs).
 
-## Commit conventions
-
-- Use Conventional Commits for PR titles and commit subjects: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
-- Keep subject ≤ 72 characters.
-
 ## Development
 
 ### Guidelines
@@ -109,6 +104,11 @@ Update hook versions:
 ```bash
 pre-commit autoupdate
 ```
+
+### Commit conventions
+
+- Use Conventional Commits for PR titles and commit subjects: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- Keep subject ≤ 72 characters.
 
 ### Testing and type checking
 
