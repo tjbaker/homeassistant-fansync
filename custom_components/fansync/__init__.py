@@ -23,8 +23,10 @@ from homeassistant.helpers.typing import ConfigType
 from .client import FanSyncClient
 from .const import (
     CONF_EMAIL,
+    CONF_HTTP_TIMEOUT,
     CONF_PASSWORD,
     CONF_VERIFY_SSL,
+    CONF_WS_TIMEOUT,
     DEFAULT_FALLBACK_POLL_SECS,
     DOMAIN,
     OPTION_FALLBACK_POLL_SECS,
@@ -44,11 +46,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Build and store a shared client+coordinator for platforms to reuse
+    http_timeout = entry.options.get(CONF_HTTP_TIMEOUT, entry.data.get(CONF_HTTP_TIMEOUT))
+    ws_timeout = entry.options.get(CONF_WS_TIMEOUT, entry.data.get(CONF_WS_TIMEOUT))
     client = FanSyncClient(
         hass,
         entry.data[CONF_EMAIL],
         entry.data[CONF_PASSWORD],
         entry.data.get(CONF_VERIFY_SSL, True),
+        http_timeout_s=http_timeout,
+        ws_timeout_s=ws_timeout,
     )
     await client.async_connect()
     coordinator = FanSyncCoordinator(hass, client)
@@ -95,11 +101,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Log connection success with device count at INFO, details at DEBUG
+    try:
+        ids = getattr(client, "device_ids", []) or [client.device_id]
+    except Exception:  # pragma: no cover
+        ids = []
+    _LOGGER.info("FanSync connected: %d device(s)", len([i for i in ids if i]))
     if _LOGGER.isEnabledFor(logging.DEBUG):
-        try:
-            ids = getattr(client, "device_ids", []) or [client.device_id]
-        except Exception:  # pragma: no cover
-            ids = []
         _LOGGER.debug("connected device_ids=%s", ids)
     return True
 

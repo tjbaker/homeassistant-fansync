@@ -15,6 +15,8 @@ PLATFORMS = ["fan", "light"]
 CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
 CONF_VERIFY_SSL = "verify_ssl"
+CONF_HTTP_TIMEOUT = "http_timeout_seconds"
+CONF_WS_TIMEOUT = "ws_timeout_seconds"
 
 # Protocol keys
 KEY_POWER = "H00"
@@ -46,6 +48,17 @@ MIN_FALLBACK_POLL_SECS = 15
 MAX_FALLBACK_POLL_SECS = 600
 # Fallback polling interval (seconds) when push updates are missing
 FALLBACK_POLL_SECONDS = 30
+
+# Timeouts
+# HTTP timeouts apply to connect/read for login and token refresh
+DEFAULT_HTTP_TIMEOUT_SECS = 10
+MIN_HTTP_TIMEOUT_SECS = 5
+MAX_HTTP_TIMEOUT_SECS = 60
+
+# WebSocket timeout for connect/recv operations
+DEFAULT_WS_TIMEOUT_SECS = 15
+MIN_WS_TIMEOUT_SECS = 5
+MAX_WS_TIMEOUT_SECS = 60
 
 
 def clamp_percentage(value: int) -> int:

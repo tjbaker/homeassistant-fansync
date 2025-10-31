@@ -9,25 +9,35 @@ Custom Home Assistant integration for Fanimation FanSync devices.
 
 - Python 3.13
 - Home Assistant Core 2025.10.0 or newer
+- HACS (optional; only required if installing via HACS)
+
+## Features
+
+- Fan: on/off, percentage speed, direction, preset modes (normal, fresh_air)
+- Light: on/off, brightness (0–100 mapped to 0–255)
 
 ## Installation
 
-### HACS (recommended)
+### HACS
 
-<a href="http://homeassistant.local:8123/hacs/repository?owner=tjbaker&repository=homeassistant-fansync">
-  <img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.">
-  </a>
+Note: This integration is not in the HACS default registry. Add it as a custom repository:
+
+1) In Home Assistant, go to HACS → Integrations.
+2) Click the three-dots menu (⋮) → Custom repositories.
+3) In Repository, enter: `https://github.com/tjbaker/homeassistant-fansync`
+4) In Category, choose: `Integration` → Add.
+5) Back in HACS → Integrations, click Explore & Download Repositories.
+6) Search for "FanSync" → Download.
+7) Restart Home Assistant.
+8) Add the integration: Settings → Devices & Services → Add integration → “FanSync”.
+
+See also: [HACS: Custom repositories](https://hacs.xyz/docs/use/custom_repositories/)
 
 ### Manual
 
 1) Copy `custom_components/fansync/` into your Home Assistant `config/custom_components/` directory.
 2) Restart Home Assistant.
 3) Add the integration: Settings → Devices & Services → Add integration → “FanSync”.
-
-## Features
-
-- Fan: on/off, percentage speed, direction, preset modes (normal, fresh_air)
-- Light: on/off, brightness (0–100 mapped to 0–255)
 
 ## Configuration
 
@@ -36,6 +46,8 @@ Custom Home Assistant integration for Fanimation FanSync devices.
 | Email       | FanSync account email                                        | –       |
 | Password    | FanSync account password                                     | –       |
 | Verify SSL  | Verify HTTPS certificates when connecting to FanSync cloud   | True    |
+| HTTP timeout (s) | HTTP connect/read timeout used during login/token refresh     | 10      |
+| WebSocket timeout (s) | WebSocket connect/recv timeout for realtime channel         | 15      |
 
 
 ### Options
@@ -45,83 +57,30 @@ Push-first updates are used by default. A low-frequency fallback poll can be con
 | Option                 | Description                                                       | Default |
 |------------------------|-------------------------------------------------------------------|---------|
 | fallback_poll_seconds  | Poll interval in seconds when push is unavailable (0 disables).  | 60      |
+| http_timeout_seconds   | HTTP connect/read timeout (seconds)                               | 10      |
+| ws_timeout_seconds     | WebSocket connect/recv timeout (seconds)                          | 15      |
 
-Set via: Settings → Devices & Services → FanSync → Configure → Options. Allowed range: 15–600.
+Set via: Settings → Devices & Services → FanSync → Configure → Options.
+- Poll interval allowed range: 15–600 seconds (0 disables)
+- Timeout ranges: 5–60 seconds (HTTP and WebSocket)
 
 ## Troubleshooting
 
 ### Login issues
 
-Because the login happens during the config flow (before the integration is added), enable logging for the HTTP stack to capture details:
+If setup fails, capture diagnostics so we can help:
+- Enable temporary debug logging via `logger.set_level` and reproduce the issue.
+- Include HTTP stack (`httpcore`, `httpx`) and `custom_components.fansync` lines.
+- Afterwards, restore defaults or restart.
 
-- Temporarily via service (recommended):
-  - Developer Tools → Services → `logger.set_level`
-  - Data:
-    ```yaml
-    httpcore: debug
-    httpx: debug
-    custom_components.fansync: debug
-    ```
-  - Start the FanSync setup, reproduce the error, then restore levels (run `logger.set_default_level` to `info`) or restart.
+Full instructions (including persistent logging) are in `CONTRIBUTING.md` under “How to contribute → Open an issue (with logs)”.
+Reference: Home Assistant docs: https://www.home-assistant.io/docs/configuration/troubleshooting/#enabling-debug-logging
 
-- Persistent (advanced): add to `configuration.yaml` and restart:
-  ```yaml
-  logger:
-    default: info
-    logs:
-      httpcore: debug
-      httpx: debug
-      custom_components.fansync: debug
-  ```
+## Contributing
 
-What to look for in the logs:
-- `httpcore.connection` / `httpcore.httpXXX` lines with the POST to the FanSync session endpoint and the response status (e.g., 400/401).
-- After the integration is added, `custom_components.fansync.client` lines like `http login ms=…`, `ws connect+login ms=…`, or any error messages.
+See `CONTRIBUTING.md` for development setup, lint/format, commit conventions, and PR guidance. For detailed test suite info and commands, see `tests/README.md`.
 
-Reference: Home Assistant debug logging docs:
-https://www.home-assistant.io/docs/configuration/troubleshooting/#enabling-debug-logging
-
-## Development
-
-- Set up a virtual environment and dev tools:
-```bash
-python3.13 -m venv venv
-source venv/bin/activate
-pip install -U pip
-pip install -r requirements-dev.txt
-```
-
-- Optional pre-commit hooks (recommended):
-```bash
-pre-commit install
-pre-commit install --hook-type commit-msg
-```
-- Manual checks:
-```bash
-ruff --fix .
-black .
-```
-- Formatting and linting are configured via `pyproject.toml` (Black + Ruff)
-- AI agent instructions: the canonical file is `.cursorrules` in the repo root. A pre-commit
-  hook syncs this content into other well-known locations (e.g., `.github/copilot-instructions.md`).
-  Only edit `.cursorrules`; the hook will propagate updates as needed.
-
-### Pull requests and commit messages
-
-- Conventional Commit-style PR titles are required for releases, e.g.:
-  - `feat: add optimistic light updates`
-  - `fix: prevent UI snap-back on interim refresh`
-  - `docs: reorganize README`
-  - `ci: run black via git ls-files in CI`
-  The repo includes a PR template and a semantic PR title check that enforces this.
-
-## Testing
-
-Run tests with coverage:
-```bash
-pytest -q --cov=custom_components/fansync
-```
-CI enforces coverage on the integration code (threshold set in the workflow).
+ 
 
 ## License
 
@@ -132,5 +91,3 @@ Apache-2.0 (see `LICENSE`).
 - Reverse‑engineering notes and sample payloads that informed this work were
   originally published in rotinom/fansync:
   https://github.com/rotinom/fansync
-  
-  No files from that repository are included here; any remaining mistakes are ours.

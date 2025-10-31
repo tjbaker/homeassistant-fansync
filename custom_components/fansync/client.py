@@ -36,12 +36,16 @@ class FanSyncClient:
         verify_ssl: bool = True,
         *,
         enable_push: bool = True,
+        http_timeout_s: int | float | None = None,
+        ws_timeout_s: int | float | None = None,
     ):
         self.hass = hass
         self.email = email
         self.password = password
         self.verify_ssl = verify_ssl
         self._enable_push = enable_push
+        self._http_timeout_s = http_timeout_s
+        self._ws_timeout_s = ws_timeout_s
         self._http: httpx.Client | None = None
         self._ws: websocket.WebSocket | None = None
         self._token: str | None = None
@@ -56,7 +60,15 @@ class FanSyncClient:
 
     async def async_connect(self):
         def _connect():
-            session = httpx.Client(verify=self.verify_ssl)
+            timeout = None
+            if self._http_timeout_s is not None:
+                timeout = httpx.Timeout(
+                    connect=float(self._http_timeout_s),
+                    read=float(self._http_timeout_s),
+                )
+                session = httpx.Client(verify=self.verify_ssl, timeout=timeout)
+            else:
+                session = httpx.Client(verify=self.verify_ssl)
             t0 = time.monotonic()
             # Authenticate over HTTP
             url = "https://fanimation.apps.exosite.io/api:1/session"
@@ -75,7 +87,7 @@ class FanSyncClient:
             t1 = time.monotonic()
             ws_opts = {} if self.verify_ssl else {"cert_reqs": ssl.CERT_NONE}
             ws = websocket.WebSocket(sslopt=ws_opts)
-            ws.timeout = 10
+            ws.timeout = float(self._ws_timeout_s) if self._ws_timeout_s is not None else 10.0
             ws.connect("wss://fanimation.apps.exosite.io/api:1/phone")
             ws.send(json.dumps({"id": 1, "request": "login", "data": {"token": token}}))
             raw = ws.recv()
@@ -255,7 +267,7 @@ class FanSyncClient:
 
         ws_opts = {} if self.verify_ssl else {"cert_reqs": ssl.CERT_NONE}
         ws = websocket.WebSocket(sslopt=ws_opts)
-        ws.timeout = 10
+        ws.timeout = float(self._ws_timeout_s) if self._ws_timeout_s is not None else 10.0
         ws.connect("wss://fanimation.apps.exosite.io/api:1/phone")
         ws.send(json.dumps({"id": 1, "request": "login", "data": {"token": token}}))
         raw = ws.recv()

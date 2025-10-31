@@ -12,9 +12,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-## Tests for Home Assistant FanSync Integration
+## FanSync Test Suite
 
-This directory contains the test suite for the FanSync custom integration. The suite focuses on setup UX, error handling, optimistic updates, reconnect paths, and detailed debug logging.
+This directory contains the tests for the FanSync custom integration. The suite focuses on setup UX, error handling, optimistic updates, reconnect paths, and detailed debug logging.
+
+For development setup, style, and commit conventions, see `CONTRIBUTING.md`.
 
 ### Quick start
 
@@ -32,7 +34,7 @@ pip install -r requirements-dev.txt
 # Run all tests
 pytest -q
 
-# Run with coverage (target ≥ 75% for custom_components/fansync)
+# Run with coverage (coverage target ≥ 75% for custom_components/fansync)
 pytest --cov=custom_components/fansync --cov-report=term-missing
 
 # Type check

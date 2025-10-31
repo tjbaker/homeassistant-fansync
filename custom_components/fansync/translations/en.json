@@ -7,7 +7,9 @@
         "data": {
           "email": "Email",
           "password": "Password",
-          "verify_ssl": "Verify SSL certificate"
+          "verify_ssl": "Verify SSL certificate",
+          "http_timeout_seconds": "HTTP timeout (seconds)",
+          "ws_timeout_seconds": "WebSocket timeout (seconds)"
         }
       }
     },
@@ -25,9 +27,11 @@
     "step": {
       "init": {
         "title": "FanSync Options",
-        "description": "Configure fallback polling to catch external changes",
+        "description": "Configure fallback polling and network timeouts",
         "data": {
-          "fallback_poll_seconds": "Fallback poll interval (seconds, 0 to disable)"
+          "fallback_poll_seconds": "Fallback poll interval (seconds, 0 to disable)",
+          "http_timeout_seconds": "HTTP timeout (seconds)",
+          "ws_timeout_seconds": "WebSocket timeout (seconds)"
         }
       }
     }
