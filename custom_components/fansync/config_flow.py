@@ -151,11 +151,16 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        # Support both new and older HA versions
+        # HA 2025.10 base OptionsFlow.__init__ may not accept config_entry yet.
+        # We support 2025.10+ by guarding the call and never assigning to
+        # the deprecated self.config_entry attribute; instead, we keep our own
+        # reference in self._entry. Newer HA (e.g., 2025.12+) will accept the
+        # config_entry parameter, so this remains forward-compatible.
         try:
             super().__init__(config_entry)  # type: ignore[call-arg]
         except TypeError:
-            self.config_entry = config_entry
+            super().__init__()
+        self._entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
@@ -165,7 +170,7 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
             if secs != 0:
                 secs = max(MIN_FALLBACK_POLL_SECS, min(MAX_FALLBACK_POLL_SECS, secs))
             # Clamp timeouts with explicit type checks to satisfy static typing
-            raw_data = getattr(self.config_entry, "data", {})
+            raw_data = getattr(self._entry, "data", {})
             data_defaults = raw_data if isinstance(raw_data, dict) else {}
 
             http_raw = user_input.get(
@@ -202,16 +207,14 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
                 },
             )
 
-        current = self.config_entry.options.get(
-            OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS
-        )
-        raw_data = getattr(self.config_entry, "data", {})
+        current = self._entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
+        raw_data = getattr(self._entry, "data", {})
         data_defaults = raw_data if isinstance(raw_data, dict) else {}
-        current_http = self.config_entry.options.get(
+        current_http = self._entry.options.get(
             CONF_HTTP_TIMEOUT,
             data_defaults.get(CONF_HTTP_TIMEOUT, DEFAULT_HTTP_TIMEOUT_SECS),
         )
-        current_ws = self.config_entry.options.get(
+        current_ws = self._entry.options.get(
             CONF_WS_TIMEOUT,
             data_defaults.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
         )

@@ -36,6 +36,7 @@
 - Document type: ignore comments with justification for why they're needed.
 
 # Home Assistant Specifics
+- Only suport HA 2025.10 and newer, no need for backward compatibility to older versions
 - Use HA async patterns (`async_*` methods); avoid blocking I/O in the event loop.
   - Use hass.async_add_executor_job for any blocking operations.
 - Prefer CoordinatorEntity for entities with push updates.
