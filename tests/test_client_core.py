@@ -109,14 +109,18 @@ async def test_async_set_triggers_callback(hass: HomeAssistant):
         )()
         ws = ws_cls.return_value
         ws.connect.return_value = None
-        # login, list, set ack, get
+        # login, list, set ack with status embedded (triggers callback immediately)
         ws.recv.side_effect = [
             _login_ok(),
             _lst_device_ok("id"),
-            json.dumps({"status": "ok", "response": "set", "id": 4}),
-            _get_ok({"H00": 1, "H02": 55}),
-            json.dumps({"event": "noop"}),
-            json.dumps({"event": "noop2"}),
+            json.dumps(
+                {
+                    "status": "ok",
+                    "response": "set",
+                    "id": 4,
+                    "data": {"status": {"H00": 1, "H02": 55}},
+                }
+            ),
         ]
 
         # Capture callback result
