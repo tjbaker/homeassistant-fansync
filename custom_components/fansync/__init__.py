@@ -89,8 +89,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         client.set_status_callback(_on_status)
     # Perform first refresh with a guard; proceed even if it times out
     try:
+        # Use a first-refresh guard aligned with the effective WS timeout plus a small buffer
+        try:
+            ws_to = client.ws_timeout_seconds()
+            first_refresh_timeout = max(POLL_STATUS_TIMEOUT_SECS, ws_to + 2)
+        except Exception:
+            first_refresh_timeout = POLL_STATUS_TIMEOUT_SECS
         await asyncio.wait_for(
-            coordinator.async_config_entry_first_refresh(), POLL_STATUS_TIMEOUT_SECS
+            coordinator.async_config_entry_first_refresh(), first_refresh_timeout
         )
     except Exception as exc:  # pragma: no cover
         # Log at WARNING and let entities hydrate on next push/poll
