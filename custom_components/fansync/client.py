@@ -486,7 +486,11 @@ class FanSyncClient:
                     ws2.send(json.dumps(message))  # type: ignore[unreachable]
                 # Best-effort ack read; ignore errors
                 try:
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug("set waiting for ack d=%s", did)
                     raw = self._ws.recv()
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug("set received response d=%s", did)
                     try:
                         payload = json.loads(raw)
                         if isinstance(payload, dict) and payload.get("response") == "set":
@@ -495,9 +499,19 @@ class FanSyncClient:
                                 if _LOGGER.isEnabledFor(logging.DEBUG):
                                     _LOGGER.debug("set ack includes status d=%s", did)
                                 return d["status"]
-                    except Exception:
-                        pass
-                except Exception:
+                        elif _LOGGER.isEnabledFor(logging.DEBUG):
+                            resp_type = (
+                                payload.get("response") if isinstance(payload, dict) else None
+                            )
+                            _LOGGER.debug("set ack wrong type d=%s response=%s", did, resp_type)
+                    except Exception as parse_exc:
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug(
+                                "set ack parse failed d=%s: %s", did, type(parse_exc).__name__
+                            )
+                except Exception as recv_exc:
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug("set ack recv failed d=%s: %s", did, type(recv_exc).__name__)
                     return None
             return None
 

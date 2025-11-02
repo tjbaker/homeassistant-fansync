@@ -8,6 +8,11 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Follow PEP 8 principles; Black/Ruff are authoritative for enforcement.
 - Optimize for clarity and readability; prefer explicit types where helpful.
 - Prefer union syntax in isinstance checks (e.g., int | str) over tuples.
+- Type Annotations:
+  - Always add type hints to function/method parameters and return types
+  - Use modern Python 3.10+ syntax: `X | None` instead of `Optional[X]`
+  - In tests, annotate fixtures: `hass: HomeAssistant`, `caplog: pytest.LogCaptureFixture`
+  - Add return types even for simple functions: `-> None`, `-> str`, `-> dict[str, Any]`
 
 # Imports
 - Organize imports consistent with Ruff isort settings.
@@ -60,6 +65,11 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Ensure tests clean up background threads/tasks (call async_disconnect on FanSyncClient).
 - Use Home Assistant's config flow test helpers (hass.config_entries.flow.async_init) instead of
   directly instantiating flow classes.
+- Type annotations in tests:
+  - Always annotate test function parameters: `hass: HomeAssistant`, `caplog: pytest.LogCaptureFixture`
+  - Always add return type `-> None` to async test functions
+  - Import HomeAssistant from homeassistant.core
+  - Import pytest for LogCaptureFixture type hint
 
 # Git / Commits
 - Commit message subject MUST be ≤ 72 characters (to avoid GitHub truncation).
@@ -129,6 +139,8 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Use appropriate format specifiers: %.0f for floats, %d for ints.
 - Prefer direct callable references over lambda: x when lambda just wraps a function.
 - Walrus operator (:=) is acceptable but prefer simpler code if formatters conflict.
+- Use bare `raise` instead of `raise exc` when re-raising exceptions to preserve tracebacks.
+- Extract magic numbers and hardcoded strings to named constants in const.py.
 
 # Performance
 - Guard expensive debug operations with `if _LOGGER.isEnabledFor(logging.DEBUG):`.
