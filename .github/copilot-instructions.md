@@ -1,5 +1,8 @@
 # AI Code Style Rules for this repository
 
+NOTE: The canonical source for these instructions is .cursorrules in the repo root.
+Any changes should be made there; this file syncs automatically via pre-commit hook.
+
 # Style & Formatting
 - Use Black/Ruff exactly as configured in pyproject.toml (line length 100, Python 3.13).
 - Follow PEP 8 principles; Black/Ruff are authoritative for enforcement.
@@ -36,7 +39,7 @@
 - Document type: ignore comments with justification for why they're needed.
 
 # Home Assistant Specifics
-- Only suport HA 2025.10 and newer, no need for backward compatibility to older versions
+- Only support HA 2025.10 and newer, no need for backward compatibility to older versions
 - Use HA async patterns (`async_*` methods); avoid blocking I/O in the event loop.
   - Use hass.async_add_executor_job for any blocking operations.
 - Prefer CoordinatorEntity for entities with push updates.

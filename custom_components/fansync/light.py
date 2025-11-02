@@ -22,7 +22,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, UpdateFailed
 
 from .client import FanSyncClient
 from .const import (
@@ -53,16 +53,27 @@ async def async_setup_entry(
     coordinator: FanSyncCoordinator = shared["coordinator"]
     client: FanSyncClient = shared["client"]
     entities: list[FanSyncLight] = []
-    # Ensure coordinator has aggregated data
+
+    # Wait briefly for coordinator data if not already present; this handles race conditions
+    # when light platform setup runs before first coordinator refresh completes.
     data = coordinator.data
-    if not data:
-        await coordinator.async_request_refresh()
-        data = coordinator.data or {}
-    # Create a light per device if it reports light keys
+    if not isinstance(data, dict) or not data:
+        try:
+            # Use a short timeout to avoid blocking setup indefinitely
+            await asyncio.wait_for(coordinator.async_request_refresh(), timeout=5.0)
+            data = coordinator.data or {}
+        except (TimeoutError, UpdateFailed):
+            # If refresh times out or fails, fall back to empty dict
+            data = {}
+
+    # Create a light entity per device that reports light capability
     if isinstance(data, dict):
         for did, status in data.items():
-            if KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status:
+            if isinstance(status, dict) and (
+                KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status
+            ):
                 entities.append(FanSyncLight(coordinator, client, did))
+
     async_add_entities(entities)
 
 
