@@ -32,6 +32,8 @@ from .const import (
     DEFAULT_HTTP_TIMEOUT_SECS,
     DEFAULT_WS_TIMEOUT_SECS,
     DOMAIN,
+    KEY_LIGHT_BRIGHTNESS,
+    KEY_LIGHT_POWER,
     OPTION_FALLBACK_POLL_SECS,
     PLATFORMS,
     POLL_STATUS_TIMEOUT_SECS,
@@ -89,10 +91,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         client.set_status_callback(_on_status)
     # Perform first refresh with a guard; proceed even if it times out
     try:
-        # Use a first-refresh guard aligned with the effective WS timeout plus a small buffer
+        # Use a first-refresh guard equal to the configured WS timeout
         try:
-            ws_to = client.ws_timeout_seconds()
-            first_refresh_timeout = max(POLL_STATUS_TIMEOUT_SECS, ws_to + 2)
+            _val = client.ws_timeout_seconds()
+            if asyncio.iscoroutine(_val):
+                _val = await _val
+            first_refresh_timeout = int(_val)
         except Exception:
             first_refresh_timeout = POLL_STATUS_TIMEOUT_SECS
         await asyncio.wait_for(
@@ -102,9 +106,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Log at WARNING and let entities hydrate on next push/poll
         _LOGGER.warning("initial refresh deferred: %s", type(exc).__name__)
 
+    # Determine which platforms to load.
+    # If no data yet (first refresh deferred or empty), fall back to all PLATFORMS
+    # so that capability platforms (e.g., light) are available once data arrives.
+    data_now = coordinator.data
+    if not isinstance(data_now, dict) or not data_now:
+        platforms = list(PLATFORMS)
+    else:
+        platforms = ["fan"]
+        if any(
+            isinstance(s, dict) and (KEY_LIGHT_POWER in s or KEY_LIGHT_BRIGHTNESS in s)
+            for s in data_now.values()
+        ):
+            platforms.append("light")
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "client": client,
         "coordinator": coordinator,
+        "platforms": platforms,
     }
 
     async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry) -> None:
@@ -131,7 +150,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.add_update_listener(_async_options_updated)
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await hass.config_entries.async_forward_entry_setups(entry, platforms)
 
     # Log connection success with device count at INFO, details at DEBUG
     try:
@@ -145,7 +164,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    stored = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+    platforms = stored.get("platforms", PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, platforms)
     if unloaded:
         data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
         if data and data.get("client"):

@@ -17,15 +17,14 @@ from unittest.mock import patch
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.fansync.const import DOMAIN
 
-async def test_light_not_created_when_no_light_keys(hass: HomeAssistant):
-    """Do not create light entity if device exposes no light fields."""
 
-    class _Mock:
-        def __init__(self):
-            # No H0B/H0C keys present
-            self.status = {"H00": 1, "H02": 41, "H06": 0, "H01": 0}
-            self.device_id = "no-light-device"
+def _make_client(status: dict[str, object], device_id: str):
+    class _Client:
+        def __init__(self, s: dict[str, object], did: str):
+            self.status = s
+            self.device_id = did
 
         async def async_connect(self):
             return None
@@ -36,10 +35,12 @@ async def test_light_not_created_when_no_light_keys(hass: HomeAssistant):
         async def async_get_status(self, device_id: str | None = None):
             return self.status
 
-        async def async_set(self, data, *, device_id: str | None = None):
-            self.status.update(data)
+    return _Client(status, device_id)
 
-    client = _Mock()
+
+async def test_light_not_created_when_no_light_keys(hass: HomeAssistant):
+    """Do not create light entity if device exposes no light fields."""
+    client = _make_client({"H00": 1, "H02": 41, "H06": 0, "H01": 0}, "no-light-device")
 
     entry = MockConfigEntry(
         domain="fansync",
@@ -61,3 +62,120 @@ async def test_light_not_created_when_no_light_keys(hass: HomeAssistant):
     # Fan should exist, light should not
     assert hass.states.get("fan.fan") is not None
     assert hass.states.get("light.light") is None
+
+
+async def test_platforms_stored_and_forwarded_without_light(hass: HomeAssistant, monkeypatch):
+    """Platforms should be ['fan'] and forward excludes light when no light keys present."""
+
+    client = _make_client({"H00": 1, "H02": 41, "H06": 0, "H01": 0}, "dev-no-light")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": True},
+        unique_id="plat-no-light",
+    )
+    entry.add_to_hass(hass)
+
+    calls: list[list[str]] = []
+    orig = hass.config_entries.async_forward_entry_setups
+
+    async def _spy_forward(e, platforms: list[str]):
+        calls.append(platforms)
+        return await orig(e, platforms)
+
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", _spy_forward)
+
+    with (
+        patch("custom_components.fansync.fan.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.light.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.FanSyncClient", return_value=client),
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    stored = hass.data[DOMAIN][entry.entry_id]["platforms"]
+    assert stored == ["fan"]
+    assert calls and calls[-1] == ["fan"]
+
+
+async def test_platforms_stored_and_forwarded_with_light(hass: HomeAssistant, monkeypatch):
+    """Platforms should include light when light keys present."""
+
+    client = _make_client(
+        {"H00": 1, "H02": 41, "H06": 0, "H01": 0, "H0B": 1, "H0C": 50},
+        "dev-with-light",
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": True},
+        unique_id="plat-with-light",
+    )
+    entry.add_to_hass(hass)
+
+    calls: list[list[str]] = []
+    orig = hass.config_entries.async_forward_entry_setups
+
+    async def _spy_forward(e, platforms: list[str]):
+        calls.append(platforms)
+        return await orig(e, platforms)
+
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", _spy_forward)
+
+    with (
+        patch("custom_components.fansync.fan.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.light.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.FanSyncClient", return_value=client),
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    stored = hass.data[DOMAIN][entry.entry_id]["platforms"]
+    assert stored == ["fan", "light"]
+    assert calls and calls[-1] == ["fan", "light"]
+
+
+async def test_platforms_fallback_when_first_refresh_deferred(hass: HomeAssistant, monkeypatch):
+    """When first refresh defers, platforms should fall back to all PLATFORMS."""
+
+    client = _make_client({"H00": 1, "H02": 41}, "dev")
+
+    # Fake coordinator that simulates first refresh timeout and no data yet
+    class _FakeCoordinator:
+        def __init__(self, hass, c):
+            self.hass = hass
+            self.client = c
+            self.data = None
+
+        async def async_config_entry_first_refresh(self):
+            raise TimeoutError()
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": True},
+        unique_id="plat-deferred",
+    )
+    entry.add_to_hass(hass)
+
+    calls: list[list[str]] = []
+    orig = hass.config_entries.async_forward_entry_setups
+
+    async def _spy_forward(e, platforms: list[str]):
+        calls.append(platforms)
+        return await orig(e, platforms)
+
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", _spy_forward)
+
+    with (
+        patch("custom_components.fansync.FanSyncCoordinator", _FakeCoordinator),
+        patch("custom_components.fansync.fan.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.light.FanSyncClient", return_value=client),
+        patch("custom_components.fansync.FanSyncClient", return_value=client),
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    stored = hass.data[DOMAIN][entry.entry_id]["platforms"]
+    assert stored == ["fan", "light"]
+    assert calls and calls[-1] == ["fan", "light"]
