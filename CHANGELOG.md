@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.15](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.14...0.2.15) (2025-11-02)
+
+
+### Bug Fixes
+
+* align poll/first-refresh timeouts with WS setting to avoid premature cancel ([ef83607](https://github.com/tjbaker/homeassistant-fansync/commit/ef836070a31bdd2108a24d27d1981d4aaf5268f9))
+
 ## [0.2.14](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.13...0.2.14) (2025-11-02)
 
 
