@@ -65,6 +65,9 @@ MAX_WS_TIMEOUT_SECS = 120
 WS_LOGIN_RETRY_ATTEMPTS = 2
 WS_LOGIN_RETRY_BACKOFF_SEC = 1.0
 
+# Coordinator timeouts
+POLL_STATUS_TIMEOUT_SECS = 12
+
 
 def clamp_percentage(value: int) -> int:
     """Clamp percentage to FanSync allowed range [1, 100]."""
