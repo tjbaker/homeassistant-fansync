@@ -51,14 +51,19 @@ FALLBACK_POLL_SECONDS = 30
 
 # Timeouts
 # HTTP timeouts apply to connect/read for login and token refresh
-DEFAULT_HTTP_TIMEOUT_SECS = 10
+DEFAULT_HTTP_TIMEOUT_SECS = 20
 MIN_HTTP_TIMEOUT_SECS = 5
-MAX_HTTP_TIMEOUT_SECS = 60
+MAX_HTTP_TIMEOUT_SECS = 120
 
 # WebSocket timeout for connect/recv operations
-DEFAULT_WS_TIMEOUT_SECS = 15
+DEFAULT_WS_TIMEOUT_SECS = 30
 MIN_WS_TIMEOUT_SECS = 5
-MAX_WS_TIMEOUT_SECS = 60
+MAX_WS_TIMEOUT_SECS = 120
+
+
+# WebSocket login retry settings
+WS_LOGIN_RETRY_ATTEMPTS = 2
+WS_LOGIN_RETRY_BACKOFF_SEC = 1.0
 
 
 def clamp_percentage(value: int) -> int:

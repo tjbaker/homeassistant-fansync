@@ -14,7 +14,7 @@
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to Fanimation servers. Check your network connection or try again later.",
+      "cannot_connect": "Failed to connect. Check your network or increase the HTTP/WebSocket timeouts in setup or Options, then try again.",
       "invalid_auth": "Invalid email or password. Please check your credentials.",
       "no_devices": "No FanSync devices found on your account. Please verify devices are registered in the Fanimation app.",
       "unknown": "An unexpected error occurred. Please check the logs for details."

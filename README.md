@@ -32,6 +32,8 @@ Note: This integration is not in the HACS default registry. Add it as a custom r
 8) Add the integration: Settings → Devices & Services → Add integration → “FanSync”.
 
 See also: [HACS: Custom repositories](https://hacs.xyz/docs/use/custom_repositories/)
+• Issues: [Open or track issues](https://github.com/tjbaker/homeassistant-fansync/issues)
+• PRs: [Create a pull request](https://github.com/tjbaker/homeassistant-fansync/pulls)
 
 ### Manual
 
@@ -46,8 +48,8 @@ See also: [HACS: Custom repositories](https://hacs.xyz/docs/use/custom_repositor
 | Email       | FanSync account email                                        | –       |
 | Password    | FanSync account password                                     | –       |
 | Verify SSL  | Verify HTTPS certificates when connecting to FanSync cloud   | True    |
-| HTTP timeout (s) | HTTP connect/read timeout used during login/token refresh     | 10      |
-| WebSocket timeout (s) | WebSocket connect/recv timeout for realtime channel         | 15      |
+| HTTP timeout (s) | HTTP connect/read timeout used during login/token refresh     | 20      |
+| WebSocket timeout (s) | WebSocket connect/recv timeout for realtime channel         | 30      |
 
 
 ### Options
@@ -57,12 +59,12 @@ Push-first updates are used by default. A low-frequency fallback poll can be con
 | Option                 | Description                                                       | Default |
 |------------------------|-------------------------------------------------------------------|---------|
 | fallback_poll_seconds  | Poll interval in seconds when push is unavailable (0 disables).  | 60      |
-| http_timeout_seconds   | HTTP connect/read timeout (seconds)                               | 10      |
-| ws_timeout_seconds     | WebSocket connect/recv timeout (seconds)                          | 15      |
+| http_timeout_seconds   | HTTP connect/read timeout (seconds)                               | 20      |
+| ws_timeout_seconds     | WebSocket connect/recv timeout (seconds)                          | 30      |
 
 Set via: Settings → Devices & Services → FanSync → Configure → Options.
 - Poll interval allowed range: 15–600 seconds (0 disables)
-- Timeout ranges: 5–60 seconds (HTTP and WebSocket)
+- Timeout ranges: 5–120 seconds (HTTP and WebSocket)
 
 ## Troubleshooting
 
@@ -78,16 +80,15 @@ Reference: Home Assistant docs: https://www.home-assistant.io/docs/configuration
 
 ## Contributing
 
-See `CONTRIBUTING.md` for development setup, lint/format, commit conventions, and PR guidance. For detailed test suite info and commands, see `tests/README.md`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, lint/format, commit conventions, and PR guidance. For detailed test suite info and commands, see [tests/README.md](tests/README.md).
 
  
 
 ## License
 
-Apache-2.0 (see `LICENSE`).
+Apache-2.0 (see [LICENSE](LICENSE)).
 
 ## Acknowledgments
 
 - Reverse‑engineering notes and sample payloads that informed this work were
-  originally published in rotinom/fansync:
-  https://github.com/rotinom/fansync
+  originally published in [rotinom/fansync](https://github.com/rotinom/fansync).

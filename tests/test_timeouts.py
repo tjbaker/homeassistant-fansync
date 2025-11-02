@@ -39,8 +39,8 @@ async def test_config_flow_passes_default_timeouts(hass, ensure_fansync_importab
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     # Ensure the constructor was given default timeout values
     _, kwargs = client_cls.call_args
-    assert kwargs.get("http_timeout_s") == 10
-    assert kwargs.get("ws_timeout_s") == 15
+    assert kwargs.get("http_timeout_s") == 20
+    assert kwargs.get("ws_timeout_s") == 30
 
 
 async def test_config_flow_passes_custom_timeouts(hass, ensure_fansync_importable):
