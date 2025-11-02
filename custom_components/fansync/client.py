@@ -24,7 +24,18 @@ import httpx
 import websocket
 from homeassistant.core import HomeAssistant
 
-from .const import DEFAULT_WS_TIMEOUT_SECS, WS_LOGIN_RETRY_ATTEMPTS, WS_LOGIN_RETRY_BACKOFF_SEC
+from .const import (
+    DEFAULT_WS_TIMEOUT_SECS,
+    WS_FALLBACK_TIMEOUT_SEC,
+    WS_GET_RETRY_LIMIT,
+    WS_LOGIN_RETRY_ATTEMPTS,
+    WS_LOGIN_RETRY_BACKOFF_SEC,
+    WS_REQUEST_ID_GET_STATUS,
+    WS_REQUEST_ID_LIST_DEVICES,
+    WS_REQUEST_ID_LOGIN,
+    WS_REQUEST_ID_SET,
+)
+from .metrics import ConnectionMetrics
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +70,7 @@ class FanSyncClient:
         self._running: bool = False
         self._recv_lock: threading.Lock = threading.Lock()
         self._recv_thread: threading.Thread | None = None
+        self.metrics = ConnectionMetrics()
 
     async def async_connect(self):
         def _connect():
@@ -98,11 +110,19 @@ class FanSyncClient:
                 ws_local = websocket.WebSocket(sslopt=ws_opts)
                 try:
                     ws_local.timeout = (
-                        float(self._ws_timeout_s) if self._ws_timeout_s is not None else 10.0
+                        float(self._ws_timeout_s)
+                        if self._ws_timeout_s is not None
+                        else WS_FALLBACK_TIMEOUT_SEC
                     )
                     ws_local.connect("wss://fanimation.apps.exosite.io/api:1/phone")
                     ws_local.send(
-                        json.dumps({"id": 1, "request": "login", "data": {"token": token}})
+                        json.dumps(
+                            {
+                                "id": WS_REQUEST_ID_LOGIN,
+                                "request": "login",
+                                "data": {"token": token},
+                            }
+                        )
                     )
                     raw = ws_local.recv()
                     payload = json.loads(raw)
@@ -144,7 +164,7 @@ class FanSyncClient:
             if ws_obj is None:
                 raise RuntimeError("WebSocket connection failed after retry attempts")
             # List devices
-            ws_obj.send(json.dumps({"id": 2, "request": "lst_device"}))
+            ws_obj.send(json.dumps({"id": WS_REQUEST_ID_LIST_DEVICES, "request": "lst_device"}))
             raw = ws_obj.recv()
             payload = json.loads(raw)
             devices = payload.get("data") or []
@@ -176,6 +196,7 @@ class FanSyncClient:
             self._device_ids = device_ids
             self._device_meta = meta
             self._running = True
+            self.metrics.is_connected = True
 
         await self.hass.async_add_executor_job(_connect)
 
@@ -220,6 +241,7 @@ class FanSyncClient:
                                         self._ensure_ws_connected()
                                         timeout_errors = 0
                                         backoff_sec = 0.5
+                                        self.metrics.record_reconnect()
                                         if _LOGGER.isEnabledFor(logging.DEBUG):
                                             _LOGGER.debug("reconnect successful, backoff reset")
                                     except Exception as reconnect_err:
@@ -259,6 +281,7 @@ class FanSyncClient:
                     data = payload.get("data")
                     if isinstance(data, dict) and isinstance(data.get("status"), dict):
                         pushed_status = data["status"]
+                        self.metrics.record_push_update()
                         if _LOGGER.isEnabledFor(logging.DEBUG):
                             _LOGGER.debug("recv push status keys=%s", list(pushed_status.keys()))
                         if self._status_callback is not None:
@@ -276,6 +299,7 @@ class FanSyncClient:
     async def async_disconnect(self):
         # Signal background thread to stop first
         self._running = False
+        self.metrics.is_connected = False
         if self._ws:
             await self.hass.async_add_executor_job(self._ws.close)
             self._ws = None
@@ -343,9 +367,13 @@ class FanSyncClient:
 
         ws_opts = {} if self.verify_ssl else {"cert_reqs": ssl.CERT_NONE}
         ws = websocket.WebSocket(sslopt=ws_opts)
-        ws.timeout = float(self._ws_timeout_s) if self._ws_timeout_s is not None else 10.0
+        ws.timeout = (
+            float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
+        )
         ws.connect("wss://fanimation.apps.exosite.io/api:1/phone")
-        ws.send(json.dumps({"id": 1, "request": "login", "data": {"token": token}}))
+        ws.send(
+            json.dumps({"id": WS_REQUEST_ID_LOGIN, "request": "login", "data": {"token": token}})
+        )
         raw = ws.recv()
         payload = json.loads(raw)
         if not (isinstance(payload, dict) and payload.get("status") == "ok"):
@@ -366,7 +394,8 @@ class FanSyncClient:
                 if ws is None:
                     raise RuntimeError("Websocket not connected")
                 sent = False
-                req_id = 3  # keep stable for compatibility; match responses by id when present
+                # Keep stable request ID for compatibility; match responses by id when present
+                req_id = WS_REQUEST_ID_GET_STATUS
                 try:
                     ws.send(json.dumps({"id": req_id, "request": "get", "device": did}))
                     sent = True
@@ -382,7 +411,7 @@ class FanSyncClient:
                     # mypy may flag this as unreachable; it's a valid retry after reconnect
                     ws2.send(json.dumps({"id": req_id, "request": "get", "device": did}))  # type: ignore[unreachable]
                 # Bounded read to find the response
-                for _ in range(5):
+                for _ in range(WS_GET_RETRY_LIMIT):
                     raw = self._ws.recv()
                     payload = json.loads(raw)
                     if isinstance(payload, dict) and payload.get("response") == "get":
@@ -401,12 +430,18 @@ class FanSyncClient:
                         except Exception as exc:
                             if _LOGGER.isEnabledFor(logging.DEBUG):
                                 _LOGGER.debug("profile cache failed for %s: %s", did, exc)
+                        latency_ms = (time.monotonic() - t0) * 1000
+                        self.metrics.record_command(success=True, latency_ms=latency_ms)
                         if _LOGGER.isEnabledFor(logging.DEBUG):
-                            _LOGGER.debug("get rtt ms=%d", int((time.monotonic() - t0) * 1000))
+                            _LOGGER.debug("get rtt ms=%.0f", latency_ms)
                         return payload["data"]["status"]
                 raise RuntimeError("Get status response not received")
 
-        return await self.hass.async_add_executor_job(_get)
+        try:
+            return await self.hass.async_add_executor_job(_get)
+        except Exception:
+            self.metrics.record_command(success=False)
+            raise
 
     async def async_set(self, data: dict[str, int], *, device_id: str | None = None):
         def _set():
@@ -415,7 +450,7 @@ class FanSyncClient:
             self._ensure_ws_connected()
             assert self._ws is not None
             message = {
-                "id": 4,
+                "id": WS_REQUEST_ID_SET,
                 "request": "set",
                 "device": did,
                 "data": data,
@@ -459,17 +494,23 @@ class FanSyncClient:
             return None
 
         t_total = time.monotonic()
-        ack_status = await self.hass.async_add_executor_job(_set)
-        # Notify callback if ack included status; otherwise rely on push updates from _recv_loop
-        if self._status_callback is not None and isinstance(ack_status, dict):
+        try:
+            ack_status = await self.hass.async_add_executor_job(_set)
+            latency_ms = (time.monotonic() - t_total) * 1000
+            self.metrics.record_command(success=True, latency_ms=latency_ms)
+            # Notify callback if ack included status; otherwise rely on push updates from _recv_loop
+            if self._status_callback is not None and isinstance(ack_status, dict):
 
-            def _notify():
-                assert self._status_callback is not None
-                self._status_callback(ack_status)
+                def _notify():
+                    assert self._status_callback is not None
+                    self._status_callback(ack_status)
 
-            self.hass.loop.call_soon_threadsafe(_notify)
-        if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug("set total rtt ms=%d", int((time.monotonic() - t_total) * 1000))
+                self.hass.loop.call_soon_threadsafe(_notify)
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("set total rtt ms=%.0f", latency_ms)
+        except Exception:
+            self.metrics.record_command(success=False)
+            raise
 
     @property
     def device_id(self) -> str | None:

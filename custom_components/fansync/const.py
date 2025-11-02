@@ -65,6 +65,24 @@ MAX_WS_TIMEOUT_SECS = 120
 WS_LOGIN_RETRY_ATTEMPTS = 2
 WS_LOGIN_RETRY_BACKOFF_SEC = 1.0
 
+# WebSocket receive loop retry settings
+WS_RECV_TIMEOUT_ERROR_THRESHOLD = 3  # Consecutive errors before reconnect
+WS_RECV_BACKOFF_INITIAL_SEC = 0.5  # Initial backoff delay
+WS_RECV_BACKOFF_MAX_SEC = 5.0  # Maximum backoff delay
+WS_RECV_SLEEP_SEC = 0.1  # Sleep between recv attempts
+
+# WebSocket request IDs (keep stable for compatibility)
+WS_REQUEST_ID_LOGIN = 1
+WS_REQUEST_ID_LIST_DEVICES = 2
+WS_REQUEST_ID_GET_STATUS = 3
+WS_REQUEST_ID_SET = 4
+
+# WebSocket bounded read settings
+WS_GET_RETRY_LIMIT = 5  # Max recv attempts to find get response
+
+# WebSocket fallback timeout (used when _ws_timeout_s is None)
+WS_FALLBACK_TIMEOUT_SEC = 10.0
+
 # Coordinator timeouts
 # Align with default WS timeout to avoid cancelling in-progress recv operations
 POLL_STATUS_TIMEOUT_SECS = 30
