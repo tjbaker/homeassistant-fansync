@@ -460,16 +460,12 @@ class FanSyncClient:
 
         t_total = time.monotonic()
         ack_status = await self.hass.async_add_executor_job(_set)
-        # After a successful set, fetch latest status and notify listeners, if any.
-        if self._status_callback is not None:
-            if isinstance(ack_status, dict):
-                status = ack_status
-            else:
-                status = await self.async_get_status()
+        # Notify callback if ack included status; otherwise rely on push updates from _recv_loop
+        if self._status_callback is not None and isinstance(ack_status, dict):
 
             def _notify():
                 assert self._status_callback is not None
-                self._status_callback(status)
+                self._status_callback(ack_status)
 
             self.hass.loop.call_soon_threadsafe(_notify)
         if _LOGGER.isEnabledFor(logging.DEBUG):
