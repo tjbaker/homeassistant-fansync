@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.16](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.15...0.2.16) (2025-11-02)
+
+
+### Bug Fixes
+
+* avoid premature timeouts; skip light when devices lack light ([863794a](https://github.com/tjbaker/homeassistant-fansync/commit/863794a8c8771cdcb9a45656f2a8bed70f5623b9))
+* resolve light entity creation race condition ([54fa335](https://github.com/tjbaker/homeassistant-fansync/commit/54fa3357e09a582d224f52d138950493e880ce3e))
+
 ## [0.2.15](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.14...0.2.15) (2025-11-02)
 
 
