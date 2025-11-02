@@ -24,7 +24,7 @@ import httpx
 import websocket
 from homeassistant.core import HomeAssistant
 
-from .const import WS_LOGIN_RETRY_ATTEMPTS, WS_LOGIN_RETRY_BACKOFF_SEC
+from .const import DEFAULT_WS_TIMEOUT_SECS, WS_LOGIN_RETRY_ATTEMPTS, WS_LOGIN_RETRY_BACKOFF_SEC
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -494,3 +494,13 @@ class FanSyncClient:
 
     def set_status_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         self._status_callback = callback
+
+    # Expose effective WebSocket timeout in seconds for coordinators/first refresh guards
+    def ws_timeout_seconds(self) -> int:
+        try:
+            if self._ws_timeout_s is not None:
+                return int(self._ws_timeout_s)
+        except (TypeError, ValueError, AttributeError):
+            # Defensive: fallback to default timeout if conversion or state fails
+            pass
+        return int(DEFAULT_WS_TIMEOUT_SECS)

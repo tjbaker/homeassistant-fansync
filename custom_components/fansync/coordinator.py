@@ -76,15 +76,22 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             # Run per-device status in parallel with timeouts; tolerate partial failures
             async def _get(did: str):
                 try:
-                    return did, await asyncio.wait_for(
-                        self.client.async_get_status(did), POLL_STATUS_TIMEOUT_SECS
-                    )
+                    # Use a timeout aligned with the client's WS timeout, with a small buffer.
+                    try:
+                        val = self.client.ws_timeout_seconds()
+                    except AttributeError:
+                        timeout_s = POLL_STATUS_TIMEOUT_SECS
+                    else:
+                        if asyncio.iscoroutine(val):
+                            val = await val
+                        timeout_s = max(POLL_STATUS_TIMEOUT_SECS, int(val) + 2)
+                    return did, await asyncio.wait_for(self.client.async_get_status(did), timeout_s)
                 except TimeoutError:
                     # Warn on per-device timeout; we'll tolerate partial failures
                     self.logger.warning(
                         "status fetch timed out for device %s after %d seconds",
                         did,
-                        POLL_STATUS_TIMEOUT_SECS,
+                        timeout_s,
                     )
                     return did, None
 
