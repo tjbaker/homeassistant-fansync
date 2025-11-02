@@ -18,6 +18,7 @@ from typing import Any
 import httpx
 import voluptuous as vol
 from homeassistant import config_entries
+from websocket import WebSocketException, WebSocketTimeoutException
 
 from .client import FanSyncClient
 from .const import (
@@ -101,6 +102,18 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.error("Network connection failed: %s", type(exc).__name__)
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("Network error details: %s", str(exc))
+            errors["base"] = "cannot_connect"
+        except WebSocketException as exc:
+            # WebSocketTimeoutException is a subclass of WebSocketException; log a clearer
+            # message for timeouts while mapping all WS errors to cannot_connect.
+            if isinstance(exc, WebSocketTimeoutException):
+                _LOGGER.error("WebSocket connection timed out during setup")
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("WebSocket timeout details: %s", str(exc))
+            else:
+                _LOGGER.error("WebSocket error during setup: %s", type(exc).__name__)
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("WebSocket error details: %s", str(exc))
             errors["base"] = "cannot_connect"
         except Exception as exc:
             _LOGGER.error(

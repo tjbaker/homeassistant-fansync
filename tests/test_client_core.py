@@ -13,9 +13,10 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
+import websocket
 
 from homeassistant.core import HomeAssistant
 
@@ -182,6 +183,51 @@ async def test_connect_ws_login_failure_raises(hass: HomeAssistant):
 
         with pytest.raises(RuntimeError):
             await c.async_connect()
+
+
+async def test_connect_ws_timeout_then_success_retries(hass: HomeAssistant):
+    c = FanSyncClient(hass, "e@example.com", "p", verify_ssl=True, enable_push=False)
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+        patch("custom_components.fansync.client.time.sleep", return_value=None),
+    ):
+        http_inst = http_cls.return_value
+        http_inst.post.return_value = type(
+            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
+        )()
+
+        # First WS instance times out on first recv (login response), second succeeds
+        ws1 = ws_cls.return_value
+        ws2 = MagicMock()
+        # Provide attributes/methods used by client
+        ws1.connect = lambda *_args, **_kwargs: None
+        ws1.send = lambda *_args, **_kwargs: None
+
+        def _recv_raises_timeout():
+            raise websocket.WebSocketTimeoutException("timeout")
+
+        ws1.recv = _recv_raises_timeout
+        ws1.close = lambda: None
+
+        # Configure ws2 to succeed
+        ws2.connect = lambda *_args, **_kwargs: None
+        ws2.send = lambda *_args, **_kwargs: None
+
+        recv_iter = iter(
+            [
+                _login_ok(),
+                _lst_device_ok("dev-retry"),
+            ]
+        )
+
+        ws2.recv = recv_iter.__next__
+
+        ws_cls.side_effect = [ws1, ws2]
+
+        await c.async_connect()
+
+    assert c.device_id == "dev-retry"
 
 
 async def test_connect_http_error_bubbles(hass: HomeAssistant):

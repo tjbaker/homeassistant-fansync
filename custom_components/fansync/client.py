@@ -24,6 +24,8 @@ import httpx
 import websocket
 from homeassistant.core import HomeAssistant
 
+from .const import WS_LOGIN_RETRY_ATTEMPTS, WS_LOGIN_RETRY_BACKOFF_SEC
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -86,23 +88,64 @@ class FanSyncClient:
                 elapsed_ms = int((time.monotonic() - t0) * 1000)
                 _LOGGER.debug("http login ms=%d verify_ssl=%s", elapsed_ms, self.verify_ssl)
 
-            # Websocket connect and login
+            # WebSocket connect and login, with one retry attempt on transient WS errors
+            # (2 total attempts)
             t1 = time.monotonic()
             ws_opts = {} if self.verify_ssl else {"cert_reqs": ssl.CERT_NONE}
-            ws = websocket.WebSocket(sslopt=ws_opts)
-            ws.timeout = float(self._ws_timeout_s) if self._ws_timeout_s is not None else 10.0
-            ws.connect("wss://fanimation.apps.exosite.io/api:1/phone")
-            ws.send(json.dumps({"id": 1, "request": "login", "data": {"token": token}}))
-            raw = ws.recv()
-            payload = json.loads(raw)
-            if not (isinstance(payload, dict) and payload.get("status") == "ok"):
-                raise RuntimeError("Websocket login failed")
+            ws_obj: websocket.WebSocket | None = None
+            total_attempts = WS_LOGIN_RETRY_ATTEMPTS
+            for attempt_idx in range(total_attempts):
+                ws_local = websocket.WebSocket(sslopt=ws_opts)
+                try:
+                    ws_local.timeout = (
+                        float(self._ws_timeout_s) if self._ws_timeout_s is not None else 10.0
+                    )
+                    ws_local.connect("wss://fanimation.apps.exosite.io/api:1/phone")
+                    ws_local.send(
+                        json.dumps({"id": 1, "request": "login", "data": {"token": token}})
+                    )
+                    raw = ws_local.recv()
+                    payload = json.loads(raw)
+                    if not (isinstance(payload, dict) and payload.get("status") == "ok"):
+                        raise RuntimeError("WebSocket login failed")
+                    ws_obj = ws_local
+                    break
+                except websocket.WebSocketException as exc:
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug(
+                            "ws initial connect/login failed (%s), attempt %d/%d",
+                            type(exc).__name__,
+                            attempt_idx + 1,
+                            total_attempts,
+                        )
+                    try:
+                        ws_local.close()
+                    except Exception as close_err:
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug(
+                                "ws.close() failed during cleanup: %s: %s",
+                                type(close_err).__name__,
+                                close_err,
+                            )
+                    # Retry only for transient errors like timeouts/closed connection
+                    transient = isinstance(
+                        exc,
+                        websocket.WebSocketTimeoutException
+                        | websocket.WebSocketConnectionClosedException,
+                    )
+                    if transient and (attempt_idx + 1 < total_attempts):
+                        time.sleep(WS_LOGIN_RETRY_BACKOFF_SEC)
+                    else:
+                        raise
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("ws connect+login ms=%d", int((time.monotonic() - t1) * 1000))
 
+            # Guard to satisfy static typing and provide a clearer error in case of logic changes
+            if ws_obj is None:
+                raise RuntimeError("WebSocket connection failed after retry attempts")
             # List devices
-            ws.send(json.dumps({"id": 2, "request": "lst_device"}))
-            raw = ws.recv()
+            ws_obj.send(json.dumps({"id": 2, "request": "lst_device"}))
+            raw = ws_obj.recv()
             payload = json.loads(raw)
             devices = payload.get("data") or []
             # Build a strictly typed list of device IDs (strings only)
@@ -127,7 +170,7 @@ class FanSyncClient:
                 _LOGGER.debug("discovered device_ids=%s", device_ids)
 
             self._http = session
-            self._ws = ws
+            self._ws = ws_obj
             self._token = token
             self._device_id = device_id
             self._device_ids = device_ids
