@@ -52,13 +52,18 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             if not ids:
                 # Fallback to single current device with timeout guard
                 try:
-                    s = await asyncio.wait_for(
-                        self.client.async_get_status(), POLL_STATUS_TIMEOUT_SECS
-                    )
+                    timeout_s = POLL_STATUS_TIMEOUT_SECS
+                    try:
+                        val = self.client.ws_timeout_seconds()
+                    except AttributeError:
+                        timeout_s = POLL_STATUS_TIMEOUT_SECS
+                    else:
+                        if asyncio.iscoroutine(val):
+                            val = await val
+                        timeout_s = int(val)
+                    s = await asyncio.wait_for(self.client.async_get_status(), timeout_s)
                 except TimeoutError as exc:
-                    raise UpdateFailed(
-                        f"Status fetch timed out after {POLL_STATUS_TIMEOUT_SECS} seconds"
-                    ) from exc
+                    raise UpdateFailed(f"Status fetch timed out after {timeout_s} seconds") from exc
                 did = self.client.device_id or "unknown"
                 statuses[did] = s
                 # Debug: log mismatches vs current coordinator snapshot
@@ -77,14 +82,16 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             async def _get(did: str):
                 try:
                     # Use a timeout aligned with the client's WS timeout, with a small buffer.
+                    timeout_s = POLL_STATUS_TIMEOUT_SECS
                     try:
                         val = self.client.ws_timeout_seconds()
                     except AttributeError:
                         timeout_s = POLL_STATUS_TIMEOUT_SECS
                     else:
+                        # In tests, this may be an AsyncMock; await to avoid warnings
                         if asyncio.iscoroutine(val):
                             val = await val
-                        timeout_s = max(POLL_STATUS_TIMEOUT_SECS, int(val) + 2)
+                        timeout_s = int(val)
                     return did, await asyncio.wait_for(self.client.async_get_status(did), timeout_s)
                 except TimeoutError:
                     # Warn on per-device timeout; we'll tolerate partial failures
