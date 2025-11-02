@@ -115,6 +115,21 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Use constants for magic numbers and strings (define in const.py).
 - Avoid deep nesting (max 3-4 levels); extract nested logic into helper functions.
 
+# Observability & Diagnostics
+- Track connection metrics (latency, failures, reconnects) for troubleshooting.
+- Implement diagnostics platform (async_get_config_entry_diagnostics) for HA integrations.
+- Provide actionable recommendations in diagnostics (e.g., "increase timeout").
+- Use dataclasses for structured metrics and state tracking.
+- Log key metrics at DEBUG level with context (device_id, latency_ms, error types).
+
+# Modern Python Patterns
+- Use ellipsis (...) instead of pass for empty exception classes and placeholders.
+- Avoid unnecessary lambda wrappers; pass callables directly when possible.
+- Remove unused imports (caught by Ruff F401).
+- Use appropriate format specifiers: %.0f for floats, %d for ints.
+- Prefer direct callable references over lambda: x when lambda just wraps a function.
+- Walrus operator (:=) is acceptable but prefer simpler code if formatters conflict.
+
 # Performance
 - Guard expensive debug operations with `if _LOGGER.isEnabledFor(logging.DEBUG):`.
 - Avoid redundant string formatting or data structure operations in hot paths.
