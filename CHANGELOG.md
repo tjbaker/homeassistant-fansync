@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.19](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.18...0.2.19) (2025-11-02)
+
+
+### Bug Fixes
+
+* add debug logging for device profile caching ([1805e49](https://github.com/tjbaker/homeassistant-fansync/commit/1805e4966b1ea09a66327c43b7f7c4b24c1d6029))
+
 ## [0.2.18](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.17...0.2.18) (2025-11-02)
 
 
