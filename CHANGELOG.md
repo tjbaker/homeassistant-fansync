@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.20](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.19...0.2.20) (2025-11-02)
+
+
+### Bug Fixes
+
+* add detailed logging for set command ack handling ([3cbfa7a](https://github.com/tjbaker/homeassistant-fansync/commit/3cbfa7ac7278d5a6f6704cbef108769235ef050b))
+
 ## [0.2.19](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.18...0.2.19) (2025-11-02)
 
 
