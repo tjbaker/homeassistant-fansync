@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.18](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.17...0.2.18) (2025-11-02)
+
+
+### Features
+
+* add diagnostics, metrics, and circuit breaker ([bc4756b](https://github.com/tjbaker/homeassistant-fansync/commit/bc4756b30365ffb0466baaf82fde9f61328364d4))
+
+
+### Bug Fixes
+
+* rely on push updates instead of post-set status fetch ([edfd5b6](https://github.com/tjbaker/homeassistant-fansync/commit/edfd5b666557d8f1a0b1a5944b7cc5a03af64d6a))
+
 ## [0.2.17](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.16...0.2.17) (2025-11-02)
 
 
