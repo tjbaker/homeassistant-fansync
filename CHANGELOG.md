@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.13](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.12...0.2.13) (2025-11-02)
+
+
+### Bug Fixes
+
+* bound first refresh and parallelize status fetches to prevent UI spin ([8de8779](https://github.com/tjbaker/homeassistant-fansync/commit/8de8779f0470ad2b27d7608104be42d4ed48ddbd))
+
 ## [0.2.12](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.11...0.2.12) (2025-11-02)
 
 
