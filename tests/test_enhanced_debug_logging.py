@@ -32,6 +32,7 @@ from custom_components.fansync.const import (
     KEY_PRESET,
     KEY_SPEED,
 )
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 
 @pytest.fixture
@@ -104,11 +105,9 @@ async def test_options_flow_logging(hass: HomeAssistant, caplog: pytest.LogCaptu
     from custom_components.fansync.config_flow import FanSyncOptionsFlowHandler
     from homeassistant.data_entry_flow import FlowResult
 
-    # Create a mock config entry
-    mock_entry = Mock()
-    mock_entry.options = {}
-
-    handler = FanSyncOptionsFlowHandler(mock_entry)
+    # Use a proper MockConfigEntry (HA 2025.10+)
+    entry = MockConfigEntry(domain=DOMAIN, title="FanSync", data={})
+    handler = FanSyncOptionsFlowHandler(entry)
 
     with caplog.at_level(logging.DEBUG, logger="custom_components.fansync.config_flow"):
         result: FlowResult = await handler.async_step_init({"fallback_poll_seconds": 90})
@@ -122,11 +121,9 @@ async def test_options_flow_clamping_logged(hass: HomeAssistant, caplog: pytest.
     from custom_components.fansync.config_flow import FanSyncOptionsFlowHandler
     from homeassistant.data_entry_flow import FlowResult
 
-    # Create a mock config entry
-    mock_entry = Mock()
-    mock_entry.options = {}
-
-    handler = FanSyncOptionsFlowHandler(mock_entry)
+    # Use a proper MockConfigEntry (HA 2025.10+)
+    entry = MockConfigEntry(domain=DOMAIN, title="FanSync", data={})
+    handler = FanSyncOptionsFlowHandler(entry)
 
     with caplog.at_level(logging.DEBUG, logger="custom_components.fansync.config_flow"):
         # Try to set poll interval to 10 seconds (below minimum of 15)

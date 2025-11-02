@@ -66,7 +66,8 @@ WS_LOGIN_RETRY_ATTEMPTS = 2
 WS_LOGIN_RETRY_BACKOFF_SEC = 1.0
 
 # Coordinator timeouts
-POLL_STATUS_TIMEOUT_SECS = 12
+# Align with default WS timeout to avoid cancelling in-progress recv operations
+POLL_STATUS_TIMEOUT_SECS = 30
 
 
 def clamp_percentage(value: int) -> int:
