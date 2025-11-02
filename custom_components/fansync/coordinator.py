@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import timedelta
 
@@ -19,7 +20,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import FanSyncClient
-from .const import DEFAULT_FALLBACK_POLL_SECS
+from .const import DEFAULT_FALLBACK_POLL_SECS, POLL_STATUS_TIMEOUT_SECS
 
 SCAN_INTERVAL = timedelta(seconds=DEFAULT_FALLBACK_POLL_SECS)
 
@@ -49,8 +50,15 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     ids or [self.client.device_id],
                 )
             if not ids:
-                # Fallback to single current device
-                s = await self.client.async_get_status()
+                # Fallback to single current device with timeout guard
+                try:
+                    s = await asyncio.wait_for(
+                        self.client.async_get_status(), POLL_STATUS_TIMEOUT_SECS
+                    )
+                except TimeoutError as exc:
+                    raise UpdateFailed(
+                        f"Status fetch timed out after {POLL_STATUS_TIMEOUT_SECS} seconds"
+                    ) from exc
                 did = self.client.device_id or "unknown"
                 statuses[did] = s
                 # Debug: log mismatches vs current coordinator snapshot
@@ -64,9 +72,26 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 if self.logger.isEnabledFor(logging.DEBUG):
                     self.logger.debug("poll sync done devices=%d", len(statuses))
                 return statuses
-            for did in ids:
-                s = await self.client.async_get_status(did)
-                statuses[did] = s
+
+            # Run per-device status in parallel with timeouts; tolerate partial failures
+            async def _get(did: str):
+                try:
+                    return did, await asyncio.wait_for(
+                        self.client.async_get_status(did), POLL_STATUS_TIMEOUT_SECS
+                    )
+                except TimeoutError:
+                    # Warn on per-device timeout; we'll tolerate partial failures
+                    self.logger.warning(
+                        "status fetch timed out for device %s after %d seconds",
+                        did,
+                        POLL_STATUS_TIMEOUT_SECS,
+                    )
+                    return did, None
+
+            results = await asyncio.gather(*(_get(d) for d in ids))
+            for did, s in results:
+                if isinstance(s, dict):
+                    statuses[did] = s
             # Debug: log mismatches for multi-device
             current = self.data or {}
             if isinstance(current, dict):
@@ -79,9 +104,18 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                             )
             if self.logger.isEnabledFor(logging.DEBUG):
                 self.logger.debug("poll sync done devices=%d", len(statuses))
+            if not statuses:
+                raise UpdateFailed(
+                    f"All {len(ids)} device(s) failed (ids={ids}); "
+                    "check network connectivity and device availability"
+                )
             return statuses
-        except Exception as err:
-            raise UpdateFailed(str(err)) from err
+        except TimeoutError as err:
+            raise UpdateFailed(
+                f"Coordinator update timed out after {POLL_STATUS_TIMEOUT_SECS} seconds"
+            ) from err
+        except UpdateFailed:
+            raise
 
 
 def _changed_keys(prev: dict[str, object], new: dict[str, object]) -> list[str]:

@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import timedelta
 
@@ -33,6 +34,7 @@ from .const import (
     DOMAIN,
     OPTION_FALLBACK_POLL_SECS,
     PLATFORMS,
+    POLL_STATUS_TIMEOUT_SECS,
 )
 from .coordinator import FanSyncCoordinator
 
@@ -85,7 +87,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 _LOGGER.debug("push merge d=%s keys=%s", did, keys)
 
         client.set_status_callback(_on_status)
-    await coordinator.async_config_entry_first_refresh()
+    # Perform first refresh with a guard; proceed even if it times out
+    try:
+        await asyncio.wait_for(
+            coordinator.async_config_entry_first_refresh(), POLL_STATUS_TIMEOUT_SECS
+        )
+    except Exception as exc:  # pragma: no cover
+        # Log at WARNING and let entities hydrate on next push/poll
+        _LOGGER.warning("initial refresh deferred: %s", type(exc).__name__)
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "client": client,
