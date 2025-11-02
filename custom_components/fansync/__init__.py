@@ -103,8 +103,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             coordinator.async_config_entry_first_refresh(), first_refresh_timeout
         )
     except Exception as exc:  # pragma: no cover
-        # Log at WARNING and let entities hydrate on next push/poll
-        _LOGGER.warning("initial refresh deferred: %s", type(exc).__name__)
+        # Log at INFO and let entities hydrate on next push/poll
+        _LOGGER.info(
+            "Initial refresh deferred (%s); entities will update via push or next poll",
+            type(exc).__name__,
+        )
 
     # Determine which platforms to load.
     # If no data yet (first refresh deferred or empty), fall back to all PLATFORMS

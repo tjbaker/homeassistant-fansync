@@ -61,13 +61,19 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 )
             if not ids:
                 # Fallback to single current device with timeout guard
+                timeout_s = await self._get_timeout_seconds()
                 try:
-                    timeout_s = await self._get_timeout_seconds()
                     s = await asyncio.wait_for(self.client.async_get_status(), timeout_s)
-                except TimeoutError as exc:
-                    raise UpdateFailed(f"Status fetch timed out after {timeout_s} seconds") from exc
-                did = self.client.device_id or "unknown"
-                statuses[did] = s
+                    did = self.client.device_id or "unknown"
+                    statuses[did] = s
+                except TimeoutError:
+                    # Keep last known data instead of failing
+                    self.logger.warning(
+                        "Status fetch timed out after %d seconds; keeping last known state. "
+                        "Commands still work; updates resume when connectivity improves",
+                        timeout_s,
+                    )
+                    return self.data or {}
                 # Debug: log mismatches vs current coordinator snapshot
                 current = self.data or {}
                 prev = current.get(did, {}) if isinstance(current, dict) else {}
@@ -88,7 +94,8 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 except TimeoutError:
                     # Warn on per-device timeout; we'll tolerate partial failures
                     self.logger.warning(
-                        "status fetch timed out for device %s after %d seconds",
+                        "Status fetch timed out for device %s after %d seconds; "
+                        "check network or increase WebSocket timeout in Options",
                         did,
                         timeout_s,
                     )
@@ -111,10 +118,14 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             if self.logger.isEnabledFor(logging.DEBUG):
                 self.logger.debug("poll sync done devices=%d", len(statuses))
             if not statuses:
-                raise UpdateFailed(
-                    f"All {len(ids)} device(s) failed (ids={ids}); "
-                    "check network connectivity and device availability"
+                # Keep last known data instead of failing; entities stay available
+                self.logger.warning(
+                    "All %d device(s) timed out (ids=%s); keeping last known state. "
+                    "Commands still work; updates resume when connectivity improves",
+                    len(ids),
+                    ids,
                 )
+                return self.data or {}
             return statuses
         except TimeoutError as err:
             raise UpdateFailed(

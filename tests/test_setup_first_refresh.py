@@ -51,5 +51,5 @@ async def test_setup_proceeds_when_first_refresh_times_out(
 
     # Setup should complete even if first refresh times out
     assert hass.states is not None
-    # Warning log emitted
-    assert any("initial refresh deferred" in rec.message for rec in caplog.records)
+    # Info log emitted
+    assert any("Initial refresh deferred" in rec.message for rec in caplog.records)
