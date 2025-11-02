@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.12](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.11...0.2.12) (2025-11-02)
+
+
+### Features
+
+* improve connection resilience and user-facing errors ([47581b8](https://github.com/tjbaker/homeassistant-fansync/commit/47581b819fd5ff69497d75cbb4ea154142754b8b))
+
 ## [0.2.11](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.10...0.2.11) (2025-10-31)
 
 
