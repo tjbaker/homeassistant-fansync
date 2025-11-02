@@ -427,6 +427,14 @@ class FanSyncClient:
                                 prof = data_obj.get("profile")
                                 if isinstance(prof, dict):
                                     self._device_profile[did] = prof
+                                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                                        _LOGGER.debug(
+                                            "profile cached for %s: keys=%s",
+                                            did,
+                                            list(prof.keys()),
+                                        )
+                                elif _LOGGER.isEnabledFor(logging.DEBUG):
+                                    _LOGGER.debug("no profile in response for %s", did)
                         except Exception as exc:
                             if _LOGGER.isEnabledFor(logging.DEBUG):
                                 _LOGGER.debug("profile cache failed for %s: %s", did, exc)
