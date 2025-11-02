@@ -12,11 +12,8 @@
 
 from __future__ import annotations
 
-import pytest
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from custom_components.fansync.const import POLL_STATUS_TIMEOUT_SECS
 from custom_components.fansync.coordinator import FanSyncCoordinator
 
 
@@ -50,7 +47,7 @@ async def test_parallel_status_allows_partial_results(hass: HomeAssistant) -> No
     assert "d2" not in data
 
 
-async def test_single_device_timeout_raises_update_failed(hass: HomeAssistant) -> None:
+async def test_single_device_timeout_keeps_last_known_state(hass: HomeAssistant) -> None:
     client = _ClientStub([])  # single-device path (device_ids empty)
 
     async def _get_status(_did: str | None = None):
@@ -59,8 +56,9 @@ async def test_single_device_timeout_raises_update_failed(hass: HomeAssistant) -
     client.async_get_status = _get_status  # type: ignore[assignment]
     coord = FanSyncCoordinator(hass, client)
 
-    with pytest.raises(UpdateFailed) as ei:
-        await coord._async_update_data()
-    msg = str(ei.value)
-    assert "timed out" in msg
-    assert str(POLL_STATUS_TIMEOUT_SECS) in msg
+    # Set some initial data
+    coord.data = {"dev": {"H00": 1, "H02": 50}}
+
+    # Timeout should return last known data, not raise UpdateFailed
+    data = await coord._async_update_data()
+    assert data == {"dev": {"H00": 1, "H02": 50}}
