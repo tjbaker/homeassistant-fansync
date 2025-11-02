@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.14](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.13...0.2.14) (2025-11-02)
+
+
+### Bug Fixes
+
+* options flow init; raise poll timeout; improve timeout logging ([6ba5929](https://github.com/tjbaker/homeassistant-fansync/commit/6ba59297c8d18d8e732f7bc0e7cceee45ac11bf6))
+
 ## [0.2.13](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.12...0.2.13) (2025-11-02)
 
 
