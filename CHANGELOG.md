@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.22](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.21...0.2.22) (2025-11-03)
+
+
+### Bug Fixes
+
+* add connection lock to prevent blocking I/O under locks ([52b1b3e](https://github.com/tjbaker/homeassistant-fansync/commit/52b1b3eecbbb86ef768a31f5a58ab2073ca45246))
+* address Copilot feedback on deadlock fix ([6387ae6](https://github.com/tjbaker/homeassistant-fansync/commit/6387ae603c262d889ac4feda165f85e07eb67639))
+* address lock ordering and test determinism feedback ([b6f00b1](https://github.com/tjbaker/homeassistant-fansync/commit/b6f00b16135126ab2bc6a9c34a8eff2575db9649))
+* prevent double-release of recv_lock in reconnect path ([a50ea93](https://github.com/tjbaker/homeassistant-fansync/commit/a50ea930d97ba29486c6981e965ff25da890bc57))
+* resolve critical deadlock in WebSocket locking ([2369a6c](https://github.com/tjbaker/homeassistant-fansync/commit/2369a6c2d4bfbe86c922c0ad0c34e8bd61f38f16))
+* resolve critical nested lock deadlock issues ([bb68266](https://github.com/tjbaker/homeassistant-fansync/commit/bb68266ab4a7c12e614374797abb8c679ffaa791))
+
+
+### Code Refactoring
+
+* extract magic number and add test docstring ([e996a5e](https://github.com/tjbaker/homeassistant-fansync/commit/e996a5e24ee10a6d0479b5d5ff4df4d3fc52ebac))
+* simplify recv_loop lock management ([77fe221](https://github.com/tjbaker/homeassistant-fansync/commit/77fe22165e174d6b8d2434fec76dc9b6820efb67))
+
 ## [0.2.21](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.20...0.2.21) (2025-11-03)
 
 
