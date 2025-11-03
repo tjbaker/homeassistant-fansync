@@ -70,6 +70,7 @@ class FanSyncClient:
         self._running: bool = False
         self._recv_lock: threading.Lock = threading.Lock()
         self._send_lock: threading.Lock = threading.Lock()  # Separate lock for send operations
+        self._conn_lock: threading.Lock = threading.Lock()  # Protects _ws during reconnection
         self._recv_thread: threading.Thread | None = None
         self.metrics = ConnectionMetrics()
 
@@ -240,23 +241,34 @@ class FanSyncClient:
                                         "triggering reconnect after %d consecutive errors",
                                         timeout_errors,
                                     )
-                                self._ws = None
+                                # Use conn_lock to safely reconnect without holding recv_lock
+                                with self._conn_lock:
+                                    self._ws = None
                                 try:
-                                    self._ensure_ws_connected()
-                                    timeout_errors = 0
-                                    backoff_sec = 0.5
-                                    self.metrics.record_reconnect()
-                                    if _LOGGER.isEnabledFor(logging.DEBUG):
-                                        _LOGGER.debug("reconnect successful, backoff reset")
-                                except Exception as reconnect_err:
-                                    if _LOGGER.isEnabledFor(logging.DEBUG):
-                                        _LOGGER.debug(
-                                            "reconnect failed: %s, backoff=%.1fs",
-                                            type(reconnect_err).__name__,
-                                            backoff_sec,
-                                        )
-                                    time.sleep(backoff_sec)
-                                    backoff_sec = min(max_backoff_sec, backoff_sec * 2)
+                                    # Release recv_lock before blocking I/O
+                                    self._recv_lock.release()
+                                    try:
+                                        self._ensure_ws_connected()
+                                        timeout_errors = 0
+                                        backoff_sec = 0.5
+                                        self.metrics.record_reconnect()
+                                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                                            _LOGGER.debug("reconnect successful, backoff reset")
+                                    except Exception as reconnect_err:
+                                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                                            _LOGGER.debug(
+                                                "reconnect failed: %s, backoff=%.1fs",
+                                                type(reconnect_err).__name__,
+                                                backoff_sec,
+                                            )
+                                        time.sleep(backoff_sec)
+                                        backoff_sec = min(max_backoff_sec, backoff_sec * 2)
+                                    finally:
+                                        # Re-acquire for finally block below
+                                        self._recv_lock.acquire()
+                                except Exception:
+                                    # Ensure lock is held for finally block
+                                    pass
                         time.sleep(0.1)
                     finally:
                         self._recv_lock.release()
@@ -413,11 +425,12 @@ class FanSyncClient:
             # Handle reconnect outside the lock to avoid nested acquisition
             if not sent:
                 # reconnect and retry once
-                # Acquire both locks to safely modify _ws and reconnect
-                # We keep locks during _ensure_ws_connected to prevent race conditions
-                with self._send_lock, self._recv_lock:
+                # Use conn_lock to safely modify _ws, release other locks before blocking I/O
+                with self._conn_lock:
                     self._ws = None
                     self._ensure_ws_connected()
+                # Retry send after reconnect
+                with self._send_lock:
                     ws2 = self._ws
                     if ws2 is None:
                         raise RuntimeError("Websocket not connected after reconnect")
@@ -495,11 +508,12 @@ class FanSyncClient:
             # Handle reconnect outside the lock to avoid nested acquisition
             if not sent:
                 # reconnect and retry once
-                # Acquire both locks to safely modify _ws and reconnect
-                # We keep locks during _ensure_ws_connected to prevent race conditions
-                with self._send_lock, self._recv_lock:
+                # Use conn_lock to safely modify _ws, release other locks before blocking I/O
+                with self._conn_lock:
                     self._ws = None
                     self._ensure_ws_connected()
+                # Retry send after reconnect
+                with self._send_lock:
                     ws2 = self._ws
                     if ws2 is None:
                         raise RuntimeError("Websocket not connected after reconnect")

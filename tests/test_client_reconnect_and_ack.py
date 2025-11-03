@@ -111,11 +111,13 @@ async def test_set_uses_ack_status_when_present(hass: HomeAssistant) -> None:
             # The key test: async_set should complete immediately without blocking
             await c.async_set({"H02": 77})
             # Poll for callback with timeout instead of fixed sleep for deterministic test
-            for _ in range(10):
+            max_poll_iterations = 10  # 10 * 0.05s = 0.5s max wait
+            poll_interval_sec = 0.05
+            for _ in range(max_poll_iterations):
                 await hass.async_block_till_done()
                 if seen:
                     break
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(poll_interval_sec)
         finally:
             await c.async_disconnect()
 
