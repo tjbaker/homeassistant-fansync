@@ -33,10 +33,8 @@ from .const import (
     WS_FALLBACK_TIMEOUT_SEC,
     WS_LOGIN_RETRY_ATTEMPTS,
     WS_LOGIN_RETRY_BACKOFF_SEC,
-    WS_REQUEST_ID_GET_STATUS,
     WS_REQUEST_ID_LIST_DEVICES,
     WS_REQUEST_ID_LOGIN,
-    WS_REQUEST_ID_SET,
 )
 from .metrics import ConnectionMetrics
 
@@ -81,6 +79,10 @@ class FanSyncClient:
         self._status_callback: Callable[[dict[str, Any]], None] | None = None
         self._running: bool = False
         self._recv_task: asyncio.Task | None = None
+        # Message routing: map request ID to Future for async_get_status/async_set
+        self._pending_requests: dict[int, asyncio.Future] = {}
+        self._next_request_id: int = 1
+        self._request_id_lock = asyncio.Lock()
         self.metrics = ConnectionMetrics()
 
     def _create_ssl_context(self) -> ssl.SSLContext:
@@ -258,9 +260,8 @@ class FanSyncClient:
                 total_connect_ms / 1000,
             )
 
-        # Start background receive loop
-        if self._enable_push:
-            self._recv_task = asyncio.create_task(self._recv_loop())
+        # Start background receive loop (required for message routing)
+        self._recv_task = asyncio.create_task(self._recv_loop())
 
     async def async_disconnect(self):
         """Disconnect from FanSync cloud API."""
@@ -335,22 +336,15 @@ class FanSyncClient:
                 if not isinstance(payload, dict):
                     continue
 
-                # Ignore direct responses to our own requests
-                response_type = payload.get("response")
-                if response_type in {"login", "lst_device", "get"}:
-                    if _LOGGER.isEnabledFor(logging.DEBUG):
-                        _LOGGER.debug("ignored frame response=%s", response_type)
+                # Route responses to pending requests (async_get_status, async_set)
+                request_id = payload.get("id")
+                if request_id is not None and request_id in self._pending_requests:
+                    future = self._pending_requests.pop(request_id)
+                    if not future.done():
+                        future.set_result(payload)
                     continue
 
-                # Log set responses with status
-                if response_type == "set":
-                    data = payload.get("data")
-                    if isinstance(data, dict) and isinstance(data.get("status"), dict):
-                        if _LOGGER.isEnabledFor(logging.DEBUG):
-                            status_keys = list(data["status"].keys())
-                            _LOGGER.debug("recv set ack with status keys=%s", status_keys)
-
-                # Process push updates
+                # Process push updates (responses without request ID and with status data)
                 data = payload.get("data")
                 if isinstance(data, dict) and isinstance(data.get("status"), dict):
                     pushed_status = data["status"]
@@ -497,13 +491,22 @@ class FanSyncClient:
             float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
         )
 
+        # Allocate a unique request ID
+        async with self._request_id_lock:
+            request_id = self._next_request_id
+            self._next_request_id += 1
+
+        # Register a Future for this request
+        future: asyncio.Future = asyncio.Future()
+        self._pending_requests[request_id] = future
+
         try:
             # Send get request
             await asyncio.wait_for(
                 ws.send(
                     json.dumps(
                         {
-                            "id": WS_REQUEST_ID_GET_STATUS,
+                            "id": request_id,
                             "request": "get",
                             "device": did,
                         }
@@ -512,46 +515,44 @@ class FanSyncClient:
                 timeout=ws_timeout,
             )
 
-            # Wait for response
-            while True:
-                raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
-                payload = json.loads(raw)
-                if isinstance(payload, dict) and payload.get("response") == "get":
-                    # Cache device profile if present
-                    try:
-                        data_obj = payload.get("data")
-                        if isinstance(data_obj, dict):
-                            prof = data_obj.get("profile")
-                            if isinstance(prof, dict):
-                                self._device_profile[did] = prof
-                                if _LOGGER.isEnabledFor(logging.DEBUG):
-                                    _LOGGER.debug(
-                                        "profile cached for %s: keys=%s",
-                                        did,
-                                        list(prof.keys()),
-                                    )
-                    except Exception as exc:
+            # Wait for _recv_loop to fulfill the Future
+            payload = await asyncio.wait_for(future, timeout=ws_timeout)
+
+            # Cache device profile if present
+            try:
+                data_obj = payload.get("data")
+                if isinstance(data_obj, dict):
+                    prof = data_obj.get("profile")
+                    if isinstance(prof, dict):
+                        self._device_profile[did] = prof
                         if _LOGGER.isEnabledFor(logging.DEBUG):
-                            _LOGGER.debug("profile cache failed for %s: %s", did, exc)
+                            _LOGGER.debug(
+                                "profile cached for %s: keys=%s",
+                                did,
+                                list(prof.keys()),
+                            )
+            except Exception as exc:
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("profile cache failed for %s: %s", did, exc)
 
-                    latency_ms = (time.monotonic() - t0) * 1000
-                    self.metrics.record_command(success=True, latency_ms=latency_ms)
-                    if _LOGGER.isEnabledFor(logging.DEBUG):
-                        _LOGGER.debug("get rtt ms=%.0f device=%s", latency_ms, did)
+            latency_ms = (time.monotonic() - t0) * 1000
+            self.metrics.record_command(success=True, latency_ms=latency_ms)
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("get rtt ms=%.0f device=%s", latency_ms, did)
 
-                    # Warn about slow responses
-                    if latency_ms > SLOW_RESPONSE_WARNING_MS:
-                        _LOGGER.warning(
-                            "Slow response from FanSync cloud: %.1f seconds for device %s. "
-                            "This indicates high latency in Fanimation's cloud service. "
-                            "Commands still work but status updates may be delayed. "
-                            "If timeouts persist, increase WebSocket timeout in Options, "
-                            "though cloud delays may remain",
-                            latency_ms / 1000,
-                            did,
-                        )
+            # Warn about slow responses
+            if latency_ms > SLOW_RESPONSE_WARNING_MS:
+                _LOGGER.warning(
+                    "Slow response from FanSync cloud: %.1f seconds for device %s. "
+                    "This indicates high latency in Fanimation's cloud service. "
+                    "Commands still work but status updates may be delayed. "
+                    "If timeouts persist, increase WebSocket timeout in Options, "
+                    "though cloud delays may remain",
+                    latency_ms / 1000,
+                    did,
+                )
 
-                    return payload["data"]["status"]
+            return payload["data"]["status"]
 
         except TimeoutError as exc:
             self.metrics.record_command(success=False)
@@ -559,6 +560,9 @@ class FanSyncClient:
         except Exception:
             self.metrics.record_command(success=False)
             raise
+        finally:
+            # Clean up pending request if not already removed
+            self._pending_requests.pop(request_id, None)
 
     async def async_set(self, data: dict[str, int], *, device_id: str | None = None):
         """Set device parameters."""
@@ -576,6 +580,15 @@ class FanSyncClient:
             float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
         )
 
+        # Allocate a unique request ID
+        async with self._request_id_lock:
+            request_id = self._next_request_id
+            self._next_request_id += 1
+
+        # Register a Future for this request
+        future: asyncio.Future = asyncio.Future()
+        self._pending_requests[request_id] = future
+
         try:
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("set start d=%s keys=%s", did, list(data.keys()))
@@ -585,7 +598,7 @@ class FanSyncClient:
                 ws.send(
                     json.dumps(
                         {
-                            "id": WS_REQUEST_ID_SET,
+                            "id": request_id,
                             "request": "set",
                             "device": did,
                             "data": data,
@@ -595,8 +608,8 @@ class FanSyncClient:
                 timeout=ws_timeout,
             )
 
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("set sent d=%s, relying on push updates", did)
+            # Wait for acknowledgment from _recv_loop
+            payload = await asyncio.wait_for(future, timeout=ws_timeout)
 
             latency_ms = (time.monotonic() - t_total) * 1000
             self.metrics.record_command(success=True, latency_ms=latency_ms)
@@ -616,9 +629,21 @@ class FanSyncClient:
                     did,
                 )
 
+            # Check if the acknowledgment contains updated status and trigger callback
+            ack_data = payload.get("data")
+            if isinstance(ack_data, dict) and isinstance(ack_data.get("status"), dict):
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("set ack with status keys=%s", list(ack_data["status"].keys()))
+                # Trigger status callback with the acknowledged status
+                if self._status_callback is not None:
+                    self.hass.loop.call_soon_threadsafe(self._status_callback, ack_data["status"])
+
         except Exception:
             self.metrics.record_command(success=False)
             raise
+        finally:
+            # Clean up pending request if not already removed
+            self._pending_requests.pop(request_id, None)
 
     def apply_timeouts(
         self,

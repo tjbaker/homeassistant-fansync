@@ -83,16 +83,39 @@ async def test_get_status_returns_mapping(hass: HomeAssistant, mock_websocket) -
         http_inst.post.return_value = type(
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
-        # login, list, then reconnect login (for ensure_ws_connected), then get
-        mock_websocket.recv.side_effect = [
-            _login_ok(),
-            _lst_device_ok("id"),
-            _login_ok(),  # Reconnect during get_status
-            _get_ok({"H00": 1, "H02": 19}),
-        ]
+
+        # Generator to provide responses matching request IDs
+        def recv_generator():
+            """Generator that provides responses based on sent requests."""
+            # Initial connection: login (id=1), lst_device (id=2)
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            # Reconnect during get_status: login (id=3)
+            yield _login_ok()
+            # Get response with dynamic ID
+            # Wait for get request to be sent (login=1, lst=2, reconnect_login=3, get=4)
+            while len(mock_websocket.sent_requests) < 4:
+                yield TimeoutError("waiting for get request")
+            get_request_id = mock_websocket.sent_requests[3]["id"]
+            yield json.dumps(
+                {
+                    "status": "ok",
+                    "response": "get",
+                    "data": {"status": {"H00": 1, "H02": 19}},
+                    "id": get_request_id,
+                }
+            )
+            # Keep recv loop alive
+            while True:
+                yield TimeoutError("timeout")
+
+        mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
         await c.async_connect()
-        status = await c.async_get_status()
+        try:
+            status = await c.async_get_status()
+        finally:
+            await c.async_disconnect()
 
     assert status.get("H02") == 19
 
@@ -118,12 +141,16 @@ async def test_async_set_triggers_callback(hass: HomeAssistant, mock_websocket) 
             yield _lst_device_ok("id")
             # Reconnect during async_set (from _ensure_ws_connected)
             yield _login_ok()
+            # Wait for set request (login=1, lst=2, reconnect_login=3, set=4)
+            while len(mock_websocket.sent_requests) < 4:
+                yield TimeoutError("waiting for set request")
+            set_request_id = mock_websocket.sent_requests[3]["id"]
             # The set ack with status
             yield json.dumps(
                 {
                     "status": "ok",
                     "response": "set",
-                    "id": 4,
+                    "id": set_request_id,
                     "data": {"status": {"H00": 1, "H02": 55}},
                 }
             )
