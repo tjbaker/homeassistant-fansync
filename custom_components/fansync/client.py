@@ -68,6 +68,8 @@ class FanSyncClient:
         self._http_timeout_s = http_timeout_s
         self._ws_timeout_s = ws_timeout_s
         self._http: httpx.Client | None = None
+        # Using ClientConnection (concrete type) instead of ClientProtocol (abstract).
+        # websockets.connect() returns ClientConnection, and mypy needs the concrete type.
         self._ws: websockets.asyncio.client.ClientConnection | None = None
         self._token: str | None = None
         self._device_id: str | None = None
@@ -131,7 +133,10 @@ class FanSyncClient:
                     ),
                     timeout=ws_timeout,
                 )
-                assert ws is not None  # Type narrowing for mypy
+                # Type narrowing for mypy: websockets.connect() never returns None,
+                # it raises an exception on failure. This assert is purely for type checking
+                # and cannot fail at runtime (if it does, there's a bug in websockets library).
+                assert ws is not None
                 # Login
                 await asyncio.wait_for(
                     ws.send(
@@ -244,7 +249,8 @@ class FanSyncClient:
             try:
                 await self._recv_task
             except asyncio.CancelledError:
-                # Task cancellation is expected during disconnect; safe to ignore
+                # CancelledError is raised by self._recv_task.cancel() above.
+                # This is the expected completion path during graceful shutdown.
                 pass
             self._recv_task = None
 
