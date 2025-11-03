@@ -23,6 +23,7 @@ from typing import Any
 import httpx
 import websocket
 from homeassistant.core import HomeAssistant
+from websocket import WebSocketTimeoutException
 
 from .const import (
     DEFAULT_WS_TIMEOUT_SECS,
@@ -508,6 +509,10 @@ class FanSyncClient:
 
         try:
             return await self.hass.async_add_executor_job(_get)
+        except WebSocketTimeoutException as exc:
+            # Convert WebSocket timeout to standard TimeoutError for consistent handling
+            self.metrics.record_command(success=False)
+            raise TimeoutError(f"WebSocket recv timed out: {exc}") from exc
         except Exception:
             self.metrics.record_command(success=False)
             raise

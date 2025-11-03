@@ -84,13 +84,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry.data.get(CONF_VERIFY_SSL, True),
         )
 
-    # Update device registry immediately after connection with available device IDs
-    # This ensures device metadata (model, firmware, MAC) is visible in UI even if
-    # the first coordinator refresh times out or is deferred
-    # Note: Calling coordinator._update_device_registry is acceptable here as the
-    # integration setup has tight coupling with the coordinator implementation
-    coordinator._update_device_registry(_get_client_device_ids(client))
-
     # Register a push callback if supported by the client
     if hasattr(client, "set_status_callback"):
 
@@ -171,6 +164,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.add_update_listener(_async_options_updated)
 
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
+
+    # Update device registry now that entities (and their device entries) exist
+    # This ensures device metadata (model, firmware, MAC) is visible in UI
+    coordinator._update_device_registry(_get_client_device_ids(client))
 
     # Log connection success with device count at INFO, details at DEBUG
     ids = _get_client_device_ids(client)
