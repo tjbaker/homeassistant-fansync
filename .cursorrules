@@ -149,6 +149,32 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Prefer list comprehensions over loops for simple transformations (readability permitting).
 - Cache expensive computations when safe to do so.
 
+# Threading & Concurrency
+- Use separate locks for logically independent operations (e.g., send vs receive in WebSocket)
+- NEVER nest acquisition of the same non-reentrant lock (threading.Lock)
+  - Python's threading.Lock is NOT reentrant; acquiring it twice from the same thread deadlocks
+  - Always release locks before calling functions that may re-acquire them
+  - If reentrant locking is needed, use threading.RLock explicitly
+- Lock ordering must be consistent across all code paths to prevent deadlock
+  - Document the lock ordering hierarchy (e.g., "always acquire _send_lock before _recv_lock")
+  - Violating lock order can cause ABBA deadlocks between threads
+- Background threads should use timeout-based lock acquisition to avoid blocking forever
+  - Example: `acquired = lock.acquire(timeout=0.5)` then check if acquired
+  - This prevents threads from hanging indefinitely if primary thread holds lock
+- Always release locks before performing blocking I/O operations
+  - Blocking operations (network I/O, file I/O, sleep) while holding locks causes contention
+  - Release lock, do blocking work, then re-acquire if needed
+- Initialize variables to None before try blocks if they may be referenced after exceptions
+  - Prevents NameError if exception occurs before assignment
+  - Check for None after try block and skip processing if unset
+- Ensure background threads can be cleanly shut down
+  - Use a _running flag checked in thread loop
+  - Call thread.join() with timeout in cleanup/disconnect
+  - Avoid daemon threads holding critical resources
+- In async code calling sync threaded code, use hass.async_add_executor_job
+  - Never block the Home Assistant event loop with synchronous operations
+  - Executor jobs run in thread pool, keeping event loop responsive
+
 # Quality Checklist (before committing)
 - [ ] All tests pass (pytest)
 - [ ] Code coverage ≥ 75% (pytest --cov)
