@@ -37,7 +37,7 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 
 
 @pytest.fixture(autouse=True)
-def mock_executor_for_ssl() -> Generator[None, None, None]:
+def mock_executor_for_ssl() -> Generator[None]:
     """Mock hass.async_add_executor_job to be synchronous for SSL context creation.
 
     This avoids test complexity from executor job timing while still testing
