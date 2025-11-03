@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.3.2](https://github.com/tjbaker/homeassistant-fansync/compare/0.3.1...0.3.2) (2025-11-03)
+
+
+### Bug Fixes
+
+* add type annotations and use State.OPEN for mypy ([3cc6492](https://github.com/tjbaker/homeassistant-fansync/commit/3cc64928bf675caeb4b86bedbef0b5437f2dab9b))
+* avoid blocking I/O and unnecessary reconnections ([b431f08](https://github.com/tjbaker/homeassistant-fansync/commit/b431f08d547df9f76e892734b33340fd4fb8c5b3))
+
+
+### Code Refactoring
+
+* address Copilot feedback ([4f0e681](https://github.com/tjbaker/homeassistant-fansync/commit/4f0e681a5a4b8bac1f63ad631f8a931f1d41bb10))
+* extract test helpers and improve docstring accuracy ([d268abb](https://github.com/tjbaker/homeassistant-fansync/commit/d268abbe0eeed95a5c18d8893e7510b8710524c9))
+
 ## [0.3.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.3.0...0.3.1) (2025-11-03)
 
 
