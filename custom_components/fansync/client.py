@@ -111,7 +111,7 @@ class FanSyncClient:
         """
         return httpx.Client(verify=self.verify_ssl, timeout=timeout)
 
-    def _http_login(self, url: str, headers: dict[str, str], json_data: dict[str, str]) -> str:
+    def _http_login(self, url: str, headers: dict[str, str], json_data: dict[str, Any]) -> str:
         """Perform HTTP login request (blocking I/O).
 
         This performs blocking HTTP I/O and must be called via
