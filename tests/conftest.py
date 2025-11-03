@@ -19,6 +19,8 @@ tests can exercise setup and service calls without external network access.
 import asyncio
 import pathlib
 import sys
+from collections.abc import Callable, Generator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -35,23 +37,19 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 
 
 @pytest.fixture(autouse=True)
-def mock_executor_for_ssl():
+def mock_executor_for_ssl() -> Generator[None, None, None]:
     """Mock hass.async_add_executor_job to be synchronous for SSL context creation.
 
     This avoids test complexity from executor job timing while still testing
     the actual SSL context creation logic.
     """
-    from homeassistant.core import HomeAssistant
 
-    original_method = HomeAssistant.async_add_executor_job
-
-    async def sync_executor_job(self, target, *args):
+    async def sync_executor_job(self: Any, target: Callable[..., Any], *args: Any) -> Any:
         """Run the target function synchronously in tests."""
         return target(*args)
 
-    HomeAssistant.async_add_executor_job = sync_executor_job
-    yield
-    HomeAssistant.async_add_executor_job = original_method
+    with patch("homeassistant.core.HomeAssistant.async_add_executor_job", sync_executor_job):
+        yield
 
 
 @pytest.fixture
