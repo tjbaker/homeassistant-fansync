@@ -37,6 +37,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             update_interval=SCAN_INTERVAL,
         )
         self.client = client
+        # Note: dr.async_get() is @callback decorated, safe to call in __init__
         self._device_registry = dr.async_get(hass)
         # Track which devices have had registry updated to avoid redundant updates
         self._registry_updated: set[str] = set()
@@ -57,9 +58,9 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             if not device_id:
                 continue
             # Skip if already updated and profile data hasn't changed
-            try:
+            if hasattr(self.client, "device_profile"):
                 profile = self.client.device_profile(device_id)
-            except AttributeError:
+            else:
                 # Client doesn't have device_profile (e.g., in tests or old client)
                 profile = None
             if not profile and device_id in self._registry_updated:
@@ -75,12 +76,12 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             device_info = create_device_info(self.client, device_id)
             # Only update if we have actual data to update
             if not any(
-                [
+                (
                     device_info.get("manufacturer"),
                     device_info.get("model"),
                     device_info.get("sw_version"),
                     device_info.get("connections"),
-                ]
+                )
             ):
                 continue
             # Update the device registry entry with new information

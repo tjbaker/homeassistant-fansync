@@ -82,7 +82,7 @@ async def async_get_config_entry_diagnostics(
                 diagnostics["connection_analysis"] = analysis
 
             # Device profiles (sanitized)
-            if hasattr(client, "_device_profile"):
+            if hasattr(client, "device_profile"):
                 profiles = {}
                 for device_id in device_ids:
                     profile = client.device_profile(device_id)
