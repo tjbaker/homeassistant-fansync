@@ -69,6 +69,7 @@ class FanSyncClient:
         self._status_callback: Callable[[dict[str, Any]], None] | None = None
         self._running: bool = False
         self._recv_lock: threading.Lock = threading.Lock()
+        self._send_lock: threading.Lock = threading.Lock()  # Separate lock for send operations
         self._recv_thread: threading.Thread | None = None
         self.metrics = ConnectionMetrics()
 
@@ -212,9 +213,11 @@ class FanSyncClient:
                     if ws is None:
                         time.sleep(0.1)
                         continue
-                    # avoid racing with explicit get/set operations
-                    acquired = self._recv_lock.acquire(timeout=0.2)
+                    # Try to acquire recv_lock with a timeout to avoid blocking forever
+                    # If a command is reading, we'll wait briefly and retry
+                    acquired = self._recv_lock.acquire(timeout=0.5)
                     if not acquired:
+                        # Command is actively reading, skip this iteration
                         continue
                     try:
                         try:
@@ -254,7 +257,10 @@ class FanSyncClient:
                                         time.sleep(backoff_sec)
                                         backoff_sec = min(max_backoff_sec, backoff_sec * 2)
                             time.sleep(0.1)
-                            continue
+                            raise  # Re-raise to go to finally block
+                    except Exception:
+                        # Handled above or unexpected error
+                        pass
                     finally:
                         self._recv_lock.release()
 
@@ -389,7 +395,9 @@ class FanSyncClient:
             assert did is not None
             self._ensure_ws_connected()
             assert self._ws is not None
-            with self._recv_lock:
+            # Use both locks: send_lock for sending, recv_lock for receiving
+            # This prevents deadlock with _recv_loop which doesn't hold any locks while reading
+            with self._send_lock:
                 ws: websocket.WebSocket | None = self._ws
                 if ws is None:
                     raise RuntimeError("Websocket not connected")
@@ -403,13 +411,17 @@ class FanSyncClient:
                     sent = False
                 if not sent:
                     # reconnect and retry once
-                    self._ws = None
+                    with self._recv_lock:
+                        self._ws = None
                     self._ensure_ws_connected()
                     ws2 = self._ws
                     if ws2 is None:
                         raise RuntimeError("Websocket not connected after reconnect")
                     # mypy may flag this as unreachable; it's a valid retry after reconnect
                     ws2.send(json.dumps({"id": req_id, "request": "get", "device": did}))  # type: ignore[unreachable]
+            # Now acquire recv_lock to read the response
+            # This ensures we don't conflict with _recv_loop
+            with self._recv_lock:
                 # Bounded read to find the response
                 for _ in range(WS_GET_RETRY_LIMIT):
                     raw = self._ws.recv()
@@ -465,7 +477,8 @@ class FanSyncClient:
             }
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("set start d=%s keys=%s", did, list(data.keys()))
-            with self._recv_lock:
+            # Use send_lock for sending only, don't block recv
+            with self._send_lock:
                 ws: websocket.WebSocket | None = self._ws
                 if ws is None:
                     raise RuntimeError("Websocket not connected")
@@ -477,7 +490,8 @@ class FanSyncClient:
                     sent = False
                 if not sent:
                     # reconnect and retry once
-                    self._ws = None
+                    with self._recv_lock:
+                        self._ws = None
                     self._ensure_ws_connected()
                     ws2 = self._ws
                     if ws2 is None:
