@@ -103,7 +103,7 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.debug("Network error details: %s", str(exc))
             errors["base"] = "cannot_connect"
         except TimeoutError as exc:
-            # asyncio.wait_for timeout from async WebSocket operations
+            # Catches both asyncio.wait_for timeouts and websockets connection timeouts
             _LOGGER.error("WebSocket connection timed out during setup")
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("WebSocket timeout details: %s", str(exc))
