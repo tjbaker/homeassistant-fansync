@@ -81,7 +81,10 @@ class FanSyncClient:
         self._recv_task: asyncio.Task | None = None
         # Message routing: map request ID to Future for async_get_status/async_set
         self._pending_requests: dict[int, asyncio.Future] = {}
-        # Start at 3 to avoid collision with hardcoded LOGIN(1) and LIST_DEVICES(2)
+        # Start at 3 to avoid collision with hardcoded LOGIN(1) and LIST_DEVICES(2).
+        # LOGIN and LIST_DEVICES remain hardcoded for connection bootstrap before
+        # the request routing system is active. Dynamic allocation is used for
+        # async_get_status and async_set which rely on _pending_requests routing.
         self._next_request_id: int = 3
         self._request_id_lock = asyncio.Lock()
         self.metrics = ConnectionMetrics()
@@ -343,6 +346,8 @@ class FanSyncClient:
                     future = self._pending_requests.pop(request_id)
                     if not future.done():
                         future.set_result(payload)
+                    # Skip push update processing for request/response pairs.
+                    # Status callbacks for set acks are handled in async_set to avoid duplication.
                     continue
 
                 # Process push updates (responses without request ID and with status data)

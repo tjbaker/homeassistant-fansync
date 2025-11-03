@@ -132,12 +132,13 @@ def mock_websocket():
     mock_ws.sent_requests = []
 
     async def track_send(msg):
-        """Track sent requests for test inspection."""
-        try:
-            data = json.loads(msg)
-            mock_ws.sent_requests.append(data)
-        except json.JSONDecodeError:
-            pass  # Ignore malformed messages in tests
+        """Track sent requests for test inspection.
+
+        Note: Let JSONDecodeError propagate - tests should not send malformed JSON.
+        This ensures mock statistics (call_count, etc.) remain accurate.
+        """
+        data = json.loads(msg)
+        mock_ws.sent_requests.append(data)
 
     mock_ws.send = AsyncMock(side_effect=track_send)
     mock_ws.recv = AsyncMock()
