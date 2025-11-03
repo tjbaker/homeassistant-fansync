@@ -222,6 +222,7 @@ class FanSyncClient:
                         # Command is actively reading, skip this iteration
                         continue
                     raw = None
+                    lock_released = False
                     try:
                         raw = ws.recv()
                         timeout_errors = 0
@@ -241,18 +242,18 @@ class FanSyncClient:
                                         "triggering reconnect after %d consecutive errors",
                                         timeout_errors,
                                     )
-                                # Use conn_lock to safely reconnect without holding recv_lock
-                                # Release recv_lock before blocking I/O
+                                # Release lock before blocking I/O
                                 self._recv_lock.release()
+                                lock_released = True
                                 try:
                                     with self._conn_lock:
                                         self._ws = None
                                         self._ensure_ws_connected()
-                                        timeout_errors = 0
-                                        backoff_sec = 0.5
-                                        self.metrics.record_reconnect()
-                                        if _LOGGER.isEnabledFor(logging.DEBUG):
-                                            _LOGGER.debug("reconnect successful, backoff reset")
+                                    timeout_errors = 0
+                                    backoff_sec = 0.5
+                                    self.metrics.record_reconnect()
+                                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                                        _LOGGER.debug("reconnect successful, backoff reset")
                                 except Exception as reconnect_err:
                                     if _LOGGER.isEnabledFor(logging.DEBUG):
                                         _LOGGER.debug(
@@ -262,12 +263,13 @@ class FanSyncClient:
                                         )
                                     time.sleep(backoff_sec)
                                     backoff_sec = min(max_backoff_sec, backoff_sec * 2)
-                                finally:
-                                    # Re-acquire for outer finally block to release
-                                    self._recv_lock.acquire()
+                                # Skip to next iteration
+                                continue
                         time.sleep(0.1)
                     finally:
-                        self._recv_lock.release()
+                        # Only release if we still hold it (not released in reconnect path)
+                        if not lock_released:
+                            self._recv_lock.release()
 
                     # Skip processing if recv failed
                     if raw is None:
