@@ -242,33 +242,29 @@ class FanSyncClient:
                                         timeout_errors,
                                     )
                                 # Use conn_lock to safely reconnect without holding recv_lock
-                                with self._conn_lock:
-                                    self._ws = None
+                                # Release recv_lock before blocking I/O
+                                self._recv_lock.release()
                                 try:
-                                    # Release recv_lock before blocking I/O
-                                    self._recv_lock.release()
-                                    try:
+                                    with self._conn_lock:
+                                        self._ws = None
                                         self._ensure_ws_connected()
                                         timeout_errors = 0
                                         backoff_sec = 0.5
                                         self.metrics.record_reconnect()
                                         if _LOGGER.isEnabledFor(logging.DEBUG):
                                             _LOGGER.debug("reconnect successful, backoff reset")
-                                    except Exception as reconnect_err:
-                                        if _LOGGER.isEnabledFor(logging.DEBUG):
-                                            _LOGGER.debug(
-                                                "reconnect failed: %s, backoff=%.1fs",
-                                                type(reconnect_err).__name__,
-                                                backoff_sec,
-                                            )
-                                        time.sleep(backoff_sec)
-                                        backoff_sec = min(max_backoff_sec, backoff_sec * 2)
-                                    finally:
-                                        # Re-acquire for finally block below
-                                        self._recv_lock.acquire()
-                                except Exception:
-                                    # Ensure lock is held for finally block
-                                    pass
+                                except Exception as reconnect_err:
+                                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                                        _LOGGER.debug(
+                                            "reconnect failed: %s, backoff=%.1fs",
+                                            type(reconnect_err).__name__,
+                                            backoff_sec,
+                                        )
+                                    time.sleep(backoff_sec)
+                                    backoff_sec = min(max_backoff_sec, backoff_sec * 2)
+                                finally:
+                                    # Re-acquire for outer finally block to release
+                                    self._recv_lock.acquire()
                         time.sleep(0.1)
                     finally:
                         self._recv_lock.release()
