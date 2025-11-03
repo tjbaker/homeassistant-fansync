@@ -80,7 +80,7 @@ class FanSyncClient:
         self._running: bool = False
         self._recv_task: asyncio.Task | None = None
         # Message routing: map request ID to Future for async_get_status/async_set
-        self._pending_requests: dict[int, asyncio.Future] = {}
+        self._pending_requests: dict[int, asyncio.Future[dict[str, Any]]] = {}
         # Start at 3 to avoid collision with hardcoded LOGIN(1) and LIST_DEVICES(2).
         # LOGIN and LIST_DEVICES remain hardcoded for connection bootstrap before
         # the request routing system is active. Dynamic allocation is used for
