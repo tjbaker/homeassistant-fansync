@@ -34,6 +34,26 @@ def auto_enable_custom_integrations(enable_custom_integrations):
     yield
 
 
+@pytest.fixture(autouse=True)
+def mock_executor_for_ssl():
+    """Mock hass.async_add_executor_job to be synchronous for SSL context creation.
+
+    This avoids test complexity from executor job timing while still testing
+    the actual SSL context creation logic.
+    """
+    from homeassistant.core import HomeAssistant
+
+    original_method = HomeAssistant.async_add_executor_job
+
+    async def sync_executor_job(self, target, *args):
+        """Run the target function synchronously in tests."""
+        return target(*args)
+
+    HomeAssistant.async_add_executor_job = sync_executor_job
+    yield
+    HomeAssistant.async_add_executor_job = original_method
+
+
 @pytest.fixture
 def mock_client():
     class _Mock:

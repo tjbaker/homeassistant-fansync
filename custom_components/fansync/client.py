@@ -49,6 +49,19 @@ class FanSyncClient:
     All operations run in the Home Assistant event loop without threading.
     """
 
+    def _create_ssl_context(self) -> ssl.SSLContext:
+        """Create SSL context for WebSocket connections.
+
+        This is synchronous and performs blocking I/O (load_default_certs,
+        set_default_verify_paths), so it must be called via
+        hass.async_add_executor_job.
+        """
+        ssl_context = ssl.create_default_context()
+        if not self.verify_ssl:
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+        return ssl_context
+
     def __init__(
         self,
         hass: HomeAssistant,
@@ -67,6 +80,7 @@ class FanSyncClient:
         self._enable_push = enable_push
         self._http_timeout_s = http_timeout_s
         self._ws_timeout_s = ws_timeout_s
+        self._ssl_context: ssl.SSLContext | None = None
         self._http: httpx.Client | None = None
         # Using ClientConnection (concrete type) instead of ClientProtocol (abstract).
         # websockets.connect() returns ClientConnection, and mypy needs the concrete type.
@@ -117,11 +131,9 @@ class FanSyncClient:
             float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
         )
 
-        # websockets library requires explicit ssl context for wss:// URIs
-        ssl_context = ssl.create_default_context()
-        if not self.verify_ssl:
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
+        # Create SSL context in executor to avoid blocking event loop (cached after first call)
+        if self._ssl_context is None:
+            self._ssl_context = await self.hass.async_add_executor_job(self._create_ssl_context)
 
         ws = None
         for attempt_idx in range(WS_LOGIN_RETRY_ATTEMPTS):
@@ -129,7 +141,7 @@ class FanSyncClient:
                 ws = await asyncio.wait_for(
                     websockets.connect(
                         "wss://fanimation.apps.exosite.io/api:1/phone",
-                        ssl=ssl_context,
+                        ssl=self._ssl_context,
                     ),
                     timeout=ws_timeout,
                 )
@@ -400,6 +412,11 @@ class FanSyncClient:
 
     async def _ensure_ws_connected(self) -> None:
         """Ensure WebSocket is connected and authenticated."""
+        # If WebSocket is already connected and open, nothing to do
+        if self._ws is not None and not self._ws.closed:
+            return
+
+        # Close old WebSocket if it exists
         if self._ws is not None:
             try:
                 await self._ws.close()
@@ -429,16 +446,14 @@ class FanSyncClient:
             float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
         )
 
-        # websockets library requires explicit ssl context for wss:// URIs
-        ssl_context = ssl.create_default_context()
-        if not self.verify_ssl:
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
+        # Create SSL context in executor to avoid blocking event loop (cached after first call)
+        if self._ssl_context is None:
+            self._ssl_context = await self.hass.async_add_executor_job(self._create_ssl_context)
 
         ws = await asyncio.wait_for(
             websockets.connect(
                 "wss://fanimation.apps.exosite.io/api:1/phone",
-                ssl=ssl_context,
+                ssl=self._ssl_context,
             ),
             timeout=ws_timeout,
         )
