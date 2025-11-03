@@ -8,7 +8,7 @@ Custom Home Assistant integration for Fanimation FanSync devices.
 ## Requirements
 
 - Python 3.13
-- Home Assistant Core 2025.10.0 or newer
+- Home Assistant Core 2025.10.4 or newer
 - HACS (optional; only required if installing via HACS)
 
 ## Features
