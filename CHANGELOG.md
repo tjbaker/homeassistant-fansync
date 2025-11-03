@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.21](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.20...0.2.21) (2025-11-03)
+
+
+### Bug Fixes
+
+* remove blocking recv from async_set to prevent 30s timeout ([31f7a95](https://github.com/tjbaker/homeassistant-fansync/commit/31f7a951500e5f9644f1d5c61a24c0b023444921))
+
 ## [0.2.20](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.19...0.2.20) (2025-11-02)
 
 
