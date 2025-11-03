@@ -95,9 +95,12 @@ async def async_get_config_entry_diagnostics(
                                 "brand": profile["esh"].get("brand"),
                             }
                         if "module" in profile:
+                            # Mask MAC address for privacy (show first 3 octets only)
+                            mac = profile["module"].get("mac_address", "")
+                            masked_mac = ":".join(mac.split(":")[:3]) + ":XX:XX:XX" if mac else None
                             sanitized["module"] = {
                                 "firmware_version": profile["module"].get("firmware_version"),
-                                "mac_address": profile["module"].get("mac_address"),
+                                "mac_address": masked_mac,
                             }
                         profiles[device_id] = sanitized
                 diagnostics["device_profiles"] = profiles
