@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.24](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.23...0.2.24) (2025-11-03)
+
+
+### Bug Fixes
+
+* ensure device metadata visible and add latency diagnostics ([c1511e1](https://github.com/tjbaker/homeassistant-fansync/commit/c1511e166fa45f3d8214cb7fd149258c45573143))
+
 ## [0.2.23](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.22...0.2.23) (2025-11-03)
 
 
