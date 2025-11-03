@@ -610,7 +610,7 @@ class FanSyncClient:
         ws_timeout_s: int | float | None = None,
     ) -> None:
         """Apply timeout changes at runtime.
-        
+
         This method is synchronous and intended to be called via
         hass.async_add_executor_job() from the event loop. It uses
         synchronous httpx.Client.close() which is safe in this context.
