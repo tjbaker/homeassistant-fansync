@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from unittest.mock import AsyncMock, Mock, patch

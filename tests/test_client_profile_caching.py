@@ -116,6 +116,7 @@ async def test_profile_caching_no_profile_in_response(
         yield json.dumps(
             {"response": "lst_device", "data": [{"device": "test_device_456"}], "id": 2}
         )
+        # Wait for get request to be sent (login=1, lst=2, get=3)
         while len(mock_websocket.sent_requests) < 3:
             yield TimeoutError("waiting for get request")
         get_request_id = mock_websocket.sent_requests[2]["id"]
@@ -177,6 +178,7 @@ async def test_profile_caching_empty_profile(
         yield json.dumps(
             {"response": "lst_device", "data": [{"device": "test_device_789"}], "id": 2}
         )
+        # Wait for get request to be sent (login=1, lst=2, get=3)
         while len(mock_websocket.sent_requests) < 3:
             yield TimeoutError("waiting for get request")
         get_request_id = mock_websocket.sent_requests[2]["id"]
@@ -238,6 +240,7 @@ async def test_profile_caching_with_keyerror(
         yield json.dumps(
             {"response": "lst_device", "data": [{"device": "test_device_error"}], "id": 2}
         )
+        # Wait for get request to be sent (login=1, lst=2, get=3)
         while len(mock_websocket.sent_requests) < 3:
             yield TimeoutError("waiting for get request")
         get_request_id = mock_websocket.sent_requests[2]["id"]
@@ -293,6 +296,7 @@ async def test_profile_caching_with_wrong_type(
         yield json.dumps(
             {"response": "lst_device", "data": [{"device": "test_device_type_error"}], "id": 2}
         )
+        # Wait for get request to be sent (login=1, lst=2, get=3)
         while len(mock_websocket.sent_requests) < 3:
             yield TimeoutError("waiting for get request")
         get_request_id = mock_websocket.sent_requests[2]["id"]
@@ -493,6 +497,7 @@ async def test_profile_retrieval_returns_shallow_copy(hass: HomeAssistant, mock_
     def recv_generator():
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         yield json.dumps({"response": "lst_device", "data": [{"device": "test_device"}], "id": 2})
+        # Wait for get request to be sent (login=1, lst=2, get=3)
         while len(mock_websocket.sent_requests) < 3:
             yield TimeoutError("waiting for get request")
         yield json.dumps(
@@ -554,6 +559,7 @@ async def test_profile_caching_exception_in_try_block(
         yield json.dumps(
             {"response": "lst_device", "data": [{"device": "test_device_exception"}], "id": 2}
         )
+        # Wait for get request to be sent (login=1, lst=2, get=3)
         while len(mock_websocket.sent_requests) < 3:
             yield TimeoutError("waiting for get request")
         yield json.dumps(
