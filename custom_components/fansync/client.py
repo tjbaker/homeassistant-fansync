@@ -50,19 +50,6 @@ class FanSyncClient:
     All operations run in the Home Assistant event loop without threading.
     """
 
-    def _create_ssl_context(self) -> ssl.SSLContext:
-        """Create SSL context for WebSocket connections.
-
-        This is synchronous and performs blocking I/O (load_default_certs,
-        set_default_verify_paths), so it must be called via
-        hass.async_add_executor_job.
-        """
-        ssl_context = ssl.create_default_context()
-        if not self.verify_ssl:
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-        return ssl_context
-
     def __init__(
         self,
         hass: HomeAssistant,
@@ -95,6 +82,19 @@ class FanSyncClient:
         self._running: bool = False
         self._recv_task: asyncio.Task | None = None
         self.metrics = ConnectionMetrics()
+
+    def _create_ssl_context(self) -> ssl.SSLContext:
+        """Create SSL context for WebSocket connections.
+
+        This is synchronous and performs blocking I/O (load_default_certs,
+        set_default_verify_paths), so it must be called via
+        hass.async_add_executor_job.
+        """
+        ssl_context = ssl.create_default_context()
+        if not self.verify_ssl:
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+        return ssl_context
 
     async def async_connect(self):
         """Connect to FanSync cloud API and authenticate."""
