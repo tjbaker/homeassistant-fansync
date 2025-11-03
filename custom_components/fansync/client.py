@@ -499,8 +499,10 @@ class FanSyncClient:
                         if latency_ms > SLOW_RESPONSE_WARNING_MS:
                             _LOGGER.warning(
                                 "Slow response from FanSync cloud: %.1f seconds for device %s. "
-                                "Consider increasing WebSocket timeout in Options "
-                                "if you see frequent timeouts",
+                                "This indicates high latency in Fanimation's cloud service. "
+                                "Commands still work but status updates may be delayed. "
+                                "If timeouts persist, increase WebSocket timeout in Options, "
+                                "though cloud delays may remain",
                                 latency_ms / 1000,
                                 did,
                             )
@@ -583,8 +585,10 @@ class FanSyncClient:
             if latency_ms > SLOW_RESPONSE_WARNING_MS:
                 _LOGGER.warning(
                     "Slow response from FanSync cloud: %.1f seconds for device %s. "
-                    "Consider increasing WebSocket timeout in Options "
-                    "if you see frequent timeouts",
+                    "This indicates high latency in Fanimation's cloud service. "
+                    "Commands still work but status updates may be delayed. "
+                    "If timeouts persist, increase WebSocket timeout in Options, "
+                    "though cloud delays may remain",
                     latency_ms / 1000,
                     did,
                 )
