@@ -13,9 +13,8 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
-from websocket import WebSocketConnectionClosedException
 
 from homeassistant.core import HomeAssistant
 
@@ -40,13 +39,15 @@ async def test_disconnect_on_unload(hass: HomeAssistant):
     c = FanSyncClient(hass, "e", "p", enable_push=False)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
         http_inst = http_cls.return_value
         http_inst.post.return_value = type(
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
-        ws = ws_cls.return_value
+        ws = ws_connect.return_value
         ws.connect.return_value = None
         ws.recv.side_effect = [_login_ok(), _lst_device_ok("id")]
         await c.async_connect()
@@ -56,38 +57,46 @@ async def test_disconnect_on_unload(hass: HomeAssistant):
     ws.close.assert_called_once()
 
 
-async def test_set_retries_on_closed_socket(hass: HomeAssistant):
+async def test_set_retries_on_closed_socket(hass: HomeAssistant, mock_websocket):
+    """Test that async_set retries on closed socket error."""
     c = FanSyncClient(hass, "e", "p", enable_push=False)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
         http_inst = http_cls.return_value
         http_inst.post.return_value = type(
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
-        ws = ws_cls.return_value
-        ws.connect.return_value = None
-        # Connect sequence
-        ws.recv.side_effect = [_login_ok(), _lst_device_ok("id")]
-        await c.async_connect()
 
-        # First send raises closed; on retry, we need a login and get ack
-        def _send(payload):
-            if isinstance(_send.first, bool) and _send.first:
-                _send.first = False
-                raise WebSocketConnectionClosedException("closed")
+        def recv_generator():
+            """Generator for reconnect scenario."""
+            # Initial connection
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            # Reconnect login after OSError
+            yield _login_ok()
+            # Set ack after reconnect
+            yield json.dumps({"status": "ok", "response": "set", "id": 4})
+
+        mock_websocket.recv.side_effect = recv_generator()
+
+        # First send raises closed; second succeeds
+        send_count = {"count": 0}
+
+        async def _send(payload):
+            send_count["count"] += 1
+            if send_count["count"] == 1:
+                raise OSError("closed")
             return None
 
-        _send.first = True  # type: ignore[attr-defined]
-        ws.send.side_effect = _send
-        # after reconnect: login ok, then set ack
-        ws.recv.side_effect = [
-            _login_ok(),
-            json.dumps({"status": "ok", "response": "set", "id": 4}),
-        ]
+        mock_websocket.send.side_effect = _send
+        ws_connect.return_value = mock_websocket
 
+        await c.async_connect()
         await c.async_set({"H02": 10})
         await c.async_disconnect()
 
-    assert ws.send.call_count >= 2
+    assert send_count["count"] >= 2

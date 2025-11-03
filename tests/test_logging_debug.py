@@ -12,9 +12,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -95,38 +96,51 @@ async def test_fan_emits_debug_logs(hass: HomeAssistant, caplog: pytest.LogCaptu
 
 
 async def test_client_logs_ack_status(
-    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture, mock_websocket
 ) -> None:
+    """Verify we log when recv loop processes a set ack that includes status data."""
     caplog.set_level(logging.DEBUG)
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
         http_inst = http_cls.return_value
         mock_resp = Mock()
         mock_resp.raise_for_status = Mock(return_value=None)
         mock_resp.json = Mock(return_value={"token": "t"})
         http_inst.post.return_value = mock_resp
-        ws = ws_cls.return_value
-        ws.connect.return_value = None
-        # login, list, then set ACK with embedded status (no subsequent get response provided)
-        ws.recv.side_effect = [
-            # login ok
-            '{"status": "ok", "response": "login", "id": 1}',
-            # list devices
-            '{"status": "ok", "response": "lst_device", "data": [{"device": "id"}], "id": 2}',
-            # set ack with status
-            '{"status": "ok", "response": "set", "id": 4, "data": {"status": {"H00": 1, "H02": 33}}}',
-        ]
+
+        def recv_generator():
+            """Generator for ack with status scenario."""
+            # Initial connection
+            yield '{"status": "ok", "response": "login", "id": 1}'
+            yield '{"status": "ok", "response": "lst_device", "data": [{"device": "id"}], "id": 2}'
+            # Reconnect login (from async_set's _ensure_ws_connected)
+            yield '{"status": "ok", "response": "login", "id": 1}'
+            # Set ack with status - this should be logged by recv loop
+            yield '{"status": "ok", "response": "set", "id": 4, "data": {"status": {"H00": 1, "H02": 33}}}'
+            # Keep loop alive
+            while True:
+                yield TimeoutError("timeout")
+
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
+
         await c.async_connect()
         try:
             await c.async_set({"H02": 33})
+            # Allow time for recv loop to process the set ack
+            await asyncio.sleep(0.2)
             await hass.async_block_till_done()
         finally:
             await c.async_disconnect()
 
     msgs = [r.getMessage() for r in caplog.records]
-    assert any("set start" in m for m in msgs)
+    assert any("set start" in m for m in msgs), "Expected 'set start' in logs"
     # The recv_loop processes the set ack and logs it
-    assert any("recv set ack with status" in m for m in msgs)
+    assert any(
+        "recv set ack with status" in m for m in msgs
+    ), "Expected 'recv set ack with status' in logs"

@@ -13,9 +13,8 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
-from websocket import WebSocketConnectionClosedException
 
 from homeassistant.core import HomeAssistant
 
@@ -32,53 +31,51 @@ def _lst_device_ok(device_id: str = "id") -> str:
     )
 
 
-async def test_get_reconnects_on_closed_socket(hass: HomeAssistant):
+async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websocket):
+    """Test that async_get_status reconnects on closed socket error."""
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
         http_inst = http_cls.return_value
         http_inst.post.return_value = type(
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
-        ws = ws_cls.return_value
-        ws.connect.return_value = None
 
-        # initial connect: login, list
-        ws.recv.side_effect = [
-            _login_ok(),
-            _lst_device_ok("id"),
-        ]
-        await c.async_connect()
-
-        # First send/recv will raise closed; then on reconnect we get a valid get response
-        def _send(_):
-            raise WebSocketConnectionClosedException("closed")
-
-        # Only the first send (the get request) should fail; subsequent sends (login) should work
-        send_calls = {"count": 0}
-
-        def _send(payload):
-            send_calls["count"] += 1
-            if send_calls["count"] == 1:
-                raise WebSocketConnectionClosedException("closed")
-            return None
-
-        ws.send.side_effect = _send
-        ws.recv.side_effect = [
-            # after reconnecting in ensure_ws_connected: login ok
-            _login_ok(),
-            # then get response
-            json.dumps(
+        def recv_generator():
+            """Generator for reconnect scenario."""
+            # Initial connect: login, list
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            # After reconnect: login ok
+            yield _login_ok()
+            # Then get response
+            yield json.dumps(
                 {
                     "status": "ok",
                     "response": "get",
                     "data": {"status": {"H00": 1, "H02": 33}},
                     "id": 3,
                 }
-            ),
-        ]
+            )
 
+        mock_websocket.recv.side_effect = recv_generator()
+
+        # Only the first send (the get request) should fail; subsequent sends (login) should work
+        send_calls = {"count": 0}
+
+        async def _send(payload):
+            send_calls["count"] += 1
+            if send_calls["count"] == 1:
+                raise OSError("closed")
+            return None
+
+        mock_websocket.send.side_effect = _send
+        ws_connect.return_value = mock_websocket
+
+        await c.async_connect()
         status = await c.async_get_status()
         assert status.get("H02") == 33

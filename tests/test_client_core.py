@@ -12,11 +12,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import websocket
 
 from homeassistant.core import HomeAssistant
 
@@ -51,77 +51,88 @@ def _get_ok(status: dict[str, int] | None = None) -> str:
     )
 
 
-async def test_connect_sets_device_id(hass: HomeAssistant) -> None:
+async def test_connect_sets_device_id(hass: HomeAssistant, mock_websocket) -> None:
     c = FanSyncClient(hass, "e@example.com", "p", verify_ssl=True, enable_push=False)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
         http_inst = http_cls.return_value
         http_inst.post.return_value = type(
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
-        ws = ws_cls.return_value
-        ws.connect.return_value = None
-        ws.recv.side_effect = [_login_ok(), _lst_device_ok("dev-123")]
+        mock_websocket.recv.side_effect = [_login_ok(), _lst_device_ok("dev-123")]
+        ws_connect.return_value = mock_websocket
         await c.async_connect()
 
     assert c.device_id == "dev-123"
-    http_cls.assert_called_with(verify=True)
+    http_cls.assert_called_with(verify=True, timeout=None)
 
 
-async def test_get_status_returns_mapping(hass: HomeAssistant) -> None:
+async def test_get_status_returns_mapping(hass: HomeAssistant, mock_websocket) -> None:
     c = FanSyncClient(hass, "e", "p", verify_ssl=False, enable_push=False)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
         http_inst = http_cls.return_value
         http_inst.post.return_value = type(
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
-        ws = ws_cls.return_value
-        ws.connect.return_value = None
-        # login, list, then get
-        ws.recv.side_effect = [
+        # login, list, then reconnect login (for ensure_ws_connected), then get
+        mock_websocket.recv.side_effect = [
             _login_ok(),
             _lst_device_ok("id"),
+            _login_ok(),  # Reconnect during get_status
             _get_ok({"H00": 1, "H02": 19}),
-            # background recv loop may consume an extra frame; provide a benign event
-            json.dumps({"event": "noop"}),
-            json.dumps({"event": "noop2"}),
         ]
+        ws_connect.return_value = mock_websocket
         await c.async_connect()
         status = await c.async_get_status()
 
     assert status.get("H02") == 19
 
 
-async def test_async_set_triggers_callback(hass: HomeAssistant) -> None:
+async def test_async_set_triggers_callback(hass: HomeAssistant, mock_websocket) -> None:
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
         http_inst = http_cls.return_value
         http_inst.post.return_value = type(
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
-        ws = ws_cls.return_value
-        ws.connect.return_value = None
-        # login, list, set ack with status embedded (triggers callback immediately)
-        ws.recv.side_effect = [
-            _login_ok(),
-            _lst_device_ok("id"),
-            json.dumps(
+
+        # Generator to keep recv loop alive
+        def recv_generator():
+            """Generator that simulates WebSocket recv with proper message ordering."""
+            # Initial connection
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            # Reconnect during async_set (from _ensure_ws_connected)
+            yield _login_ok()
+            # The set ack with status
+            yield json.dumps(
                 {
                     "status": "ok",
                     "response": "set",
                     "id": 4,
                     "data": {"status": {"H00": 1, "H02": 55}},
                 }
-            ),
-        ]
+            )
+            # Then keep returning timeouts to keep recv loop alive
+            while True:
+                yield TimeoutError("timeout")
+
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
 
         # Capture callback result
         seen: list[dict[str, int]] = []
@@ -130,38 +141,54 @@ async def test_async_set_triggers_callback(hass: HomeAssistant) -> None:
         await c.async_connect()
         try:
             await c.async_set({"H02": 55})
+            # Give recv loop time to process the set ack message
+            # Longer sleep needed for async task to process message
+            await asyncio.sleep(0.5)
             await hass.async_block_till_done()
+            await asyncio.sleep(0.1)  # Extra time for callback
         finally:
             await c.async_disconnect()
 
-    assert seen and seen[-1].get("H02") == 55
+    assert seen, f"No callbacks received, seen={seen}"
+    assert seen[-1].get("H02") == 55, f"Expected H02=55, got {seen[-1]}"
 
 
-async def test_async_set_uses_ack_status_when_present(hass: HomeAssistant) -> None:
+async def test_async_set_uses_ack_status_when_present(hass: HomeAssistant, mock_websocket) -> None:
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
         http_inst = http_cls.return_value
         http_inst.post.return_value = type(
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
-        ws = ws_cls.return_value
-        ws.connect.return_value = None
-        # login, list, then set ACK with embedded status (no subsequent get response provided)
-        ws.recv.side_effect = [
-            _login_ok(),
-            _lst_device_ok("id"),
-            json.dumps(
+
+        # Generator to keep recv loop alive
+        def recv_generator():
+            """Generator that simulates WebSocket recv with proper message ordering."""
+            # Initial connection
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            # Reconnect during async_set (from _ensure_ws_connected)
+            yield _login_ok()
+            # The set ack with status
+            yield json.dumps(
                 {
                     "status": "ok",
                     "response": "set",
                     "id": 4,
                     "data": {"status": {"H00": 0, "H02": 1}},
                 }
-            ),
-        ]
+            )
+            # Then keep returning timeouts to keep recv loop alive
+            while True:
+                yield TimeoutError("timeout")
+
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
 
         seen: list[dict[str, int]] = []
         c.set_status_callback(lambda s: seen.append(s))
@@ -169,27 +196,37 @@ async def test_async_set_uses_ack_status_when_present(hass: HomeAssistant) -> No
         await c.async_connect()
         try:
             await c.async_set({"H00": 0})
+            # Give recv loop time to process the set ack message
+            # Longer sleep needed for async task to process message
+            await asyncio.sleep(0.5)
             await hass.async_block_till_done()
+            await asyncio.sleep(0.1)  # Extra time for callback
         finally:
             await c.async_disconnect()
 
-    # Should have used ACK status directly without needing a separate get
-    assert seen and seen[-1].get("H00") == 0 and seen[-1].get("H02") == 1
+    # Should have used ACK status directly
+    assert seen, f"No callbacks received, seen={seen}"
+    assert (
+        seen[-1].get("H00") == 0 and seen[-1].get("H02") == 1
+    ), f"Expected H00=0, H02=1, got {seen[-1]}"
 
 
-async def test_connect_ws_login_failure_raises(hass: HomeAssistant):
+async def test_connect_ws_login_failure_raises(hass: HomeAssistant, mock_websocket):
     c = FanSyncClient(hass, "e", "p")
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
         http_inst = http_cls.return_value
         http_inst.post.return_value = type(
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
-        ws = ws_cls.return_value
-        ws.connect.return_value = None
-        ws.recv.side_effect = [json.dumps({"status": "fail", "response": "login", "id": 1})]
+        mock_websocket.recv.side_effect = [
+            json.dumps({"status": "fail", "response": "login", "id": 1})
+        ]
+        ws_connect.return_value = mock_websocket
 
         with pytest.raises(RuntimeError):
             await c.async_connect()
@@ -199,41 +236,28 @@ async def test_connect_ws_timeout_then_success_retries(hass: HomeAssistant):
     c = FanSyncClient(hass, "e@example.com", "p", verify_ssl=True, enable_push=False)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
-        patch("custom_components.fansync.client.time.sleep", return_value=None),
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
+        patch("custom_components.fansync.client.asyncio.sleep", return_value=None),
     ):
         http_inst = http_cls.return_value
         http_inst.post.return_value = type(
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
 
-        # First WS instance times out on first recv (login response), second succeeds
-        ws1 = ws_cls.return_value
-        ws2 = MagicMock()
-        # Provide attributes/methods used by client
-        ws1.connect = lambda *_args, **_kwargs: None
-        ws1.send = lambda *_args, **_kwargs: None
+        # First WS instance times out, second succeeds
+        ws1 = AsyncMock()
+        ws1.send = AsyncMock()
+        ws1.recv = AsyncMock(side_effect=TimeoutError("timeout"))
+        ws1.close = AsyncMock()
 
-        def _recv_raises_timeout():
-            raise websocket.WebSocketTimeoutException("timeout")
+        ws2 = AsyncMock()
+        ws2.send = AsyncMock()
+        ws2.recv = AsyncMock(side_effect=[_login_ok(), _lst_device_ok("dev-retry")])
+        ws2.close = AsyncMock()
 
-        ws1.recv = _recv_raises_timeout
-        ws1.close = lambda: None
-
-        # Configure ws2 to succeed
-        ws2.connect = lambda *_args, **_kwargs: None
-        ws2.send = lambda *_args, **_kwargs: None
-
-        recv_iter = iter(
-            [
-                _login_ok(),
-                _lst_device_ok("dev-retry"),
-            ]
-        )
-
-        ws2.recv = recv_iter.__next__
-
-        ws_cls.side_effect = [ws1, ws2]
+        ws_connect.side_effect = [ws1, ws2]
 
         await c.async_connect()
 
