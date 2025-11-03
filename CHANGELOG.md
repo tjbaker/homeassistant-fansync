@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.4.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.3.4...0.4.0) (2025-11-03)
+
+
+### Features
+
+* add comprehensive diagnostics and issue templates ([89415d2](https://github.com/tjbaker/homeassistant-fansync/commit/89415d285433d876c06106245eb6d35a66ac34c2))
+
 ## [0.3.4](https://github.com/tjbaker/homeassistant-fansync/compare/0.3.3...0.3.4) (2025-11-03)
 
 
