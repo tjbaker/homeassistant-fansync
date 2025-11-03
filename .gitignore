@@ -14,6 +14,7 @@ env/
 .pytest_cache/
 .coverage*
 htmlcov/
+coverage.xml
 
 # Packaging
 build/
@@ -49,3 +50,6 @@ custom_components/**/__pycache__/
 
 # Mypy cache
 .mypy_cache/
+
+# PR description (local working file)
+PR_DESCRIPTION.md
