@@ -12,6 +12,7 @@
 
 """Tests for FanSync diagnostics."""
 
+from typing import Any
 from unittest.mock import MagicMock
 
 from homeassistant.core import HomeAssistant
@@ -44,7 +45,7 @@ async def test_diagnostics_returns_metrics(hass: HomeAssistant) -> None:
     client.metrics = metrics
 
     # Mock device_profile
-    def mock_device_profile(device_id):
+    def mock_device_profile(device_id: str) -> dict[str, Any]:
         return {
             "esh": {"model": "TestFan 3000", "brand": "TestBrand"},
             "module": {"firmware_version": "1.2.3", "mac_address": "AA:BB:CC:DD:EE:FF"},
