@@ -51,7 +51,7 @@ def _get_ok(status: dict[str, int] | None = None) -> str:
     )
 
 
-async def test_connect_sets_device_id(hass: HomeAssistant):
+async def test_connect_sets_device_id(hass: HomeAssistant) -> None:
     c = FanSyncClient(hass, "e@example.com", "p", verify_ssl=True, enable_push=False)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
@@ -70,7 +70,7 @@ async def test_connect_sets_device_id(hass: HomeAssistant):
     http_cls.assert_called_with(verify=True)
 
 
-async def test_get_status_returns_mapping(hass: HomeAssistant):
+async def test_get_status_returns_mapping(hass: HomeAssistant) -> None:
     c = FanSyncClient(hass, "e", "p", verify_ssl=False, enable_push=False)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
@@ -97,8 +97,8 @@ async def test_get_status_returns_mapping(hass: HomeAssistant):
     assert status.get("H02") == 19
 
 
-async def test_async_set_triggers_callback(hass: HomeAssistant):
-    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
+async def test_async_set_triggers_callback(hass: HomeAssistant) -> None:
+    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
@@ -128,14 +128,17 @@ async def test_async_set_triggers_callback(hass: HomeAssistant):
         c.set_status_callback(lambda s: seen.append(s))
 
         await c.async_connect()
-        await c.async_set({"H02": 55})
-        await hass.async_block_till_done()
+        try:
+            await c.async_set({"H02": 55})
+            await hass.async_block_till_done()
+        finally:
+            await c.async_disconnect()
 
     assert seen and seen[-1].get("H02") == 55
 
 
-async def test_async_set_uses_ack_status_when_present(hass: HomeAssistant):
-    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
+async def test_async_set_uses_ack_status_when_present(hass: HomeAssistant) -> None:
+    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
@@ -164,8 +167,11 @@ async def test_async_set_uses_ack_status_when_present(hass: HomeAssistant):
         c.set_status_callback(lambda s: seen.append(s))
 
         await c.async_connect()
-        await c.async_set({"H00": 0})
-        await hass.async_block_till_done()
+        try:
+            await c.async_set({"H00": 0})
+            await hass.async_block_till_done()
+        finally:
+            await c.async_disconnect()
 
     # Should have used ACK status directly without needing a separate get
     assert seen and seen[-1].get("H00") == 0 and seen[-1].get("H02") == 1

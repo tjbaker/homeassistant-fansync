@@ -16,8 +16,10 @@ import logging
 import time
 from unittest.mock import Mock, patch
 
+import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+
 from custom_components.fansync.client import FanSyncClient
 
 
@@ -59,7 +61,7 @@ async def setup(hass: HomeAssistant, client: LogClient) -> None:
         await hass.async_block_till_done()
 
 
-async def test_fan_emits_debug_logs(hass: HomeAssistant, caplog):
+async def test_fan_emits_debug_logs(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG)
     client = LogClient()
     await setup(hass, client)
@@ -92,9 +94,11 @@ async def test_fan_emits_debug_logs(hass: HomeAssistant, caplog):
     assert any("optimism confirm" in r.getMessage() for r in caplog.records)
 
 
-async def test_client_logs_ack_status(hass: HomeAssistant, caplog):
+async def test_client_logs_ack_status(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
     caplog.set_level(logging.DEBUG)
-    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
+    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
@@ -116,8 +120,13 @@ async def test_client_logs_ack_status(hass: HomeAssistant, caplog):
             '{"status": "ok", "response": "set", "id": 4, "data": {"status": {"H00": 1, "H02": 33}}}',
         ]
         await c.async_connect()
-        await c.async_set({"H02": 33})
+        try:
+            await c.async_set({"H02": 33})
+            await hass.async_block_till_done()
+        finally:
+            await c.async_disconnect()
 
     msgs = [r.getMessage() for r in caplog.records]
     assert any("set start" in m for m in msgs)
-    assert any("ack includes status" in m for m in msgs)
+    # The recv_loop processes the set ack and logs it
+    assert any("recv set ack with status" in m for m in msgs)

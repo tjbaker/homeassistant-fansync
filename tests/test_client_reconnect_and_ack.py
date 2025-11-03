@@ -32,7 +32,7 @@ def _get_ok(status: dict[str, int]):
     return json.dumps({"status": "ok", "response": "get", "data": {"status": status}, "id": 3})
 
 
-async def test_get_reconnects_on_closed(hass: HomeAssistant):
+async def test_get_reconnects_on_closed(hass: HomeAssistant) -> None:
     from custom_components.fansync.client import FanSyncClient
     from websocket import WebSocketConnectionClosedException
 
@@ -68,10 +68,10 @@ async def test_get_reconnects_on_closed(hass: HomeAssistant):
         assert s.get("H02") == 42
 
 
-async def test_set_uses_ack_status_when_present(hass: HomeAssistant):
+async def test_set_uses_ack_status_when_present(hass: HomeAssistant) -> None:
     from custom_components.fansync.client import FanSyncClient
 
-    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
+    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
@@ -93,7 +93,10 @@ async def test_set_uses_ack_status_when_present(hass: HomeAssistant):
                 {"status": "ok", "response": "set", "data": {"status": {"H02": 77}}, "id": 4}
             )
         ]
-        await c.async_set({"H02": 77})
+        try:
+            await c.async_set({"H02": 77})
+        finally:
+            await c.async_disconnect()
 
     # Allow dispatcher to run
     for _ in range(2):
@@ -101,7 +104,7 @@ async def test_set_uses_ack_status_when_present(hass: HomeAssistant):
     assert any(s.get("H02") == 77 for s in seen)
 
 
-async def test_verify_ssl_false_sets_no_cert_check(hass: HomeAssistant):
+async def test_verify_ssl_false_sets_no_cert_check(hass: HomeAssistant) -> None:
     from custom_components.fansync.client import FanSyncClient
 
     c = FanSyncClient(hass, "e", "p", verify_ssl=False, enable_push=False)
