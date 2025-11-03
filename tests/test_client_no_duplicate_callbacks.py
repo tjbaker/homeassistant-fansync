@@ -94,16 +94,12 @@ async def test_set_ack_with_status_triggers_callback_exactly_once(
         try:
             await client.async_connect()
 
-            # Send set command
+            # Send set command (waits for acknowledgment via Future routing)
             await client.async_set({"H00": 1})
 
-            # Give adequate time for message processing
-            # - async_set should complete and trigger callback
-            # - recv_loop should process the ack and route to pending request
-            # - callback should be invoked exactly once
-            await asyncio.sleep(0.5)
+            # Allow callback to be invoked (it's scheduled via call_soon_threadsafe)
             await hass.async_block_till_done()
-            await asyncio.sleep(0.2)  # Extra time for any potential duplicate
+            await asyncio.sleep(0.05)  # Brief pause to ensure no duplicate callbacks
 
         finally:
             await client.async_disconnect()
@@ -163,8 +159,8 @@ async def test_set_ack_without_status_does_not_trigger_callback(
         try:
             await client.async_connect()
             await client.async_set({"H00": 1})
-            await asyncio.sleep(0.5)
             await hass.async_block_till_done()
+            await asyncio.sleep(0.05)  # Brief pause to ensure no spurious callbacks
         finally:
             await client.async_disconnect()
 
