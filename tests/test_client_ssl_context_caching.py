@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
+from websockets.protocol import State
 
 from custom_components.fansync.client import FanSyncClient
 
@@ -45,7 +46,7 @@ async def test_ssl_context_cached_after_first_creation(hass: HomeAssistant) -> N
             ]
         )
         mock_ws.close = AsyncMock()
-        mock_ws.closed = False
+        mock_ws.state = State.OPEN
         ws_connect.return_value = mock_ws
 
         # First connection - should create SSL context
@@ -92,7 +93,7 @@ async def test_ensure_ws_connected_early_return_when_open(hass: HomeAssistant) -
 
     # Create a mock WebSocket that's already open
     mock_ws = MagicMock()
-    mock_ws.closed = False
+    mock_ws.state = State.OPEN
     mock_ws.close = AsyncMock()
     mock_ws.send = AsyncMock()
     mock_ws.recv = AsyncMock()
@@ -122,7 +123,7 @@ async def test_ensure_ws_connected_reconnects_when_closed(hass: HomeAssistant) -
 
     # Create a mock WebSocket that's closed
     old_ws = MagicMock()
-    old_ws.closed = True  # Connection is closed
+    old_ws.state = State.CLOSED  # Connection is closed
     old_ws.close = AsyncMock()
 
     # Set up client with closed connection
@@ -136,7 +137,7 @@ async def test_ensure_ws_connected_reconnects_when_closed(hass: HomeAssistant) -
     new_ws.send = AsyncMock()
     new_ws.recv = AsyncMock(return_value='{"status": "ok", "response": "login", "id": 1}')
     new_ws.close = AsyncMock()
-    new_ws.closed = False
+    new_ws.state = State.OPEN
 
     with patch(
         "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
@@ -171,7 +172,7 @@ async def test_ensure_ws_connected_reconnects_when_none(hass: HomeAssistant) -> 
     new_ws.send = AsyncMock()
     new_ws.recv = AsyncMock(return_value='{"status": "ok", "response": "login", "id": 1}')
     new_ws.close = AsyncMock()
-    new_ws.closed = False
+    new_ws.state = State.OPEN
 
     with patch(
         "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock

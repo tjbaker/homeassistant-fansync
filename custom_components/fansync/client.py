@@ -24,6 +24,7 @@ import httpx
 import websockets
 import websockets.asyncio.client
 from homeassistant.core import HomeAssistant
+from websockets.protocol import State
 
 from .const import (
     DEFAULT_WS_TIMEOUT_SECS,
@@ -413,7 +414,7 @@ class FanSyncClient:
     async def _ensure_ws_connected(self) -> None:
         """Ensure WebSocket is connected and authenticated."""
         # If WebSocket is already connected and open, nothing to do
-        if self._ws is not None and not self._ws.closed:
+        if self._ws is not None and self._ws.state == State.OPEN:
             return
 
         # Close old WebSocket if it exists
