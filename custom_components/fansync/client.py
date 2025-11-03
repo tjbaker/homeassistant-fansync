@@ -118,10 +118,8 @@ class FanSyncClient:
         )
 
         # websockets library requires explicit ssl context for wss:// URIs
-        if self.verify_ssl:
-            ssl_context = ssl.create_default_context()
-        else:
-            ssl_context = ssl.create_default_context()
+        ssl_context = ssl.create_default_context()
+        if not self.verify_ssl:
             ssl_context.check_hostname = False
             ssl_context.verify_mode = ssl.CERT_NONE
 
@@ -432,10 +430,8 @@ class FanSyncClient:
         )
 
         # websockets library requires explicit ssl context for wss:// URIs
-        if self.verify_ssl:
-            ssl_context = ssl.create_default_context()
-        else:
-            ssl_context = ssl.create_default_context()
+        ssl_context = ssl.create_default_context()
+        if not self.verify_ssl:
             ssl_context.check_hostname = False
             ssl_context.verify_mode = ssl.CERT_NONE
 
