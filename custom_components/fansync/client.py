@@ -215,6 +215,7 @@ class FanSyncClient:
                         continue
                     # Try to acquire recv_lock with a timeout to avoid blocking forever
                     # If a command is reading, we'll wait briefly and retry
+                    # 0.5s timeout balances responsiveness vs retries (expected worst-case)
                     acquired = self._recv_lock.acquire(timeout=0.5)
                     if not acquired:
                         # Command is actively reading, skip this iteration
@@ -412,11 +413,11 @@ class FanSyncClient:
             # Handle reconnect outside the lock to avoid nested acquisition
             if not sent:
                 # reconnect and retry once
-                # Acquire both locks in consistent order to avoid race conditions
+                # Acquire both locks to safely modify _ws and reconnect
+                # We keep locks during _ensure_ws_connected to prevent race conditions
                 with self._send_lock, self._recv_lock:
                     self._ws = None
-                self._ensure_ws_connected()
-                with self._send_lock:
+                    self._ensure_ws_connected()
                     ws2 = self._ws
                     if ws2 is None:
                         raise RuntimeError("Websocket not connected after reconnect")
@@ -494,11 +495,11 @@ class FanSyncClient:
             # Handle reconnect outside the lock to avoid nested acquisition
             if not sent:
                 # reconnect and retry once
-                # Acquire both locks in consistent order to avoid race conditions
+                # Acquire both locks to safely modify _ws and reconnect
+                # We keep locks during _ensure_ws_connected to prevent race conditions
                 with self._send_lock, self._recv_lock:
                     self._ws = None
-                self._ensure_ws_connected()
-                with self._send_lock:
+                    self._ensure_ws_connected()
                     ws2 = self._ws
                     if ws2 is None:
                         raise RuntimeError("Websocket not connected after reconnect")
