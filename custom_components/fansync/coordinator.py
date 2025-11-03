@@ -17,10 +17,12 @@ import logging
 from datetime import timedelta
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import FanSyncClient
-from .const import DEFAULT_FALLBACK_POLL_SECS, POLL_STATUS_TIMEOUT_SECS
+from .const import DEFAULT_FALLBACK_POLL_SECS, DOMAIN, POLL_STATUS_TIMEOUT_SECS
+from .device_utils import create_device_info
 
 SCAN_INTERVAL = timedelta(seconds=DEFAULT_FALLBACK_POLL_SECS)
 
@@ -34,6 +36,31 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             update_interval=SCAN_INTERVAL,
         )
         self.client = client
+        self._device_registry = dr.async_get(hass)
+
+    def _update_device_registry(self, device_ids: list[str]) -> None:
+        """Update device registry with latest profile data from client.
+
+        This ensures device model, firmware, and MAC address are displayed
+        correctly even if profile data arrives after entity creation.
+        """
+        for device_id in device_ids:
+            if not device_id:
+                continue
+            # Get the device entry by identifier
+            device = self._device_registry.async_get_device(identifiers={(DOMAIN, device_id)})
+            if not device:
+                continue
+            # Build updated device info from current profile data
+            device_info = create_device_info(self.client, device_id)
+            # Update the device registry entry with new information
+            self._device_registry.async_update_device(
+                device.id,
+                manufacturer=device_info.get("manufacturer"),
+                model=device_info.get("model"),
+                sw_version=device_info.get("sw_version"),
+                connections=device_info.get("connections"),
+            )
 
     async def _get_timeout_seconds(self) -> int:
         """Get dynamic timeout from client, with fallback to default."""
@@ -84,6 +111,8 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                         )
                 if self.logger.isEnabledFor(logging.DEBUG):
                     self.logger.debug("poll sync done devices=%d", len(statuses))
+                # Update device registry with any new profile data
+                self._update_device_registry([did])
                 return statuses
 
             # Run per-device status in parallel with timeouts; tolerate partial failures
@@ -126,6 +155,8 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     ids,
                 )
                 return self.data or {}
+            # Update device registry with any new profile data for all devices
+            self._update_device_registry(list(statuses.keys()))
             return statuses
         except TimeoutError as err:
             raise UpdateFailed(
