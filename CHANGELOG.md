@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.3.4](https://github.com/tjbaker/homeassistant-fansync/compare/0.3.3...0.3.4) (2025-11-03)
+
+
+### Performance Improvements
+
+* fix blocking I/O in async_connect and token refresh ([d94c965](https://github.com/tjbaker/homeassistant-fansync/commit/d94c965a27efd6e9dabed4a794c34fc93cdf0d64))
+* reduce aggressive confirmation polling after commands ([f8b6f2c](https://github.com/tjbaker/homeassistant-fansync/commit/f8b6f2c760dbd64e6ee9800bebb327a7cfc9b32a))
+
+
+### Code Refactoring
+
+* use dict[str, Any] type hint for JSON data ([7c765bc](https://github.com/tjbaker/homeassistant-fansync/commit/7c765bc7aade02ae2ad3f7280544f10f91cf92f4))
+
 ## [0.3.3](https://github.com/tjbaker/homeassistant-fansync/compare/0.3.2...0.3.3) (2025-11-03)
 
 
