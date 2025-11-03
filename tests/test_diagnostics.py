@@ -10,162 +10,248 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test diagnostics platform."""
+"""Tests for FanSync diagnostics."""
 
 from unittest.mock import MagicMock
 
-import pytest
+from homeassistant.core import HomeAssistant
 
 from custom_components.fansync.const import DOMAIN
 from custom_components.fansync.diagnostics import async_get_config_entry_diagnostics
+from custom_components.fansync.metrics import ConnectionMetrics
 
 
-@pytest.mark.asyncio
-async def test_diagnostics_returns_metrics(hass):
-    """Test diagnostics returns connection metrics and quality analysis."""
+async def test_diagnostics_returns_metrics(hass: HomeAssistant) -> None:
+    """Test that diagnostics returns connection metrics."""
+    # Create a mock config entry
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.title = "Test FanSync"
+    entry.version = 1
+
     # Create mock client with metrics
-    mock_client = MagicMock()
-    mock_client.device_id = "device123"
-    mock_client.device_ids = ["device123"]
-    mock_client.verify_ssl = True
-    mock_client._enable_push = True  # noqa: SLF001
-    mock_client._http_timeout_s = 20  # noqa: SLF001
-    mock_client._ws_timeout_s = 30  # noqa: SLF001
+    client = MagicMock()
+    client.device_ids = ["test_device_123"]
+    metrics = ConnectionMetrics()
+    metrics.is_connected = True
+    metrics.total_commands = 100
+    metrics.failed_commands = 5
+    metrics.timed_out_commands = 3
+    metrics.websocket_reconnects = 2
+    metrics.push_updates_received = 50
+    # Populate recent latencies to calculate avg/max
+    metrics.recent_latencies = [100.0, 150.0, 200.0, 500.0]
+    client.metrics = metrics
 
-    # Add metrics
-    mock_client.metrics = MagicMock()
-    mock_client.metrics.total_commands = 42
-    mock_client.metrics.failed_commands = 2
-    mock_client.metrics.timed_out_commands = 1
-    mock_client.metrics.websocket_reconnects = 0
-    mock_client.metrics.push_updates_received = 15
-    mock_client.metrics.is_connected = True
-    mock_client.metrics.consecutive_failures = 0
-    mock_client.metrics.recent_latencies = [150.0, 200.0, 180.0]
-    mock_client.metrics.avg_latency_ms = 176.7
-    mock_client.metrics.max_latency_ms = 200.0
-    mock_client.metrics.failure_rate = 0.048
-    mock_client.metrics.timeout_rate = 0.024
-    mock_client.metrics.should_warn_user.return_value = False
-    mock_client.metrics.to_dict.return_value = {
-        "total_commands": 42,
-        "failed_commands": 2,
-        "timed_out_commands": 1,
-        "websocket_reconnects": 0,
-        "push_updates_received": 15,
-        "is_connected": True,
-        "consecutive_failures": 0,
-        "recent_latencies": [150.0, 200.0, 180.0],
-        "max_latency_samples": 20,
-        "websocket_errors": 0,
-        "avg_latency_ms": 176.7,
-        "max_latency_ms": 200.0,
-        "failure_rate": 0.048,
-        "timeout_rate": 0.024,
-        "should_warn": False,
-    }
+    # Mock device_profile
+    def mock_device_profile(device_id):
+        return {
+            "esh": {"model": "TestFan 3000", "brand": "TestBrand"},
+            "module": {"firmware_version": "1.2.3", "mac_address": "AA:BB:CC:DD:EE:FF"},
+        }
+
+    client.device_profile = mock_device_profile
+    client._device_profile = {"test_device_123": {}}
 
     # Create mock coordinator
-    mock_coordinator = MagicMock()
-    mock_coordinator.update_interval = MagicMock()
-    mock_coordinator.update_interval.total_seconds.return_value = 60.0
-    mock_coordinator.last_update_success = True
-    mock_coordinator.data = {"device123": {"H00": 1, "H02": 50}}
+    coordinator = MagicMock()
+    coordinator.update_interval = None
+    coordinator.last_update_success = True
+    coordinator.data = {"test_device_123": {"H00": 1, "H02": 50}}
 
-    # Create mock config entry
-    mock_entry = MagicMock()
-    mock_entry.entry_id = "test_entry"
-    mock_entry.version = 1
-    mock_entry.options = {"fallback_poll_seconds": 60}
-
-    # Setup hass data
-    hass.data[DOMAIN] = {
-        "test_entry": {
-            "client": mock_client,
-            "coordinator": mock_coordinator,
-            "platforms": ["fan"],
-        }
+    # Set up hass.data
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = {
+        "client": client,
+        "coordinator": coordinator,
     }
 
-    # Call diagnostics
-    diag = await async_get_config_entry_diagnostics(hass, mock_entry)
+    # Get diagnostics
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
 
     # Verify structure
-    assert "config_entry" in diag
-    assert "client" in diag
-    assert "coordinator" in diag
-    assert "metrics" in diag
-    assert "connection_quality" in diag
+    assert "config_entry" in diagnostics
+    assert "coordinator" in diagnostics
+    assert "client" in diagnostics
+    assert "connection_metrics" in diagnostics
+    assert "connection_analysis" in diagnostics
+    assert "device_profiles" in diagnostics
 
-    # Verify metrics included
-    assert diag["metrics"]["total_commands"] == 42
-    assert diag["metrics"]["failed_commands"] == 2
-    assert diag["metrics"]["push_updates_received"] == 15
-    assert diag["metrics"]["is_connected"] is True
+    # Verify config entry data
+    assert diagnostics["config_entry"]["entry_id"] == "test_entry"
+    assert diagnostics["config_entry"]["title"] == "Test FanSync"
 
-    # Verify connection quality analysis
-    assert diag["connection_quality"]["status"] == "healthy"
-    assert len(diag["connection_quality"]["recommendations"]) == 0
+    # Verify coordinator data
+    assert diagnostics["coordinator"]["last_update_success"] is True
+    assert diagnostics["coordinator"]["device_count"] == 1
+
+    # Verify client data
+    assert diagnostics["client"]["device_count"] == 1
+    assert "test_device_123" in diagnostics["client"]["device_ids"]
+
+    # Verify connection metrics
+    metrics_data = diagnostics["connection_metrics"]
+    assert metrics_data["is_connected"] is True
+    assert metrics_data["total_commands"] == 100
+    assert metrics_data["successful_commands"] == 95
+    assert metrics_data["failed_commands"] == 5
+    assert metrics_data["timed_out_commands"] == 3
+    assert metrics_data["websocket_reconnects"] == 2
+    assert metrics_data["push_updates_received"] == 50
+    # Average of [100, 150, 200, 500] = 237.5
+    assert metrics_data["average_latency_ms"] == 237.5
+    assert metrics_data["max_latency_ms"] == 500.0
+
+    # Verify connection analysis
+    analysis = diagnostics["connection_analysis"]
+    assert analysis["quality"] == "excellent"
+    assert len(analysis["issues"]) == 0
+    # With timeouts, it will recommend checking WiFi
+    assert len(analysis["recommendations"]) > 0
+
+    # Verify device profiles
+    assert "test_device_123" in diagnostics["device_profiles"]
+    profile = diagnostics["device_profiles"]["test_device_123"]
+    assert profile["esh"]["model"] == "TestFan 3000"
+    assert profile["module"]["firmware_version"] == "1.2.3"
 
 
-@pytest.mark.asyncio
-async def test_diagnostics_warns_on_poor_connection(hass):
-    """Test diagnostics warns when connection quality is poor."""
+async def test_diagnostics_warns_on_poor_connection(hass: HomeAssistant) -> None:
+    """Test that diagnostics identifies poor connection quality."""
+    # Create a mock config entry
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.title = "Test FanSync"
+    entry.version = 1
+
     # Create mock client with poor metrics
-    mock_client = MagicMock()
-    mock_client.device_id = "device123"
-    mock_client.device_ids = ["device123"]
-    mock_client.verify_ssl = True
-    mock_client._enable_push = True  # noqa: SLF001
-    mock_client._http_timeout_s = 20  # noqa: SLF001
-    mock_client._ws_timeout_s = 30  # noqa: SLF001
+    client = MagicMock()
+    client.device_ids = ["test_device_456"]
+    metrics = ConnectionMetrics()
+    metrics.is_connected = True
+    metrics.total_commands = 100
+    metrics.failed_commands = 40  # 40% failure rate
+    metrics.timed_out_commands = 30  # 30% timeout rate
+    metrics.websocket_reconnects = 15  # Frequent reconnects
+    # High latencies
+    metrics.recent_latencies = [5000.0] * 10  # avg = 5000ms (very high)
+    client.metrics = metrics
 
-    # Add poor metrics
-    mock_client.metrics = MagicMock()
-    mock_client.metrics.total_commands = 10
-    mock_client.metrics.timed_out_commands = 4  # 40% timeout rate
-    mock_client.metrics.avg_latency_ms = 6000.0  # 6 seconds
-    mock_client.metrics.timeout_rate = 0.4
-    mock_client.metrics.is_connected = True
-    mock_client.metrics.consecutive_failures = 0
-    mock_client.metrics.websocket_reconnects = 2
-    mock_client.metrics.push_updates_received = 0
-    mock_client.metrics.should_warn_user.return_value = True
-    mock_client.metrics.to_dict.return_value = {
-        "total_commands": 10,
-        "timed_out_commands": 4,
-        "avg_latency_ms": 6000.0,
-        "timeout_rate": 0.4,
-        "should_warn": True,
-    }
+    client.device_profile = MagicMock(return_value={})
+    client._device_profile = {}
 
     # Create mock coordinator
-    mock_coordinator = MagicMock()
-    mock_coordinator.update_interval = None
-    mock_coordinator.last_update_success = True
-    mock_coordinator.data = {"device123": {"H00": 1}}
+    coordinator = MagicMock()
+    coordinator.update_interval = None
+    coordinator.last_update_success = False
+    coordinator.data = {}
 
-    # Create mock config entry
-    mock_entry = MagicMock()
-    mock_entry.entry_id = "test_entry"
-    mock_entry.version = 1
-    mock_entry.options = {}
-
-    # Setup hass data
-    hass.data[DOMAIN] = {
-        "test_entry": {
-            "client": mock_client,
-            "coordinator": mock_coordinator,
-            "platforms": ["fan"],
-        }
+    # Set up hass.data
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = {
+        "client": client,
+        "coordinator": coordinator,
     }
 
-    # Call diagnostics
-    diag = await async_get_config_entry_diagnostics(hass, mock_entry)
+    # Get diagnostics
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
 
-    # Verify connection quality warns
-    assert diag["connection_quality"]["status"] == "poor"
-    assert len(diag["connection_quality"]["recommendations"]) >= 1
-    # Should recommend increasing timeout
-    recommendations_text = " ".join(diag["connection_quality"]["recommendations"])
-    assert "timeout" in recommendations_text.lower()
+    # Verify connection analysis shows poor quality
+    analysis = diagnostics["connection_analysis"]
+    assert analysis["quality"] == "poor"
+    assert len(analysis["issues"]) > 0
+    assert len(analysis["recommendations"]) > 0
+
+    # Check for specific issues
+    issues_text = " ".join(analysis["issues"]).lower()
+    assert "success rate" in issues_text or "timeout" in issues_text or "latency" in issues_text
+
+    # Check for recommendations
+    recommendations_text = " ".join(analysis["recommendations"]).lower()
+    assert (
+        "timeout" in recommendations_text
+        or "network" in recommendations_text
+        or "restart" in recommendations_text
+    )
+
+
+async def test_diagnostics_handles_disconnected_state(hass: HomeAssistant) -> None:
+    """Test that diagnostics handles disconnected state gracefully."""
+    # Create a mock config entry
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.title = "Test FanSync"
+    entry.version = 1
+
+    # Create mock client that's disconnected
+    client = MagicMock()
+    client.device_ids = []
+    client.metrics = ConnectionMetrics()
+    client.metrics.is_connected = False
+    client.metrics.total_commands = 0
+
+    client.device_profile = MagicMock(return_value={})
+    client._device_profile = {}
+
+    # Create mock coordinator
+    coordinator = MagicMock()
+    coordinator.update_interval = None
+    coordinator.last_update_success = False
+    coordinator.data = None
+
+    # Set up hass.data
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = {
+        "client": client,
+        "coordinator": coordinator,
+    }
+
+    # Get diagnostics
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+
+    # Verify it doesn't crash and provides useful info
+    assert diagnostics["connection_metrics"]["is_connected"] is False
+    analysis = diagnostics["connection_analysis"]
+    assert analysis["quality"] == "disconnected"
+    assert len(analysis["issues"]) > 0
+    assert "not currently connected" in analysis["issues"][0].lower()
+
+
+async def test_diagnostics_handles_no_data(hass: HomeAssistant) -> None:
+    """Test that diagnostics handles case with no command data."""
+    # Create a mock config entry
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.title = "Test FanSync"
+    entry.version = 1
+
+    # Create mock client with no commands yet
+    client = MagicMock()
+    client.device_ids = ["test_device"]
+    client.metrics = ConnectionMetrics()
+    client.metrics.is_connected = True
+    client.metrics.total_commands = 0  # No commands sent yet
+
+    client.device_profile = MagicMock(return_value={})
+    client._device_profile = {}
+
+    # Create mock coordinator
+    coordinator = MagicMock()
+    coordinator.update_interval = None
+    coordinator.last_update_success = True
+    coordinator.data = {}
+
+    # Set up hass.data
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = {
+        "client": client,
+        "coordinator": coordinator,
+    }
+
+    # Get diagnostics
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+
+    # Verify it handles no data gracefully
+    assert diagnostics["connection_metrics"]["average_latency_ms"] == 0.0
+    analysis = diagnostics["connection_analysis"]
+    assert analysis["quality"] == "no_data"
