@@ -219,49 +219,50 @@ class FanSyncClient:
                     if not acquired:
                         # Command is actively reading, skip this iteration
                         continue
+                    raw = None
                     try:
-                        try:
-                            raw = ws.recv()
-                            timeout_errors = 0
-                        except Exception as err:
-                            if _LOGGER.isEnabledFor(logging.DEBUG):
-                                _LOGGER.debug("recv error=%s", type(err).__name__)
-                            # Count consecutive timeouts/closed errors and reconnect after a few
-                            if isinstance(
-                                err,
-                                websocket.WebSocketTimeoutException
-                                | websocket.WebSocketConnectionClosedException,
-                            ):
-                                timeout_errors += 1
-                                if timeout_errors >= 3:
+                        raw = ws.recv()
+                        timeout_errors = 0
+                    except Exception as err:
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug("recv error=%s", type(err).__name__)
+                        # Count consecutive timeouts/closed errors and reconnect after a few
+                        if isinstance(
+                            err,
+                            websocket.WebSocketTimeoutException
+                            | websocket.WebSocketConnectionClosedException,
+                        ):
+                            timeout_errors += 1
+                            if timeout_errors >= 3:
+                                if _LOGGER.isEnabledFor(logging.DEBUG):
+                                    _LOGGER.debug(
+                                        "triggering reconnect after %d consecutive errors",
+                                        timeout_errors,
+                                    )
+                                self._ws = None
+                                try:
+                                    self._ensure_ws_connected()
+                                    timeout_errors = 0
+                                    backoff_sec = 0.5
+                                    self.metrics.record_reconnect()
+                                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                                        _LOGGER.debug("reconnect successful, backoff reset")
+                                except Exception as reconnect_err:
                                     if _LOGGER.isEnabledFor(logging.DEBUG):
                                         _LOGGER.debug(
-                                            "triggering reconnect after %d consecutive errors",
-                                            timeout_errors,
+                                            "reconnect failed: %s, backoff=%.1fs",
+                                            type(reconnect_err).__name__,
+                                            backoff_sec,
                                         )
-                                    self._ws = None
-                                    try:
-                                        self._ensure_ws_connected()
-                                        timeout_errors = 0
-                                        backoff_sec = 0.5
-                                        self.metrics.record_reconnect()
-                                        if _LOGGER.isEnabledFor(logging.DEBUG):
-                                            _LOGGER.debug("reconnect successful, backoff reset")
-                                    except Exception as reconnect_err:
-                                        if _LOGGER.isEnabledFor(logging.DEBUG):
-                                            _LOGGER.debug(
-                                                "reconnect failed: %s, backoff=%.1fs",
-                                                type(reconnect_err).__name__,
-                                                backoff_sec,
-                                            )
-                                        time.sleep(backoff_sec)
-                                        backoff_sec = min(max_backoff_sec, backoff_sec * 2)
-                            time.sleep(0.1)
-                    except Exception:
-                        # Handled above or unexpected error; release lock and continue
-                        pass
+                                    time.sleep(backoff_sec)
+                                    backoff_sec = min(max_backoff_sec, backoff_sec * 2)
+                        time.sleep(0.1)
                     finally:
                         self._recv_lock.release()
+
+                    # Skip processing if recv failed
+                    if raw is None:
+                        continue
 
                     try:
                         payload = json.loads(raw)
@@ -396,24 +397,26 @@ class FanSyncClient:
             assert self._ws is not None
             # Use both locks: send_lock for sending, recv_lock for receiving
             # This prevents deadlock with _recv_loop which doesn't hold any locks while reading
+            sent = False
+            req_id = WS_REQUEST_ID_GET_STATUS
             with self._send_lock:
                 ws: websocket.WebSocket | None = self._ws
                 if ws is None:
                     raise RuntimeError("Websocket not connected")
-                sent = False
                 # Keep stable request ID for compatibility; match responses by id when present
-                req_id = WS_REQUEST_ID_GET_STATUS
                 try:
                     ws.send(json.dumps({"id": req_id, "request": "get", "device": did}))
                     sent = True
                 except Exception:
                     sent = False
-                if not sent:
-                    # reconnect and retry once
-                    # Acquire both locks in consistent order to avoid race conditions
-                    with self._send_lock, self._recv_lock:
-                        self._ws = None
-                    self._ensure_ws_connected()
+            # Handle reconnect outside the lock to avoid nested acquisition
+            if not sent:
+                # reconnect and retry once
+                # Acquire both locks in consistent order to avoid race conditions
+                with self._send_lock, self._recv_lock:
+                    self._ws = None
+                self._ensure_ws_connected()
+                with self._send_lock:
                     ws2 = self._ws
                     if ws2 is None:
                         raise RuntimeError("Websocket not connected after reconnect")
@@ -478,22 +481,24 @@ class FanSyncClient:
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("set start d=%s keys=%s", did, list(data.keys()))
             # Use send_lock for sending only, don't block recv
+            sent = False
             with self._send_lock:
                 ws: websocket.WebSocket | None = self._ws
                 if ws is None:
                     raise RuntimeError("Websocket not connected")
-                sent = False
                 try:
                     ws.send(json.dumps(message))
                     sent = True
                 except Exception:
                     sent = False
-                if not sent:
-                    # reconnect and retry once
-                    # Acquire both locks in consistent order to avoid race conditions
-                    with self._send_lock, self._recv_lock:
-                        self._ws = None
-                    self._ensure_ws_connected()
+            # Handle reconnect outside the lock to avoid nested acquisition
+            if not sent:
+                # reconnect and retry once
+                # Acquire both locks in consistent order to avoid race conditions
+                with self._send_lock, self._recv_lock:
+                    self._ws = None
+                self._ensure_ws_connected()
+                with self._send_lock:
                     ws2 = self._ws
                     if ws2 is None:
                         raise RuntimeError("Websocket not connected after reconnect")
