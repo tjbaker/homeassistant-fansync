@@ -30,6 +30,7 @@ from .const import (
     WS_GET_RETRY_LIMIT,
     WS_LOGIN_RETRY_ATTEMPTS,
     WS_LOGIN_RETRY_BACKOFF_SEC,
+    WS_RECV_LOCK_TIMEOUT_SEC,
     WS_REQUEST_ID_GET_STATUS,
     WS_REQUEST_ID_LIST_DEVICES,
     WS_REQUEST_ID_LOGIN,
@@ -227,8 +228,7 @@ class FanSyncClient:
                         continue
                     # Try to acquire recv_lock with a timeout to avoid blocking forever
                     # If a command is reading, we'll wait briefly and retry
-                    # 0.5s timeout balances responsiveness vs retries (expected worst-case)
-                    acquired = self._recv_lock.acquire(timeout=0.5)
+                    acquired = self._recv_lock.acquire(timeout=WS_RECV_LOCK_TIMEOUT_SEC)
                     if not acquired:
                         # Command is actively reading, skip this iteration
                         continue

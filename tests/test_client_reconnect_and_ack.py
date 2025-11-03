@@ -98,6 +98,11 @@ async def test_set_uses_ack_status_when_present(hass: HomeAssistant) -> None:
 
         # The recv_loop will consume the set ack in the background
         def recv_side_effect():
+            """Generator that yields a set ack response once, then continuous timeouts.
+
+            This keeps the recv_loop alive for testing without blocking, allowing
+            the background thread to process the set acknowledgment and trigger callbacks.
+            """
             # First call returns the set ack
             yield json.dumps(
                 {"status": "ok", "response": "set", "data": {"status": {"H02": 77}}, "id": 4}

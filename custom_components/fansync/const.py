@@ -70,6 +70,7 @@ WS_RECV_TIMEOUT_ERROR_THRESHOLD = 3  # Consecutive errors before reconnect
 WS_RECV_BACKOFF_INITIAL_SEC = 0.5  # Initial backoff delay
 WS_RECV_BACKOFF_MAX_SEC = 5.0  # Maximum backoff delay
 WS_RECV_SLEEP_SEC = 0.1  # Sleep between recv attempts
+WS_RECV_LOCK_TIMEOUT_SEC = 0.5  # Timeout for recv_lock acquisition in background loop
 
 # WebSocket request IDs (keep stable for compatibility)
 WS_REQUEST_ID_LOGIN = 1
