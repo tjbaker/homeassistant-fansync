@@ -13,11 +13,14 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import ssl
+import sys
 import time
 from collections.abc import Callable
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -88,6 +91,81 @@ class FanSyncClient:
         self._next_request_id: int = 3
         self._request_id_lock = asyncio.Lock()
         self.metrics = ConnectionMetrics()
+        # Diagnostics tracking
+        self._last_http_login_ms: float | None = None
+        self._last_ws_connect_ms: float | None = None  # WebSocket handshake only
+        self._last_ws_login_ms: float | None = None  # Full connect + login time
+        self._last_ws_login_wait_ms: float | None = None  # Time waiting for login response
+        self._token_refresh_count: int = 0
+        self._last_login_response: dict[str, Any] | None = None  # Last login response (sanitized)
+        self._connection_failures: list[dict[str, Any]] = []
+        self._max_failure_history = 10
+
+    def _record_connection_failure(
+        self,
+        stage: str,
+        error_type: str,
+        elapsed_ms: float,
+        attempt: int | None = None,
+    ) -> None:
+        """Record a connection failure for diagnostics."""
+        failure_record = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
+            "stage": stage,  # "http_login", "ws_connect", "ws_login", etc.
+            "error_type": error_type,
+            "elapsed_ms": round(elapsed_ms, 2),
+        }
+        if attempt is not None:
+            failure_record["attempt"] = attempt
+
+        self._connection_failures.append(failure_record)
+        # Keep only the most recent failures
+        if len(self._connection_failures) > self._max_failure_history:
+            self._connection_failures.pop(0)
+
+    def _parse_token_metadata(self) -> dict[str, Any]:
+        """Extract JWT token metadata without exposing the token itself."""
+        if not self._token:
+            return {}
+
+        try:
+            # JWT format: header.payload.signature
+            parts = self._token.split(".")
+            if len(parts) != 3:
+                return {"format_valid": False}
+
+            # Decode payload (add padding if needed for base64)
+            payload = parts[1]
+            padding = (4 - len(payload) % 4) % 4
+            if padding:
+                payload += "=" * padding
+
+            decoded = base64.urlsafe_b64decode(payload)
+            claims = json.loads(decoded)
+
+            # Extract non-sensitive metadata
+            issuer = claims.get("iss")
+            metadata = {
+                "format_valid": True,
+                "length": len(self._token),
+                "issued_at": claims.get("iat"),
+                "expires_at": claims.get("exp"),
+                "issuer": issuer.split("/")[-1] if issuer else None,
+            }
+
+            # Calculate expiry info if available
+            if "exp" in claims:
+                exp_time = claims["exp"]
+                now = time.time()
+                metadata["expires_in_seconds"] = int(exp_time - now)
+                metadata["is_expired"] = exp_time < now
+
+            return metadata
+        except Exception as exc:
+            return {
+                "format_valid": False,
+                "parse_error": type(exc).__name__,
+            }
 
     def _create_ssl_context(self) -> ssl.SSLContext:
         """Create SSL context for WebSocket connections.
@@ -130,6 +208,7 @@ class FanSyncClient:
         t0 = time.monotonic()
 
         # HTTP authentication (run in executor to avoid blocking event loop)
+        http_start = time.monotonic()
         timeout = None
         if self._http_timeout_s is not None:
             timeout_value = float(self._http_timeout_s)
@@ -147,15 +226,27 @@ class FanSyncClient:
         url = "https://fanimation.apps.exosite.io/api:1/session"
         headers = {"Content-Type": "application/json", "charset": "utf-8"}
         json_data = {"email": self.email, "password": self.password}
-        token = await self.hass.async_add_executor_job(self._http_login, url, headers, json_data)
-        self._token = token
+
+        try:
+            token = await self.hass.async_add_executor_job(
+                self._http_login, url, headers, json_data
+            )
+            self._token = token
+            self._last_http_login_ms = (time.monotonic() - http_start) * 1000
+        except Exception as exc:
+            elapsed = (time.monotonic() - http_start) * 1000
+            self._record_connection_failure("http_login", type(exc).__name__, elapsed)
+            raise
 
         if _LOGGER.isEnabledFor(logging.DEBUG):
-            elapsed_ms = int((time.monotonic() - t0) * 1000)
-            _LOGGER.debug("http login ms=%d verify_ssl=%s", elapsed_ms, self.verify_ssl)
+            _LOGGER.debug(
+                "http login ms=%.0f verify_ssl=%s",
+                self._last_http_login_ms,
+                self.verify_ssl,
+            )
 
         # WebSocket connection with retries
-        t1 = time.monotonic()
+        ws_start = time.monotonic()
         ws_timeout = (
             float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
         )
@@ -165,8 +256,12 @@ class FanSyncClient:
             self._ssl_context = await self.hass.async_add_executor_job(self._create_ssl_context)
 
         ws = None
+        last_ws_error: Exception | None = None
         for attempt_idx in range(WS_LOGIN_RETRY_ATTEMPTS):
+            ws_attempt_start = time.monotonic()
             try:
+                # Track WebSocket handshake timing separately
+                ws_connect_start = time.monotonic()
                 ws = await asyncio.wait_for(
                     websockets.connect(
                         "wss://fanimation.apps.exosite.io/api:1/phone",
@@ -174,11 +269,15 @@ class FanSyncClient:
                     ),
                     timeout=ws_timeout,
                 )
+                self._last_ws_connect_ms = (time.monotonic() - ws_connect_start) * 1000
+
                 # Type narrowing for mypy: websockets.connect() never returns None,
                 # it raises an exception on failure. This assert is purely for type checking
                 # and cannot fail at runtime (if it does, there's a bug in websockets library).
                 assert ws is not None
-                # Login
+
+                # Login - track send + response wait time
+                ws_login_start = time.monotonic()
                 await asyncio.wait_for(
                     ws.send(
                         json.dumps(
@@ -192,11 +291,31 @@ class FanSyncClient:
                     timeout=ws_timeout,
                 )
                 raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
+                self._last_ws_login_wait_ms = (time.monotonic() - ws_login_start) * 1000
+
                 payload = json.loads(raw)
+                # Store sanitized login response for diagnostics
+                self._last_login_response = {
+                    "status": payload.get("status"),
+                    "response": payload.get("response"),
+                    "has_data": "data" in payload,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
+                }
+
                 if not (isinstance(payload, dict) and payload.get("status") == "ok"):
                     raise RuntimeError("WebSocket login failed")
+                # Success!
+                self._last_ws_login_ms = (time.monotonic() - ws_start) * 1000
                 break
             except Exception as exc:
+                last_ws_error = exc
+                elapsed = (time.monotonic() - ws_attempt_start) * 1000
+                self._record_connection_failure(
+                    "ws_login",
+                    type(exc).__name__,
+                    elapsed,
+                    attempt=attempt_idx + 1,
+                )
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug(
                         "ws initial connect/login failed (%s), attempt %d/%d",
@@ -226,14 +345,16 @@ class FanSyncClient:
         if ws is None:
             _LOGGER.error(
                 "WebSocket connection failed after %d attempts. "
-                "Check network connectivity and Fanimation cloud service status.",
+                "Check network connectivity and Fanimation cloud service status. "
+                "Last error: %s",
                 WS_LOGIN_RETRY_ATTEMPTS,
+                type(last_ws_error).__name__ if last_ws_error else "Unknown",
             )
             raise RuntimeError("WebSocket connection failed after retry attempts")
 
         self._ws = ws
         if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug("ws connect+login ms=%d", int((time.monotonic() - t1) * 1000))
+            _LOGGER.debug("ws connect+login ms=%.0f", self._last_ws_login_ms)
 
         # List devices
         try:
@@ -459,8 +580,12 @@ class FanSyncClient:
 
         # Refresh token if needed (run in executor to avoid blocking event loop)
         if not self._token and self._http:
+            self._token_refresh_count += 1
             if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("_ensure_ws_connected: refreshing auth token")
+                _LOGGER.debug(
+                    "_ensure_ws_connected: refreshing auth token (attempt %d)",
+                    self._token_refresh_count,
+                )
             url = "https://fanimation.apps.exosite.io/api:1/session"
             headers = {"Content-Type": "application/json", "charset": "utf-8"}
             json_data = {"email": self.email, "password": self.password}
@@ -741,3 +866,55 @@ class FanSyncClient:
         except (TypeError, ValueError, AttributeError):
             pass
         return int(DEFAULT_WS_TIMEOUT_SECS)
+
+    def get_diagnostics_data(self) -> dict[str, Any]:
+        """Get comprehensive diagnostics data for troubleshooting."""
+        return {
+            # Environment info
+            "environment": {
+                "python_version": sys.version.split()[0],
+                "websockets_version": websockets.__version__,
+                "httpx_version": httpx.__version__,
+            },
+            # Configuration
+            "configuration": {
+                "verify_ssl": self.verify_ssl,
+                "enable_push": self._enable_push,
+                "http_timeout_s": self._http_timeout_s,
+                "ws_timeout_s": self._ws_timeout_s,
+            },
+            # Connection state
+            "connection_state": {
+                "is_connected": self.metrics.is_connected,
+                "has_websocket": self._ws is not None,
+                "has_http_client": self._http is not None,
+                "device_count": len(self._device_ids),
+            },
+            # Connection timing (granular breakdown)
+            "connection_timing": {
+                "last_http_login_ms": self._last_http_login_ms,
+                "last_ws_connect_ms": self._last_ws_connect_ms,  # WebSocket handshake only
+                "last_ws_login_wait_ms": self._last_ws_login_wait_ms,  # Login response wait
+                "last_ws_login_ms": self._last_ws_login_ms,  # Total connect + login
+                "token_refresh_count": self._token_refresh_count,
+            },
+            # Token metadata (no secrets)
+            "token_metadata": self._parse_token_metadata(),
+            # Last login response (sanitized)
+            "last_login_response": self._last_login_response,
+            # Recent failures
+            "connection_failures": self._connection_failures,
+            # Metrics
+            "metrics": {
+                "total_commands": self.metrics.total_commands,
+                "failed_commands": self.metrics.failed_commands,
+                "timed_out_commands": self.metrics.timed_out_commands,
+                "websocket_reconnects": self.metrics.websocket_reconnects,
+                "websocket_errors": self.metrics.websocket_errors,
+                "push_updates_received": self.metrics.push_updates_received,
+                "avg_latency_ms": round(self.metrics.avg_latency_ms, 2),
+                "max_latency_ms": round(self.metrics.max_latency_ms, 2),
+                "failure_rate": round(self.metrics.failure_rate, 3),
+                "timeout_rate": round(self.metrics.timeout_rate, 3),
+            },
+        }

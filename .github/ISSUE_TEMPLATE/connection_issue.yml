@@ -1,0 +1,228 @@
+name: Connection Issue
+description: Report problems connecting to FanSync cloud or device communication issues
+title: "[Connection]: "
+labels: ["bug", "connection"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a connection issue! 
+        
+        Please provide the following information to help us diagnose the problem.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What connection issue are you experiencing?
+      placeholder: |
+        Example: Integration fails to connect with "WebSocket connection failed after 2 attempts" error.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connection-stage
+    attributes:
+      label: Connection Stage
+      description: At what stage does the connection fail?
+      options:
+        - Initial setup (config flow)
+        - After Home Assistant restart
+        - During normal operation (reconnection)
+        - Intermittent disconnections
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-message
+    attributes:
+      label: Error Message
+      description: Copy the exact error message from Home Assistant logs
+      placeholder: |
+        Example:
+        2025-11-03 12:27:28.497 DEBUG (MainThread) [custom_components.fansync.client] ws initial connect/login failed (TimeoutError), attempt 1/2
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant Version
+      description: What version of Home Assistant are you running?
+      placeholder: "2025.10.4"
+    validations:
+      required: true
+
+  - type: input
+    id: integration-version
+    attributes:
+      label: FanSync Integration Version
+      description: What version of the FanSync integration are you using?
+      placeholder: "0.3.4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation-type
+    attributes:
+      label: Home Assistant Installation Type
+      options:
+        - Home Assistant OS
+        - Home Assistant Container
+        - Home Assistant Core
+        - Home Assistant Supervised
+    validations:
+      required: true
+
+  - type: dropdown
+    id: network-environment
+    attributes:
+      label: Network Environment
+      description: What type of network is Home Assistant running on?
+      multiple: true
+      options:
+        - Home network (standard router)
+        - Corporate/Enterprise network
+        - VPN connection
+        - Proxy server
+        - VLAN segmentation (HA and IoT devices on separate networks)
+        - Ubiquiti UniFi network hardware
+        - Firewall with restrictive rules
+        - Docker network
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: network-details
+    attributes:
+      label: Network Hardware & Firewall Details
+      description: |
+        Please provide details about your network configuration:
+        - Router/firewall model and firmware version
+        - Are HA and IoT devices on separate VLANs? (Include VLAN IDs if applicable)
+        - Firewall features enabled (IDS/IPS, Deep Packet Inspection, etc.)
+        - Any firewall rules related to WebSocket or long-lived connections
+        - NAT/connection tracking timeout settings
+        - Have you checked firewall logs for dropped packets to/from `fanimation.apps.exosite.io`?
+      placeholder: |
+        Example:
+        - Ubiquiti Dream Machine Pro (v3.2.9)
+        - HA on VLAN 10, IoT devices on VLAN 20
+        - IPS/IDS: Enabled, DPI: Enabled
+        - No specific firewall rules for WebSocket
+        - Default NAT timeout (3600s)
+        - No drops in firewall logs
+
+  - type: dropdown
+    id: mobile-app-works
+    attributes:
+      label: Does the Official Fanimation App Work?
+      description: Can you control your fans using the official Fanimation mobile app?
+      options:
+        - "Yes"
+        - "No"
+        - "Don't know"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: other-devices-work
+    attributes:
+      label: Do Other Devices on Same VLAN Work?
+      description: |
+        **CRITICAL**: Can other devices on the **same VLAN/network as Home Assistant** control the fans?
+        Examples: Alexa, Google Home, other apps, etc.
+      options:
+        - "Yes - Alexa/Google Home works"
+        - "Yes - Other device works (specify in details)"
+        - "No - Nothing else on same VLAN"
+        - "Don't know / Not applicable"
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics File
+      description: |
+        **IMPORTANT**: Please attach your diagnostics file!
+        
+        To download diagnostics:
+        1. Go to **Settings** → **Devices & Services**
+        2. Find **FanSync** integration
+        3. Click the **three dots (⋮)** menu
+        4. Select **Download Diagnostics**
+        5. Attach the JSON file here
+        
+        This file contains critical timing and connection data (no passwords/tokens).
+      placeholder: Drag and drop the diagnostics JSON file here, or paste its contents
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Full Logs
+      description: |
+        **IMPORTANT**: Enable debug logging for ALL relevant components to capture the full connection flow.
+        
+        Add this to `configuration.yaml`:
+        ```yaml
+        logger:
+          default: info
+          logs:
+            custom_components.fansync: debug
+            httpcore: debug
+            httpx: debug
+            websockets: debug
+        ```
+        
+        Then restart Home Assistant and reproduce the issue. Include logs from the connection attempt.
+        
+        **Why all these loggers?**
+        - `custom_components.fansync` - Integration logic
+        - `httpcore` & `httpx` - HTTP authentication details
+        - `websockets` - WebSocket handshake and message flow
+      placeholder: Paste debug logs here
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: timing-observations
+    attributes:
+      label: Timing Observations
+      description: Any observations about timing? (e.g., "Hangs for exactly 90 seconds", "Works sometimes but not others")
+      placeholder: |
+        Example: The integration hangs for about 90 seconds during setup, then fails with a timeout error.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: used-to-work
+    attributes:
+      label: Did This Ever Work?
+      description: Did the integration work previously, or has it never worked?
+      options:
+        - Never worked
+        - Worked before, stopped working recently
+        - Works intermittently
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other information that might be relevant
+      placeholder: |
+        - Number of fans: 2
+        - Fan model: Fanimation Studio Collection
+        - Recent network changes: Upgraded router last week
+        - Other integrations having issues: None
+    validations:
+      required: false
+
