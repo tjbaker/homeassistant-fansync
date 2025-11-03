@@ -88,6 +88,11 @@ WS_FALLBACK_TIMEOUT_SEC = 10.0
 # Align with default WS timeout to avoid cancelling in-progress recv operations
 POLL_STATUS_TIMEOUT_SECS = 30
 
+# Performance monitoring thresholds
+# Warn users when command latency exceeds these thresholds
+SLOW_RESPONSE_WARNING_MS = 10000  # 10 seconds - warn about slow cloud responses
+SLOW_CONNECTION_WARNING_MS = 5000  # 5 seconds - warn about slow initial connection
+
 
 def clamp_percentage(value: int) -> int:
     """Clamp percentage to FanSync allowed range [1, 100]."""

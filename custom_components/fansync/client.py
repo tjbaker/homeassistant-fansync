@@ -26,6 +26,8 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     DEFAULT_WS_TIMEOUT_SECS,
+    SLOW_CONNECTION_WARNING_MS,
+    SLOW_RESPONSE_WARNING_MS,
     WS_FALLBACK_TIMEOUT_SEC,
     WS_GET_RETRY_LIMIT,
     WS_LOGIN_RETRY_ATTEMPTS,
@@ -211,6 +213,17 @@ class FanSyncClient:
             self._device_meta = meta
             self._running = True
             self.metrics.is_connected = True
+
+            # Log total connection time to help diagnose slow cloud API
+            total_connect_ms = (time.monotonic() - t0) * 1000
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("total connection time: %.0f ms", total_connect_ms)
+            if total_connect_ms > SLOW_CONNECTION_WARNING_MS:
+                _LOGGER.info(
+                    "FanSync cloud connection took %.1f seconds. "
+                    "Slow connection may affect integration performance",
+                    total_connect_ms / 1000,
+                )
 
         await self.hass.async_add_executor_job(_connect)
 
@@ -480,7 +493,16 @@ class FanSyncClient:
                         latency_ms = (time.monotonic() - t0) * 1000
                         self.metrics.record_command(success=True, latency_ms=latency_ms)
                         if _LOGGER.isEnabledFor(logging.DEBUG):
-                            _LOGGER.debug("get rtt ms=%.0f", latency_ms)
+                            _LOGGER.debug("get rtt ms=%.0f device=%s", latency_ms, did)
+                        # Warn users about slow responses that may cause timeouts
+                        if latency_ms > SLOW_RESPONSE_WARNING_MS:
+                            _LOGGER.warning(
+                                "Slow response from FanSync cloud: %.1f seconds for device %s. "
+                                "Consider increasing WebSocket timeout in Options "
+                                "if you see frequent timeouts",
+                                latency_ms / 1000,
+                                did,
+                            )
                         return payload["data"]["status"]
                 raise RuntimeError("Get status response not received")
 
@@ -535,6 +557,8 @@ class FanSyncClient:
                 _LOGGER.debug("set sent d=%s, relying on push updates", did)
             return None
 
+        # Capture device_id for use in logging and warnings after async_add_executor_job returns
+        did = device_id or self._device_id
         t_total = time.monotonic()
         try:
             ack_status = await self.hass.async_add_executor_job(_set)
@@ -549,7 +573,16 @@ class FanSyncClient:
 
                 self.hass.loop.call_soon_threadsafe(_notify)
             if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("set total rtt ms=%.0f", latency_ms)
+                _LOGGER.debug("set total rtt ms=%.0f device=%s", latency_ms, did)
+            # Warn users about slow responses that may cause timeouts
+            if latency_ms > SLOW_RESPONSE_WARNING_MS:
+                _LOGGER.warning(
+                    "Slow response from FanSync cloud: %.1f seconds for device %s. "
+                    "Consider increasing WebSocket timeout in Options "
+                    "if you see frequent timeouts",
+                    latency_ms / 1000,
+                    did,
+                )
         except Exception:
             self.metrics.record_command(success=False)
             raise

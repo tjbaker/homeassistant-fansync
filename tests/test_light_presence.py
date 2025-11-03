@@ -147,6 +147,10 @@ async def test_platforms_fallback_when_first_refresh_deferred(hass: HomeAssistan
             self.client = c
             self.data = None
 
+        def _update_device_registry(self, device_ids: list[str]) -> None:
+            """Stub for device registry update (no-op in this test)."""
+            pass
+
         async def async_config_entry_first_refresh(self):
             raise TimeoutError()
 

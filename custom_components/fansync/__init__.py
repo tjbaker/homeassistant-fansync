@@ -46,6 +46,16 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
+def _get_client_device_ids(client: FanSyncClient) -> list[str]:
+    """Extract device IDs from client, filtering out empty values.
+
+    Returns list of non-empty device IDs from client.device_ids,
+    falling back to single client.device_id if device_ids is empty.
+    """
+    ids = getattr(client, "device_ids", []) or [getattr(client, "device_id", None)]
+    return [i for i in ids if i]
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
@@ -73,6 +83,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             coordinator.update_interval,
             entry.data.get(CONF_VERIFY_SSL, True),
         )
+
+    # Update device registry immediately after connection with available device IDs
+    # This ensures device metadata (model, firmware, MAC) is visible in UI even if
+    # the first coordinator refresh times out or is deferred
+    # Note: Calling coordinator._update_device_registry is acceptable here as the
+    # integration setup has tight coupling with the coordinator implementation
+    coordinator._update_device_registry(_get_client_device_ids(client))
 
     # Register a push callback if supported by the client
     if hasattr(client, "set_status_callback"):
@@ -156,11 +173,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
 
     # Log connection success with device count at INFO, details at DEBUG
-    try:
-        ids = getattr(client, "device_ids", []) or [client.device_id]
-    except Exception:  # pragma: no cover
-        ids = []
-    _LOGGER.info("FanSync connected: %d device(s)", len([i for i in ids if i]))
+    ids = _get_client_device_ids(client)
+    _LOGGER.info("FanSync connected: %d device(s)", len(ids))
     if _LOGGER.isEnabledFor(logging.DEBUG):
         _LOGGER.debug("connected device_ids=%s", ids)
     return True
