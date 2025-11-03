@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.23](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.22...0.2.23) (2025-11-03)
+
+
+### Features
+
+* add diagnostics platform for connection metrics ([a759f8d](https://github.com/tjbaker/homeassistant-fansync/commit/a759f8d86ed51ea34eb1931642fbf55fd8416876))
+
+
+### Bug Fixes
+
+* add type annotations to test helper functions ([7d1ebb8](https://github.com/tjbaker/homeassistant-fansync/commit/7d1ebb876f6750148427155b05a79a87b90db60e))
+* address Copilot AI review feedback ([73946e4](https://github.com/tjbaker/homeassistant-fansync/commit/73946e47816f78a7e66547990afcb97a1e020a8c))
+* address second round of Copilot review feedback ([0e78926](https://github.com/tjbaker/homeassistant-fansync/commit/0e78926228f18201aa711b846e70093a1a315dfe))
+* improve type hints and edge case handling ([78d9b86](https://github.com/tjbaker/homeassistant-fansync/commit/78d9b8640191e7d0b5bbb3583bd5e5d6a2d1e697))
+* mask MAC addresses and simplify test helper ([9489686](https://github.com/tjbaker/homeassistant-fansync/commit/94896860169e69a20d50ada0cdfdd50b5f0a2ff8))
+* remove non-actionable recommendation message ([d248e77](https://github.com/tjbaker/homeassistant-fansync/commit/d248e7717e42ac447f8502ee97636ab825e4f824))
+* update device registry when profile data arrives ([41c9c45](https://github.com/tjbaker/homeassistant-fansync/commit/41c9c45ff4bb5911e50922ca05c8c00ef1b61d98))
+
+
+### Code Refactoring
+
+* simplify ternary to or expression ([8f3739d](https://github.com/tjbaker/homeassistant-fansync/commit/8f3739d14506ee72f01752be812d785bb1262d66))
+
 ## [0.2.22](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.21...0.2.22) (2025-11-03)
 
 
