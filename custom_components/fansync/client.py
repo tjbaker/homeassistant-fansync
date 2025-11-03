@@ -102,11 +102,34 @@ class FanSyncClient:
             ssl_context.verify_mode = ssl.CERT_NONE
         return ssl_context
 
+    def _create_http_client(self, timeout: httpx.Timeout | None) -> httpx.Client:
+        """Create HTTP client for API authentication.
+
+        This is synchronous and performs blocking I/O internally
+        (httpx.Client creation loads SSL certificates via ssl.load_verify_locations),
+        so it must be called via hass.async_add_executor_job.
+        """
+        return httpx.Client(verify=self.verify_ssl, timeout=timeout)
+
+    def _http_login(self, url: str, headers: dict[str, str], json_data: dict[str, str]) -> str:
+        """Perform HTTP login request (blocking I/O).
+
+        This performs blocking HTTP I/O and must be called via
+        hass.async_add_executor_job from async code.
+
+        Returns the authentication token.
+        """
+        if self._http is None:
+            raise RuntimeError("HTTP client not initialized")
+        resp = self._http.post(url, headers=headers, json=json_data)
+        resp.raise_for_status()
+        return resp.json()["token"]
+
     async def async_connect(self):
         """Connect to FanSync cloud API and authenticate."""
         t0 = time.monotonic()
 
-        # HTTP authentication
+        # HTTP authentication (run in executor to avoid blocking event loop)
         timeout = None
         if self._http_timeout_s is not None:
             timeout_value = float(self._http_timeout_s)
@@ -116,16 +139,15 @@ class FanSyncClient:
                 write=timeout_value,
                 pool=timeout_value,
             )
-        self._http = httpx.Client(verify=self.verify_ssl, timeout=timeout)
 
+        # Create HTTP client in thread pool (avoids blocking on SSL cert loading)
+        self._http = await self.hass.async_add_executor_job(self._create_http_client, timeout)
+
+        # Perform HTTP login in thread pool (blocking I/O)
         url = "https://fanimation.apps.exosite.io/api:1/session"
-        resp = self._http.post(
-            url,
-            headers={"Content-Type": "application/json", "charset": "utf-8"},
-            json={"email": self.email, "password": self.password},
-        )
-        resp.raise_for_status()
-        token = resp.json()["token"]
+        headers = {"Content-Type": "application/json", "charset": "utf-8"}
+        json_data = {"email": self.email, "password": self.password}
+        token = await self.hass.async_add_executor_job(self._http_login, url, headers, json_data)
         self._token = token
 
         if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -435,18 +457,16 @@ class FanSyncClient:
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug("_ensure_ws_connected: reconnecting websocket")
 
-        # Refresh token if needed
+        # Refresh token if needed (run in executor to avoid blocking event loop)
         if not self._token and self._http:
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("_ensure_ws_connected: refreshing auth token")
             url = "https://fanimation.apps.exosite.io/api:1/session"
-            resp = self._http.post(
-                url,
-                headers={"Content-Type": "application/json", "charset": "utf-8"},
-                json={"email": self.email, "password": self.password},
+            headers = {"Content-Type": "application/json", "charset": "utf-8"}
+            json_data = {"email": self.email, "password": self.password}
+            self._token = await self.hass.async_add_executor_job(
+                self._http_login, url, headers, json_data
             )
-            resp.raise_for_status()
-            self._token = resp.json()["token"]
 
         # Reconnect WebSocket
         ws_timeout = (
