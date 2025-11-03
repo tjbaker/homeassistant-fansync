@@ -615,8 +615,9 @@ class FanSyncClient:
             if self._http is not None:
                 try:
                     # Using synchronous close() for httpx.Client (not AsyncClient).
-                    # This method is called via hass.async_add_executor_job() from __init__.py,
-                    # so it runs in a thread pool where blocking operations are safe.
+                    # In production, apply_timeouts() is called via hass.async_add_executor_job()
+                    # from __init__.py, so it runs in a thread pool where blocking is safe.
+                    # httpx.Client.close() is also non-blocking (just releases resources).
                     self._http.close()
                 except Exception as exc:
                     # Ignore errors closing previous HTTP client; log for diagnostics
