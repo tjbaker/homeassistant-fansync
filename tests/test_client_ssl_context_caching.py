@@ -10,10 +10,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for SSL context caching and WebSocket connection state checking."""
+"""Tests for SSL context caching and WebSocket connection state checking.
+
+Note: These tests intentionally access private attributes and methods to verify
+critical implementation details:
+- SSL context caching is a performance optimization that must be tested directly
+- Connection state checking prevents bugs that can't be observed through public API
+- Unit testing implementation details is appropriate for optimization verification
+"""
 
 import ssl
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
