@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.3.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.3.0...0.3.1) (2025-11-03)
+
+
+### Bug Fixes
+
+* require explicit SSL context for wss:// URIs ([930099b](https://github.com/tjbaker/homeassistant-fansync/commit/930099b234b9b4afe701177277bb3db85d2cd918))
+
+
+### Code Refactoring
+
+* simplify SSL context creation ([157378e](https://github.com/tjbaker/homeassistant-fansync/commit/157378e69b0cdddc108d018cda1943eabe12b3d2))
+
 ## [0.3.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.25...0.3.0) (2025-11-03)
 
 
