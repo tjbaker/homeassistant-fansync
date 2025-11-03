@@ -87,8 +87,8 @@ async def test_set_retries_on_closed_socket(hass: HomeAssistant, mock_websocket)
             yield _lst_device_ok("id")
             # Reconnect login after OSError
             yield _login_ok()
-            # Set ack after reconnect
-            yield json.dumps({"status": "ok", "response": "set", "id": 4})
+            # Set ack after reconnect (ID 3, allocated before OSError)
+            yield json.dumps({"status": "ok", "response": "set", "id": 3})
             # Keep recv loop alive
             while True:
                 yield TimeoutError("timeout")

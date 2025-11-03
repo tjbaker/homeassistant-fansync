@@ -108,14 +108,12 @@ async def test_set_uses_ack_status_when_present(hass: HomeAssistant, mock_websoc
             """Generator that simulates WebSocket recv with set ack."""
             yield _login_ok()
             yield _lst_device_ok("dev")
-            # Reconnect during async_set
-            yield _login_ok()
-            # Set ack with status
+            # Set ack with status (ID 3, no reconnect with state=OPEN)
             yield json.dumps(
                 {
                     "status": "ok",
                     "response": "set",
-                    "id": 4,
+                    "id": 3,
                     "data": {"status": {"H00": 0, "H02": 1}},
                 }
             )

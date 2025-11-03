@@ -81,7 +81,8 @@ class FanSyncClient:
         self._recv_task: asyncio.Task | None = None
         # Message routing: map request ID to Future for async_get_status/async_set
         self._pending_requests: dict[int, asyncio.Future] = {}
-        self._next_request_id: int = 1
+        # Start at 3 to avoid collision with hardcoded LOGIN(1) and LIST_DEVICES(2)
+        self._next_request_id: int = 3
         self._request_id_lock = asyncio.Lock()
         self.metrics = ConnectionMetrics()
 
@@ -497,7 +498,7 @@ class FanSyncClient:
             self._next_request_id += 1
 
         # Register a Future for this request
-        future: asyncio.Future = asyncio.Future()
+        future: asyncio.Future[dict[str, Any]] = asyncio.Future()
         self._pending_requests[request_id] = future
 
         try:
@@ -586,7 +587,7 @@ class FanSyncClient:
             self._next_request_id += 1
 
         # Register a Future for this request
-        future: asyncio.Future = asyncio.Future()
+        future: asyncio.Future[dict[str, Any]] = asyncio.Future()
         self._pending_requests[request_id] = future
 
         try:

@@ -136,7 +136,7 @@ def mock_websocket():
         try:
             data = json.loads(msg)
             mock_ws.sent_requests.append(data)
-        except Exception:
+        except json.JSONDecodeError:
             pass  # Ignore malformed messages in tests
 
     mock_ws.send = AsyncMock(side_effect=track_send)
