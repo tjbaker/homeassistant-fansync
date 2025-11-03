@@ -36,6 +36,7 @@ async def async_get_config_entry_diagnostics(
             "title": entry.title,
             "version": entry.version,
         },
+        "home_assistant_version": getattr(hass.config, "version", "unknown"),
         "coordinator": {},
         "client": {},
         "connection_analysis": {},
@@ -54,32 +55,18 @@ async def async_get_config_entry_diagnostics(
     # Client diagnostics
     if client:
         try:
-            device_ids = getattr(client, "device_ids", [])
-            diagnostics["client"] = {
-                "device_ids": device_ids,
-                "device_count": len(device_ids) if device_ids else 0,
-            }
+            # Use new comprehensive diagnostics method
+            if hasattr(client, "get_diagnostics_data"):
+                client_diag = client.get_diagnostics_data()
+                diagnostics.update(client_diag)
 
-            # Connection metrics
+            # Add device IDs
+            device_ids = getattr(client, "device_ids", [])
+            diagnostics["device_ids"] = device_ids
+
+            # Connection quality analysis
             if hasattr(client, "metrics"):
                 metrics = client.metrics
-                successful_commands = metrics.total_commands - metrics.failed_commands
-                diagnostics["connection_metrics"] = {
-                    "is_connected": metrics.is_connected,
-                    "total_commands": metrics.total_commands,
-                    "successful_commands": successful_commands,
-                    "failed_commands": metrics.failed_commands,
-                    "timed_out_commands": metrics.timed_out_commands,
-                    "websocket_reconnects": metrics.websocket_reconnects,
-                    "websocket_errors": metrics.websocket_errors,
-                    "push_updates_received": metrics.push_updates_received,
-                    "average_latency_ms": round(metrics.avg_latency_ms, 2),
-                    "max_latency_ms": round(metrics.max_latency_ms, 2),
-                    "failure_rate": round(metrics.failure_rate, 3),
-                    "timeout_rate": round(metrics.timeout_rate, 3),
-                }
-
-                # Connection quality analysis
                 analysis = _analyze_connection_quality(metrics)
                 diagnostics["connection_analysis"] = analysis
 

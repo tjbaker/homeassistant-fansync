@@ -1,0 +1,111 @@
+name: Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! 
+        
+        Please provide details about what you'd like to see added or improved.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: What problem would this feature solve? What's your use case?
+      placeholder: |
+        Example: I want to create automations that respond to fan speed changes, but there's no sensor entity for current fan speed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this feature to work?
+      placeholder: |
+        Example: Add a sensor entity that reports the current fan speed as a percentage (0-100).
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any alternative solutions or workarounds?
+      placeholder: |
+        Example: I could poll the fan entity state repeatedly, but a dedicated sensor would be cleaner.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: What area does this feature relate to?
+      options:
+        - Fan control (speed, direction, presets)
+        - Light control (brightness, on/off)
+        - Sensors (new sensor entities)
+        - Automations (triggers, conditions, actions)
+        - Configuration (new options)
+        - Diagnostics (troubleshooting, logging)
+        - Performance (speed, efficiency)
+        - User Interface (cards, UI improvements)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority (Your Opinion)
+      description: How important is this feature to you?
+      options:
+        - Nice to have
+        - Would be useful
+        - Would significantly improve my experience
+        - Critical for my use case
+    validations:
+      required: false
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples
+      description: |
+        Provide examples of how this feature would be used.
+        If applicable, include:
+        - Example automations
+        - Screenshot mockups
+        - Links to similar features in other integrations
+      placeholder: |
+        Example automation:
+        ```yaml
+        automation:
+          - trigger:
+              platform: numeric_state
+              entity_id: sensor.bedroom_fan_speed
+              above: 75
+            action:
+              service: notify.mobile_app
+              data:
+                message: "Bedroom fan running at high speed"
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other information that might be relevant
+      placeholder: |
+        - Similar feature in other integrations: Home Assistant's built-in Xiaomi fan integration has this
+        - Technical considerations: Fan speed is already available in state attributes
+        - Related issues: #123
+    validations:
+      required: false
+

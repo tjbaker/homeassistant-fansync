@@ -1,0 +1,126 @@
+name: Bug Report
+description: Report a bug (not related to connection issues)
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! 
+        
+        **Note**: For connection-related issues, please use the [Connection Issue](https://github.com/tjbaker/homeassistant-fansync/issues/new?template=connection_issue.yml) template instead.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: What's the bug? What did you expect to happen?
+      placeholder: |
+        Example: When I set fan speed to 50%, the fan entity shows 50% but the actual fan runs at 100%.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this bug?
+      placeholder: |
+        1. Go to Home Assistant dashboard
+        2. Set fan speed to 50%
+        3. Observe fan running at full speed
+        4. Check entity state - shows 50%
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should happen?
+      placeholder: Fan should run at 50% speed
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happens?
+      placeholder: Fan runs at 100% speed despite entity showing 50%
+    validations:
+      required: true
+
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant Version
+      placeholder: "2025.10.4"
+    validations:
+      required: true
+
+  - type: input
+    id: integration-version
+    attributes:
+      label: FanSync Integration Version
+      placeholder: "0.3.4"
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics File (Optional)
+      description: |
+        Attach diagnostics file if relevant:
+        1. Go to **Settings** → **Devices & Services** → **FanSync** → **⋮** → **Download Diagnostics**
+        2. Attach the JSON file here
+      placeholder: Drag and drop diagnostics JSON file here
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs (Optional)
+      description: |
+        Enable debug logging for all relevant components:
+        ```yaml
+        logger:
+          default: info
+          logs:
+            custom_components.fansync: debug
+            httpcore: debug
+            httpx: debug
+            websockets: debug
+        ```
+        Then restart Home Assistant and reproduce the issue.
+      placeholder: Paste relevant logs here
+      render: shell
+    validations:
+      required: false
+
+  - type: dropdown
+    id: affects-version
+    attributes:
+      label: Did This Work in a Previous Version?
+      options:
+        - This is a new issue
+        - This worked in a previous version (regression)
+        - I don't know
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other relevant information
+      placeholder: |
+        - Fan model: Fanimation Studio Collection
+        - Number of fans: 2
+        - Has light: Yes
+        - Other observations: Issue only happens after Home Assistant restart
+    validations:
+      required: false
+
