@@ -176,13 +176,33 @@ Any changes should be made there; this file syncs automatically via pre-commit h
   - Executor jobs run in thread pool, keeping event loop responsive
 
 # Quality Checklist (before committing)
+**IMPORTANT**: Run through this checklist before every commit to catch issues early
+and reduce review cycles. Items below capture common issues found in code reviews.
+
+## Code Quality
+- [ ] All function parameters have type hints (including nested helper functions in tests)
+- [ ] All functions have return type annotations (-> None, -> str, -> dict[str, Any])
+- [ ] No unused imports (every import is actually used in the file)
+- [ ] Public API used consistently (not private attributes like _device_profile)
+- [ ] hasattr() checks used for optional methods (not try/except AttributeError)
+- [ ] Tuples used for any() when appropriate (not lists)
+- [ ] Magic numbers extracted to named constants in const.py
+- [ ] Comments explain non-obvious trade-offs and design decisions
+
+## Testing
 - [ ] All tests pass (pytest)
 - [ ] Code coverage ≥ 75% (pytest --cov)
+- [ ] New functionality has corresponding tests
+- [ ] Debug logging tested with caplog
+- [ ] Test helper functions have type annotations
+
+## Linting & Formatting
 - [ ] No type errors (mypy custom_components/fansync --check-untyped-defs)
 - [ ] No linting errors (ruff check)
 - [ ] Code formatted (black --check)
+- [ ] Required headers present in Python/YAML files (SPDX + Apache-2.0)
+
+## Git & Documentation
 - [ ] Commit message follows Conventional Commits and ≤ 72 char subject
 - [ ] Non-trivial changes have detailed commit body
-- [ ] New functionality has corresponding tests
-- [ ] Debug logging tested with caplog
-- [ ] Required headers present in Python/YAML files (SPDX + Apache-2.0)
+- [ ] Docstrings added for complex logic or trade-offs
