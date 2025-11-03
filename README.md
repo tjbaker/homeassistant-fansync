@@ -72,10 +72,10 @@ Set via: Settings → Devices & Services → FanSync → Configure → Options.
 
 If setup fails, capture diagnostics so we can help:
 - Enable temporary debug logging via `logger.set_level` and reproduce the issue.
-- Include HTTP stack (`httpcore`, `httpx`) and `custom_components.fansync` lines.
+- Include HTTP stack (`httpcore`, `httpx`), WebSocket (`websockets`), and `custom_components.fansync` lines.
 - Afterwards, restore defaults or restart.
 
-Full instructions (including persistent logging) are in `CONTRIBUTING.md` under “How to contribute → Open an issue (with logs)”.
+Full instructions (including persistent logging) are in `CONTRIBUTING.md` under "How to contribute → Open an issue (with logs)".
 Reference: Home Assistant docs: https://www.home-assistant.io/docs/configuration/troubleshooting/#enabling-debug-logging
 
 ## Contributing

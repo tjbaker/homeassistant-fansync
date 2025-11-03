@@ -29,9 +29,10 @@ Thanks for your interest in contributing! Community pull requests and issues are
   - During initial login (config flow), enable HTTP stack logging so auth errors/timeouts are visible.
     - Developer Tools → Services → `logger.set_level` → Data:
       ```yaml
-      httpcore: debug
-      httpx: debug
-      custom_components.fansync: debug
+      httpcore: debug           # HTTP auth/login
+      httpx: debug              # HTTP client
+      websockets: debug         # WebSocket connections (v0.3.0+)
+      custom_components.fansync: debug  # Integration logic
       ```
     - Reproduce the problem, then restore defaults via `logger.set_default_level` (or restart).
     - Persistent alternative (advanced): add to `configuration.yaml` and restart:
@@ -39,9 +40,10 @@ Thanks for your interest in contributing! Community pull requests and issues are
       logger:
         default: info
         logs:
-          httpcore: debug
-          httpx: debug
-          custom_components.fansync: debug
+          httpcore: debug       # HTTP auth/login
+          httpx: debug          # HTTP client
+          websockets: debug     # WebSocket connections (v0.3.0+)
+          custom_components.fansync: debug  # Integration logic
       ```
     - Include:
       - HTTP POST to FanSync session endpoint and response/timeout lines (`httpcore`/`httpx`).
