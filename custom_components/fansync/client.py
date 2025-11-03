@@ -264,7 +264,9 @@ class FanSyncClient:
                 total_connect_ms / 1000,
             )
 
-        # Start background receive loop (required for message routing)
+        # Start background receive loop.
+        # This is required for both request/response routing via the Future-based
+        # message routing system and for push updates from the server.
         self._recv_task = asyncio.create_task(self._recv_loop())
 
     async def async_disconnect(self):
@@ -344,13 +346,12 @@ class FanSyncClient:
                 request_id = payload.get("id")
                 if request_id is not None and request_id in self._pending_requests:
                     future = self._pending_requests.pop(request_id)
-                    if not future.done():
-                        try:
-                            future.set_result(payload)
-                        except asyncio.InvalidStateError:
-                            # Future was cancelled between done() check and set_result().
-                            # This can happen if request timed out just before response arrived.
-                            pass
+                    try:
+                        future.set_result(payload)
+                    except asyncio.InvalidStateError:
+                        # Future was cancelled or already completed before set_result().
+                        # This can happen if request timed out just before response arrived.
+                        pass
                     # Skip push update processing for request/response pairs.
                     # Status callbacks for set acks are handled in async_set to avoid duplication.
                     continue
