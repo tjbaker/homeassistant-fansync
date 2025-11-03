@@ -12,8 +12,6 @@
 
 """Diagnostics support for FanSync."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -27,111 +25,165 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
     shared = hass.data[DOMAIN][entry.entry_id]
-    client = shared["client"]
-    coordinator = shared["coordinator"]
-    platforms = shared.get("platforms", [])
+    client = shared.get("client")
+    coordinator = shared.get("coordinator")
 
-    # Gather connection metrics
-    connection_quality = _analyze_connection_quality(client, coordinator)
-    metrics_data = client.metrics.to_dict() if hasattr(client, "metrics") else {}
-
-    diagnostics = {
+    diagnostics: dict[str, Any] = {
         "config_entry": {
             "entry_id": entry.entry_id,
+            "title": entry.title,
             "version": entry.version,
-            "options": dict(entry.options),
         },
-        "client": {
-            "device_count": len(client.device_ids) if hasattr(client, "device_ids") else 0,
-            "primary_device_id": client.device_id if hasattr(client, "device_id") else None,
-            "verify_ssl": client.verify_ssl if hasattr(client, "verify_ssl") else None,
-            "push_enabled": (
-                client._enable_push if hasattr(client, "_enable_push") else None  # noqa: SLF001
-            ),
-            "http_timeout_s": (
-                client._http_timeout_s
-                if hasattr(client, "_http_timeout_s")
-                else None  # noqa: SLF001
-            ),
-            "ws_timeout_s": (
-                client._ws_timeout_s if hasattr(client, "_ws_timeout_s") else None  # noqa: SLF001
-            ),
-        },
-        "coordinator": {
-            "update_interval_seconds": (
-                coordinator.update_interval.total_seconds() if coordinator.update_interval else None
+        "coordinator": {},
+        "client": {},
+        "connection_analysis": {},
+    }
+
+    # Coordinator diagnostics
+    if coordinator:
+        diagnostics["coordinator"] = {
+            "update_interval": (
+                str(coordinator.update_interval) if coordinator.update_interval else None
             ),
             "last_update_success": coordinator.last_update_success,
             "device_count": len(coordinator.data) if coordinator.data else 0,
-        },
-        "platforms_loaded": platforms,
-        "metrics": metrics_data,
-        "connection_quality": connection_quality,
-    }
+        }
+
+    # Client diagnostics
+    if client:
+        try:
+            device_ids = getattr(client, "device_ids", [])
+            diagnostics["client"] = {
+                "device_ids": device_ids,
+                "device_count": len(device_ids) if device_ids else 0,
+            }
+
+            # Connection metrics
+            if hasattr(client, "metrics"):
+                metrics = client.metrics
+                successful_commands = metrics.total_commands - metrics.failed_commands
+                diagnostics["connection_metrics"] = {
+                    "is_connected": metrics.is_connected,
+                    "total_commands": metrics.total_commands,
+                    "successful_commands": successful_commands,
+                    "failed_commands": metrics.failed_commands,
+                    "timed_out_commands": metrics.timed_out_commands,
+                    "websocket_reconnects": metrics.websocket_reconnects,
+                    "websocket_errors": metrics.websocket_errors,
+                    "push_updates_received": metrics.push_updates_received,
+                    "average_latency_ms": round(metrics.avg_latency_ms, 2),
+                    "max_latency_ms": round(metrics.max_latency_ms, 2),
+                    "failure_rate": round(metrics.failure_rate, 3),
+                    "timeout_rate": round(metrics.timeout_rate, 3),
+                }
+
+                # Connection quality analysis
+                analysis = _analyze_connection_quality(metrics)
+                diagnostics["connection_analysis"] = analysis
+
+            # Device profiles (sanitized)
+            if hasattr(client, "_device_profile"):
+                profiles = {}
+                for device_id in device_ids:
+                    profile = client.device_profile(device_id)
+                    if profile:
+                        # Include useful metadata, exclude sensitive data
+                        sanitized = {}
+                        if "esh" in profile:
+                            sanitized["esh"] = {
+                                "model": profile["esh"].get("model"),
+                                "brand": profile["esh"].get("brand"),
+                            }
+                        if "module" in profile:
+                            sanitized["module"] = {
+                                "firmware_version": profile["module"].get("firmware_version"),
+                                "mac_address": profile["module"].get("mac_address"),
+                            }
+                        profiles[device_id] = sanitized
+                diagnostics["device_profiles"] = profiles
+
+        except Exception as err:
+            diagnostics["client_error"] = str(err)
 
     return diagnostics
 
 
-def _analyze_connection_quality(client, coordinator) -> dict[str, Any]:
-    """Analyze connection quality and provide recommendations."""
+def _analyze_connection_quality(metrics: Any) -> dict[str, Any]:
+    """Analyze connection metrics and provide recommendations."""
     analysis: dict[str, Any] = {
-        "status": "unknown",
+        "quality": "unknown",
+        "issues": [],
         "recommendations": [],
     }
 
-    # Check if we have metrics
-    if hasattr(client, "metrics"):
-        metrics = client.metrics
+    if not metrics.is_connected:
+        analysis["quality"] = "disconnected"
+        analysis["issues"].append("Not currently connected to FanSync API")
+        analysis["recommendations"].append("Check network connectivity and credentials")
+        return analysis
 
-        # Determine overall status
-        if not metrics.is_connected:
-            analysis["status"] = "disconnected"
-            analysis["recommendations"].append(
-                "Client is not connected. Check network connectivity."
-            )
-        elif metrics.should_warn_user():
-            analysis["status"] = "poor"
-            if metrics.timeout_rate > 0.3:
-                analysis["recommendations"].append(
-                    f"High timeout rate ({metrics.timeout_rate:.1%}). "
-                    "Consider increasing WebSocket timeout in Options."
-                )
-            if metrics.avg_latency_ms > 5000:
-                analysis["recommendations"].append(
-                    f"High average latency ({metrics.avg_latency_ms:.0f}ms). "
-                    "Check network quality or increase timeouts."
-                )
-        elif metrics.consecutive_failures >= 3:
-            analysis["status"] = "degraded"
-            analysis["recommendations"].append(
-                f"Multiple consecutive failures ({metrics.consecutive_failures}). "
-                "Device may be offline or unreachable."
-            )
-        elif metrics.websocket_reconnects > 10:
-            analysis["status"] = "unstable"
-            analysis["recommendations"].append(
-                f"Frequent reconnections ({metrics.websocket_reconnects} total). "
-                "Network connection may be unstable."
-            )
-        elif coordinator.last_update_success and coordinator.data:
-            analysis["status"] = "healthy"
-        else:
-            analysis["status"] = "initializing"
+    if metrics.total_commands == 0:
+        analysis["quality"] = "no_data"
+        analysis["issues"].append("No commands have been sent yet")
+        return analysis
 
-        # Additional recommendations based on metrics
-        if metrics.push_updates_received == 0 and metrics.total_commands > 10:
-            analysis["recommendations"].append(
-                "No push updates received. Verify push is enabled and device supports it."
-            )
+    # Calculate metrics
+    success_rate = 1.0 - metrics.failure_rate
+    avg_latency = metrics.avg_latency_ms
 
-    elif not coordinator.last_update_success:
-        analysis["status"] = "degraded"
-        analysis["recommendations"].append(
-            "Last update failed. Check network connectivity and device availability."
-        )
-    elif coordinator.data:
-        analysis["status"] = "healthy"
+    # Determine quality
+    if success_rate >= 0.95 and avg_latency < 1000:
+        analysis["quality"] = "excellent"
+    elif success_rate >= 0.90 and avg_latency < 2000:
+        analysis["quality"] = "good"
+    elif success_rate >= 0.75 and avg_latency < 5000:
+        analysis["quality"] = "fair"
     else:
-        analysis["status"] = "initializing"
+        analysis["quality"] = "poor"
+
+    # Identify issues
+    if success_rate < 0.90:
+        failed = metrics.failed_commands
+        total = metrics.total_commands
+        analysis["issues"].append(
+            f"Low success rate: {success_rate:.1%} ({failed}/{total} failures)"
+        )
+
+    if metrics.timeout_rate > 0.1:
+        timeouts = metrics.timed_out_commands
+        total = metrics.total_commands
+        analysis["issues"].append(f"High timeout rate: {timeouts} timeouts out of {total} commands")
+
+    if avg_latency > 2000:
+        analysis["issues"].append(f"High average latency: {avg_latency:.0f}ms")
+
+    if metrics.websocket_reconnects > 5:
+        analysis["issues"].append(
+            f"Frequent reconnections: {metrics.websocket_reconnects} reconnects"
+        )
+
+    # Provide recommendations
+    if avg_latency > 2000:
+        analysis["recommendations"].append(
+            "Consider increasing WebSocket timeout in integration options"
+        )
+
+    if metrics.timed_out_commands > 0:
+        analysis["recommendations"].append(
+            "Network latency may be high - check WiFi signal strength"
+        )
+
+    if metrics.websocket_reconnects > 5:
+        analysis["recommendations"].append(
+            "Unstable connection - verify network stability and router settings"
+        )
+
+    if success_rate < 0.75:
+        analysis["recommendations"].append(
+            "Poor connection quality - consider restarting Home Assistant or the FanSync device"
+        )
+
+    if not analysis["issues"]:
+        analysis["recommendations"].append("Connection is healthy - no action needed")
 
     return analysis
