@@ -10,7 +10,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test WebSocket timeout exception handling in FanSyncClient."""
+"""Test WebSocket timeout exception handling in FanSyncClient.
+
+Note on generator pattern for mock side_effect:
+When a generator yields an exception instance (e.g., TimeoutError("msg")),
+unittest.mock's AsyncMock automatically RAISES that exception instead of
+returning it. This is the correct pattern - do NOT change yield to raise
+in the generator, as that would exhaust the generator prematurely.
+See: https://docs.python.org/3/library/unittest.mock.html#unittest.mock.Mock.side_effect
+"""
 
 from __future__ import annotations
 
