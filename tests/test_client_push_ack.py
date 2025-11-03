@@ -64,6 +64,8 @@ async def test_set_ack_status_immediate_push(hass: HomeAssistant, mock_websocket
             # Keep loop alive
             while True:
                 yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket

@@ -49,21 +49,27 @@ async def test_client_push_loop_invokes_callback(hass: HomeAssistant):
         http.post.return_value.raise_for_status.return_value = None
         ws = ws_connect.return_value
         ws.connect.return_value = None
+
         # Return login, device list, then a push event
-        ws.recv.side_effect = [
-            _login_ok(),
-            _lst_device_ok("dev"),
-            _push_status({"H00": 1, "H02": 44, "H06": 0, "H01": 0}),
-        ]
+        def recv_generator():
+            yield _login_ok()
+            yield _lst_device_ok("dev")
+            yield _push_status({"H00": 1, "H02": 44, "H06": 0, "H01": 0})
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        ws.recv.side_effect = recv_generator()
 
         c.set_status_callback(lambda s: seen.append(s))
         await c.async_connect()
 
-    # Allow thread to run once via event loop iterations
-    for _ in range(3):
-        await hass.async_block_till_done()
+        try:
+            # Allow thread to run once via event loop iterations
+            for _ in range(3):
+                await hass.async_block_till_done()
 
-    assert any(s.get("H02") == 44 for s in seen)
-
-    # Ensure background thread is stopped to avoid lingering thread error
-    await c.async_disconnect()
+            assert any(s.get("H02") == 44 for s in seen)
+        finally:
+            await c.async_disconnect()

@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -26,18 +27,27 @@ from custom_components.fansync.client import FanSyncClient
 
 @pytest.mark.asyncio
 async def test_profile_caching_success(
-    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant, mock_websocket, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test successful profile caching during get_status."""
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
-    mock_ws = MagicMock()
-    mock_ws.send = AsyncMock()
-    mock_ws.recv = AsyncMock(
-        return_value=json.dumps(
+    def recv_generator():
+        """Generator that provides responses in order."""
+        # Initial connection: login (id=1), lst_device (id=2)
+        yield json.dumps({"response": "login", "status": "ok", "id": 1})
+        yield json.dumps(
+            {"response": "lst_device", "data": [{"device": "test_device_123"}], "id": 2}
+        )
+        # Wait for get request to be sent (login=1, lst=2, get=3)
+        while len(mock_websocket.sent_requests) < 3:
+            yield TimeoutError("waiting for get request")
+        get_request_id = mock_websocket.sent_requests[2]["id"]
+        # Return get response with profile
+        yield json.dumps(
             {
                 "response": "get",
-                "id": 3,
+                "id": get_request_id,
                 "data": {
                     "status": {"H00": 1, "H02": 50},
                     "profile": {
@@ -50,15 +60,26 @@ async def test_profile_caching_success(
                 },
             }
         )
-    )
-    mock_ws.close = AsyncMock()
+        # Keep recv loop alive
+        while True:
+            yield TimeoutError("timeout")
+            yield TimeoutError("timeout")
+            yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
     with (
-        patch.object(client, "_ws", mock_ws),
-        patch.object(client, "_ensure_ws_connected", new_callable=AsyncMock),
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
         caplog.at_level(logging.DEBUG, logger="custom_components.fansync.client"),
     ):
-        client._device_id = "test_device_123"
+        http = http_cls.return_value
+        http.post.return_value.json.return_value = {"token": "test_token"}
+        http.post.return_value.raise_for_status = lambda: None
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
+
+        await client.async_connect()
 
         status = await client.async_get_status()
 
@@ -79,35 +100,53 @@ async def test_profile_caching_success(
             for record in caplog.records
         )
 
+        # Clean up
+        await client.async_disconnect()
+
 
 @pytest.mark.asyncio
 async def test_profile_caching_no_profile_in_response(
-    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant, mock_websocket, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test that missing profile in response doesn't cause errors."""
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
-    mock_ws = MagicMock()
-    mock_ws.send = AsyncMock()
-    mock_ws.recv = AsyncMock(
-        return_value=json.dumps(
+    def recv_generator():
+        """Generator that provides responses in order."""
+        yield json.dumps({"response": "login", "status": "ok", "id": 1})
+        yield json.dumps(
+            {"response": "lst_device", "data": [{"device": "test_device_456"}], "id": 2}
+        )
+        while len(mock_websocket.sent_requests) < 3:
+            yield TimeoutError("waiting for get request")
+        get_request_id = mock_websocket.sent_requests[2]["id"]
+        yield json.dumps(
             {
                 "response": "get",
-                "id": 3,
+                "id": get_request_id,
                 "data": {"status": {"H00": 1, "H02": 50}},
                 # No "profile" key
             }
         )
-    )
-    mock_ws.close = AsyncMock()
+        while True:
+            yield TimeoutError("timeout")
+            yield TimeoutError("timeout")
+            yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
     with (
-        patch.object(client, "_ws", mock_ws),
-        patch.object(client, "_ensure_ws_connected", new_callable=AsyncMock),
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
         caplog.at_level(logging.DEBUG, logger="custom_components.fansync.client"),
     ):
-        client._device_id = "test_device_456"
+        http = http_cls.return_value
+        http.post.return_value.json.return_value = {"token": "test_token"}
+        http.post.return_value.raise_for_status = lambda: None
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
 
+        await client.async_connect()
         status = await client.async_get_status()
 
         # Verify status was still returned
@@ -123,37 +162,54 @@ async def test_profile_caching_no_profile_in_response(
             "profile cached for test_device_456" in record.message for record in caplog.records
         )
 
+        await client.async_disconnect()
+
 
 @pytest.mark.asyncio
 async def test_profile_caching_empty_profile(
-    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant, mock_websocket, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test that empty profile dict is handled correctly."""
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
-    mock_ws = MagicMock()
-    mock_ws.send = AsyncMock()
-    mock_ws.recv = AsyncMock(
-        return_value=json.dumps(
+    def recv_generator():
+        """Generator that provides responses in order."""
+        yield json.dumps({"response": "login", "status": "ok", "id": 1})
+        yield json.dumps(
+            {"response": "lst_device", "data": [{"device": "test_device_789"}], "id": 2}
+        )
+        while len(mock_websocket.sent_requests) < 3:
+            yield TimeoutError("waiting for get request")
+        get_request_id = mock_websocket.sent_requests[2]["id"]
+        yield json.dumps(
             {
                 "response": "get",
-                "id": 3,
+                "id": get_request_id,
                 "data": {
                     "status": {"H00": 0, "H02": 0},
                     "profile": {},  # Empty profile
                 },
             }
         )
-    )
-    mock_ws.close = AsyncMock()
+        while True:
+            yield TimeoutError("timeout")
+            yield TimeoutError("timeout")
+            yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
     with (
-        patch.object(client, "_ws", mock_ws),
-        patch.object(client, "_ensure_ws_connected", new_callable=AsyncMock),
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
         caplog.at_level(logging.DEBUG, logger="custom_components.fansync.client"),
     ):
-        client._device_id = "test_device_789"
+        http = http_cls.return_value
+        http.post.return_value.json.return_value = {"token": "test_token"}
+        http.post.return_value.raise_for_status = lambda: None
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
 
+        await client.async_connect()
         status = await client.async_get_status()
 
         # Verify status was returned
@@ -168,36 +224,51 @@ async def test_profile_caching_empty_profile(
             "profile cached for test_device_789" in record.message for record in caplog.records
         )
 
+        await client.async_disconnect()
+
 
 @pytest.mark.asyncio
 async def test_profile_caching_with_keyerror(
-    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant, mock_websocket, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test that KeyError during profile caching is handled gracefully."""
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
-    mock_ws = MagicMock()
-    mock_ws.send = AsyncMock()
-    # Response with malformed data structure
-    mock_ws.recv = AsyncMock(
-        return_value=json.dumps(
+    def recv_generator():
+        yield json.dumps({"response": "login", "status": "ok", "id": 1})
+        yield json.dumps(
+            {"response": "lst_device", "data": [{"device": "test_device_error"}], "id": 2}
+        )
+        while len(mock_websocket.sent_requests) < 3:
+            yield TimeoutError("waiting for get request")
+        get_request_id = mock_websocket.sent_requests[2]["id"]
+        yield json.dumps(
             {
                 "response": "get",
-                "id": 3,
+                "id": get_request_id,
                 "data": {"status": {"H00": 1}},
-                # "data" key exists but will cause issues in caching logic
+                # "data" key exists but no profile
             }
         )
-    )
-    mock_ws.close = AsyncMock()
+        while True:
+            yield TimeoutError("timeout")
+            yield TimeoutError("timeout")
+            yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
     with (
-        patch.object(client, "_ws", mock_ws),
-        patch.object(client, "_ensure_ws_connected", new_callable=AsyncMock),
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
         caplog.at_level(logging.DEBUG, logger="custom_components.fansync.client"),
     ):
-        client._device_id = "test_device_error"
+        http = http_cls.return_value
+        http.post.return_value.json.return_value = {"token": "test_token"}
+        http.post.return_value.raise_for_status = lambda: None
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
 
+        await client.async_connect()
         # Should not raise exception
         status = await client.async_get_status()
 
@@ -208,38 +279,53 @@ async def test_profile_caching_with_keyerror(
         profile = client.device_profile("test_device_error")
         assert profile == {}
 
+        await client.async_disconnect()
+
 
 @pytest.mark.asyncio
 async def test_profile_caching_with_wrong_type(
-    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant, mock_websocket, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test that non-dict profile is ignored (not cached)."""
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
-    mock_ws = MagicMock()
-    mock_ws.send = AsyncMock()
-    # Response with non-dict profile (silently ignored)
-    mock_ws.recv = AsyncMock(
-        return_value=json.dumps(
+    def recv_generator():
+        yield json.dumps({"response": "login", "status": "ok", "id": 1})
+        yield json.dumps(
+            {"response": "lst_device", "data": [{"device": "test_device_type_error"}], "id": 2}
+        )
+        while len(mock_websocket.sent_requests) < 3:
+            yield TimeoutError("waiting for get request")
+        get_request_id = mock_websocket.sent_requests[2]["id"]
+        yield json.dumps(
             {
                 "response": "get",
-                "id": 3,
+                "id": get_request_id,
                 "data": {
                     "status": {"H00": 1, "H02": 25},
                     "profile": "not_a_dict",  # Wrong type - will be ignored
                 },
             }
         )
-    )
-    mock_ws.close = AsyncMock()
+        while True:
+            yield TimeoutError("timeout")
+            yield TimeoutError("timeout")
+            yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
     with (
-        patch.object(client, "_ws", mock_ws),
-        patch.object(client, "_ensure_ws_connected", new_callable=AsyncMock),
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
         caplog.at_level(logging.DEBUG, logger="custom_components.fansync.client"),
     ):
-        client._device_id = "test_device_type_error"
+        http = http_cls.return_value
+        http.post.return_value.json.return_value = {"token": "test_token"}
+        http.post.return_value.raise_for_status = lambda: None
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
 
+        await client.async_connect()
         # Should not raise exception
         status = await client.async_get_status()
 
@@ -256,49 +342,67 @@ async def test_profile_caching_with_wrong_type(
             for record in caplog.records
         )
 
+        await client.async_disconnect()
+
 
 @pytest.mark.asyncio
-async def test_profile_caching_multiple_devices(hass: HomeAssistant) -> None:
+async def test_profile_caching_multiple_devices(hass: HomeAssistant, mock_websocket) -> None:
     """Test that profiles are cached separately for different devices."""
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
-    mock_ws = MagicMock()
-    mock_ws.send = AsyncMock()
-    mock_ws.close = AsyncMock()
+    def recv_generator():
+        yield json.dumps({"response": "login", "status": "ok", "id": 1})
+        yield json.dumps({"response": "lst_device", "data": [{"device": "device_1"}], "id": 2})
+        # First get request for device_1
+        while len(mock_websocket.sent_requests) < 3:
+            yield TimeoutError("waiting for first get request")
+        yield json.dumps(
+            {
+                "response": "get",
+                "id": mock_websocket.sent_requests[2]["id"],
+                "data": {
+                    "status": {"H00": 1},
+                    "profile": {"module": {"mac_address": "AA:BB:CC:DD:EE:FF"}},
+                },
+            }
+        )
+        # Second get request for device_2
+        while len(mock_websocket.sent_requests) < 4:
+            yield TimeoutError("waiting for second get request")
+        yield json.dumps(
+            {
+                "response": "get",
+                "id": mock_websocket.sent_requests[3]["id"],
+                "data": {
+                    "status": {"H00": 1},
+                    "profile": {"module": {"mac_address": "11:22:33:44:55:66"}},
+                },
+            }
+        )
+        while True:
+            yield TimeoutError("timeout")
+            yield TimeoutError("timeout")
+            yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
     with (
-        patch.object(client, "_ws", mock_ws),
-        patch.object(client, "_ensure_ws_connected", new_callable=AsyncMock),
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
+        http = http_cls.return_value
+        http.post.return_value.json.return_value = {"token": "test_token"}
+        http.post.return_value.raise_for_status = lambda: None
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
+
+        await client.async_connect()
+
         # First device
-        mock_ws.recv = AsyncMock(
-            return_value=json.dumps(
-                {
-                    "response": "get",
-                    "id": 3,
-                    "data": {
-                        "status": {"H00": 1},
-                        "profile": {"module": {"mac_address": "AA:BB:CC:DD:EE:FF"}},
-                    },
-                }
-            )
-        )
         client._device_id = "device_1"
         await client.async_get_status()
 
         # Second device with different profile
-        mock_ws.recv = AsyncMock(
-            return_value=json.dumps(
-                {
-                    "response": "get",
-                    "id": 4,
-                    "data": {
-                        "status": {"H00": 1},
-                        "profile": {"module": {"mac_address": "11:22:33:44:55:66"}},
-                    },
-                }
-            )
-        )
         client._device_id = "device_2"
         await client.async_get_status()
 
@@ -309,85 +413,117 @@ async def test_profile_caching_multiple_devices(hass: HomeAssistant) -> None:
         assert profile_1["module"]["mac_address"] == "AA:BB:CC:DD:EE:FF"
         assert profile_2["module"]["mac_address"] == "11:22:33:44:55:66"
 
+        await client.async_disconnect()
+
 
 @pytest.mark.asyncio
-async def test_profile_caching_updates_existing(hass: HomeAssistant) -> None:
+async def test_profile_caching_updates_existing(hass: HomeAssistant, mock_websocket) -> None:
     """Test that profile cache is updated if device profile changes."""
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
-    mock_ws = MagicMock()
-    mock_ws.send = AsyncMock()
-    mock_ws.close = AsyncMock()
+    def recv_generator():
+        yield json.dumps({"response": "login", "status": "ok", "id": 1})
+        yield json.dumps({"response": "lst_device", "data": [{"device": "test_device"}], "id": 2})
+        # First get request
+        while len(mock_websocket.sent_requests) < 3:
+            yield TimeoutError("waiting for first get request")
+        yield json.dumps(
+            {
+                "response": "get",
+                "id": mock_websocket.sent_requests[2]["id"],
+                "data": {
+                    "status": {"H00": 1},
+                    "profile": {"module": {"firmware_version": "1.0.0"}},
+                },
+            }
+        )
+        # Second get request
+        while len(mock_websocket.sent_requests) < 4:
+            yield TimeoutError("waiting for second get request")
+        yield json.dumps(
+            {
+                "response": "get",
+                "id": mock_websocket.sent_requests[3]["id"],
+                "data": {
+                    "status": {"H00": 1},
+                    "profile": {"module": {"firmware_version": "2.0.0"}},
+                },
+            }
+        )
+        while True:
+            yield TimeoutError("timeout")
+            yield TimeoutError("timeout")
+            yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
     with (
-        patch.object(client, "_ws", mock_ws),
-        patch.object(client, "_ensure_ws_connected", new_callable=AsyncMock),
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
+        http = http_cls.return_value
+        http.post.return_value.json.return_value = {"token": "test_token"}
+        http.post.return_value.raise_for_status = lambda: None
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
+
+        await client.async_connect()
         client._device_id = "test_device"
 
         # First call - initial profile
-        mock_ws.recv = AsyncMock(
-            return_value=json.dumps(
-                {
-                    "response": "get",
-                    "id": 3,
-                    "data": {
-                        "status": {"H00": 1},
-                        "profile": {"module": {"firmware_version": "1.0.0"}},
-                    },
-                }
-            )
-        )
         await client.async_get_status()
 
         profile = client.device_profile("test_device")
         assert profile["module"]["firmware_version"] == "1.0.0"
 
         # Second call - updated profile
-        mock_ws.recv = AsyncMock(
-            return_value=json.dumps(
-                {
-                    "response": "get",
-                    "id": 4,
-                    "data": {
-                        "status": {"H00": 1},
-                        "profile": {"module": {"firmware_version": "2.0.0"}},
-                    },
-                }
-            )
-        )
         await client.async_get_status()
 
         # Verify profile was updated
         profile = client.device_profile("test_device")
         assert profile["module"]["firmware_version"] == "2.0.0"
 
+        await client.async_disconnect()
+
 
 @pytest.mark.asyncio
-async def test_profile_retrieval_returns_shallow_copy(hass: HomeAssistant) -> None:
+async def test_profile_retrieval_returns_shallow_copy(hass: HomeAssistant, mock_websocket) -> None:
     """Test that device_profile() returns a shallow copy (top-level keys safe)."""
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
-    mock_ws = MagicMock()
-    mock_ws.send = AsyncMock()
-    mock_ws.recv = AsyncMock(
-        return_value=json.dumps(
+    def recv_generator():
+        yield json.dumps({"response": "login", "status": "ok", "id": 1})
+        yield json.dumps({"response": "lst_device", "data": [{"device": "test_device"}], "id": 2})
+        while len(mock_websocket.sent_requests) < 3:
+            yield TimeoutError("waiting for get request")
+        yield json.dumps(
             {
                 "response": "get",
-                "id": 3,
+                "id": mock_websocket.sent_requests[2]["id"],
                 "data": {
                     "status": {"H00": 1},
                     "profile": {"module": {"firmware_version": "1.0.0"}, "esh": {"model": "Fan"}},
                 },
             }
         )
-    )
-    mock_ws.close = AsyncMock()
+        while True:
+            yield TimeoutError("timeout")
+            yield TimeoutError("timeout")
+            yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
     with (
-        patch.object(client, "_ws", mock_ws),
-        patch.object(client, "_ensure_ws_connected", new_callable=AsyncMock),
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
+        http = http_cls.return_value
+        http.post.return_value.json.return_value = {"token": "test_token"}
+        http.post.return_value.raise_for_status = lambda: None
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
+
+        await client.async_connect()
         client._device_id = "test_device"
         await client.async_get_status()
 
@@ -404,32 +540,49 @@ async def test_profile_retrieval_returns_shallow_copy(hass: HomeAssistant) -> No
         # Verify the original profile still has 2 keys (not 3)
         assert len(profile2) == 2
 
+        await client.async_disconnect()
+
 
 @pytest.mark.asyncio
 async def test_profile_caching_exception_in_try_block(
-    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant, mock_websocket, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test that unexpected exceptions during profile caching are caught and logged."""
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
-    mock_ws = MagicMock()
-    mock_ws.send = AsyncMock()
-    mock_ws.recv = AsyncMock(
-        return_value=json.dumps(
+    def recv_generator():
+        yield json.dumps({"response": "login", "status": "ok", "id": 1})
+        yield json.dumps(
+            {"response": "lst_device", "data": [{"device": "test_device_exception"}], "id": 2}
+        )
+        while len(mock_websocket.sent_requests) < 3:
+            yield TimeoutError("waiting for get request")
+        yield json.dumps(
             {
                 "response": "get",
-                "id": 3,
+                "id": mock_websocket.sent_requests[2]["id"],
                 "data": {"status": {"H00": 1}, "profile": {"module": {"fw": "1.0"}}},
             }
         )
-    )
-    mock_ws.close = AsyncMock()
+        while True:
+            yield TimeoutError("timeout")
+            yield TimeoutError("timeout")
+            yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
     with (
-        patch.object(client, "_ws", mock_ws),
-        patch.object(client, "_ensure_ws_connected", new_callable=AsyncMock),
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
         caplog.at_level(logging.DEBUG, logger="custom_components.fansync.client"),
     ):
+        http = http_cls.return_value
+        http.post.return_value.json.return_value = {"token": "test_token"}
+        http.post.return_value.raise_for_status = lambda: None
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
+
+        await client.async_connect()
         client._device_id = "test_device_exception"
 
         # Mock the _device_profile dict to raise an exception on assignment
@@ -456,6 +609,8 @@ async def test_profile_caching_exception_in_try_block(
 
         # Restore original dict
         client._device_profile = original_profile_dict
+
+        await client.async_disconnect()
 
 
 @pytest.mark.asyncio

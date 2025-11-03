@@ -49,7 +49,16 @@ async def test_disconnect_on_unload(hass: HomeAssistant):
         )()
         ws = ws_connect.return_value
         ws.connect.return_value = None
-        ws.recv.side_effect = [_login_ok(), _lst_device_ok("id")]
+
+        def recv_generator():
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        ws.recv.side_effect = recv_generator()
         await c.async_connect()
 
         await c.async_disconnect()
@@ -80,6 +89,11 @@ async def test_set_retries_on_closed_socket(hass: HomeAssistant, mock_websocket)
             yield _login_ok()
             # Set ack after reconnect
             yield json.dumps({"status": "ok", "response": "set", "id": 4})
+            # Keep recv loop alive
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
 

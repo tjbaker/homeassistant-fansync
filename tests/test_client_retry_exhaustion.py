@@ -95,17 +95,22 @@ async def test_connect_retry_success_on_second_attempt(hass: HomeAssistant, mock
         )()
 
         # First attempt fails, second succeeds
-        mock_websocket.recv.side_effect = [
-            json.dumps({"status": "ok", "response": "login", "id": 1}),
-            json.dumps(
+        def recv_generator():
+            yield json.dumps({"status": "ok", "response": "login", "id": 1})
+            yield json.dumps(
                 {
                     "status": "ok",
                     "response": "lst_device",
                     "data": [{"device": "id"}],
                     "id": 2,
                 }
-            ),
-        ]
+            )
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        mock_websocket.recv.side_effect = recv_generator()
         ws_connect.side_effect = [TimeoutError("Timeout"), mock_websocket]
 
         # Should succeed on second attempt
@@ -139,17 +144,22 @@ async def test_connect_retry_with_backoff(hass: HomeAssistant, mock_websocket) -
         mock_sleep.return_value = None
 
         # First attempt fails, second succeeds
-        mock_websocket.recv.side_effect = [
-            json.dumps({"status": "ok", "response": "login", "id": 1}),
-            json.dumps(
+        def recv_generator():
+            yield json.dumps({"status": "ok", "response": "login", "id": 1})
+            yield json.dumps(
                 {
                     "status": "ok",
                     "response": "lst_device",
                     "data": [{"device": "id"}],
                     "id": 2,
                 }
-            ),
-        ]
+            )
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        mock_websocket.recv.side_effect = recv_generator()
         ws_connect.side_effect = [TimeoutError("Timeout"), mock_websocket]
 
         # Should succeed on second attempt

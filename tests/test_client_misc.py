@@ -45,7 +45,8 @@ def _get_frame(status: dict[str, int]):
     return json.dumps({"status": "ok", "response": "get", "data": {"status": status}, "id": 3})
 
 
-async def test_no_push_mode_spawns_no_recv_thread(hass: HomeAssistant, mock_websocket):
+async def test_recv_task_created_even_without_push(hass: HomeAssistant, mock_websocket):
+    """Test that recv task is created even when enable_push=False (needed for request/response)."""
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
@@ -56,12 +57,26 @@ async def test_no_push_mode_spawns_no_recv_thread(hass: HomeAssistant, mock_webs
         http = http_cls.return_value
         http.post.return_value.json.return_value = {"token": "t"}
         http.post.return_value.raise_for_status.return_value = None
-        mock_websocket.recv.side_effect = [_login_ok(), _lst_device_ok("dev")]
+
+        def recv_generator():
+            yield _login_ok()
+            yield _lst_device_ok("dev")
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
         await c.async_connect()
 
-    # No background task started
-    assert c._recv_task is None
+        try:
+            # Recv task is always created (required for request/response routing)
+            # even when enable_push=False
+            assert c._recv_task is not None
+        finally:
+            # Clean up
+            await c.async_disconnect()
 
 
 async def test_get_timeout_raises(hass: HomeAssistant, mock_websocket):
@@ -80,24 +95,28 @@ async def test_get_timeout_raises(hass: HomeAssistant, mock_websocket):
         def recv_generator():
             yield _login_ok()
             yield _lst_device_ok("dev")
-            # Reconnect during get_status
-            yield _login_ok()
             # Provide non-get frames, then timeout (no get response ever comes)
             for i in range(5):
                 yield json.dumps({"status": "ok", "response": "evt", "data": {"x": i}})
-            # Eventually timeout waiting for get response
-            yield TimeoutError("timeout")
+            # Eventually timeout waiting for get response - infinite loop
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
         await c.async_connect()
 
         try:
-            await c.async_get_status()
-        except TimeoutError:
-            pass
-        else:
-            raise AssertionError("Expected TimeoutError")
+            try:
+                await c.async_get_status()
+            except TimeoutError:
+                pass
+            else:
+                raise AssertionError("Expected TimeoutError")
+        finally:
+            await c.async_disconnect()
 
 
 async def test_push_ignores_irrelevant_frames(hass: HomeAssistant, mock_websocket):
@@ -128,6 +147,8 @@ async def test_push_ignores_irrelevant_frames(hass: HomeAssistant, mock_websocke
             # Keep loop alive
             while True:
                 yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket

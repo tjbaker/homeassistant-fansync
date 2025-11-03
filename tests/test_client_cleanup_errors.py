@@ -63,6 +63,8 @@ async def test_disconnect_ws_close_exception(hass: HomeAssistant, mock_websocket
             yield _lst_device_ok("id")
             while True:
                 yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         # Make close() raise an exception
@@ -98,7 +100,15 @@ async def test_disconnect_http_close_exception(hass: HomeAssistant, mock_websock
         # Make HTTP close() raise an exception
         http_inst.close.side_effect = RuntimeError("HTTP close failed")
 
-        mock_websocket.recv.side_effect = [_login_ok(), _lst_device_ok("id")]
+        def recv_generator():
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
 
         await client.async_connect()
@@ -133,6 +143,8 @@ async def test_disconnect_both_close_exceptions(hass: HomeAssistant, mock_websoc
             yield _lst_device_ok("id")
             while True:
                 yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         mock_websocket.close.side_effect = RuntimeError("WS close failed")
@@ -171,6 +183,8 @@ async def test_disconnect_recv_task_cancel(hass: HomeAssistant, mock_websocket) 
             yield _lst_device_ok("id")
             while True:
                 yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket

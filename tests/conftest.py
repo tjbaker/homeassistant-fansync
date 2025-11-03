@@ -122,9 +122,11 @@ def mock_websocket():
     - Tracks sent requests in mock_ws.sent_requests list
     """
     import json
+    from websockets.protocol import State
 
     mock_ws = MagicMock()
     mock_ws.close = AsyncMock()
+    mock_ws.state = State.OPEN  # Simulate an open connection
 
     # Track all sent requests
     mock_ws.sent_requests = []

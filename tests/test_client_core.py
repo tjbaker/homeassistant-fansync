@@ -17,6 +17,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from websockets.protocol import State
 
 from homeassistant.core import HomeAssistant
 
@@ -63,12 +64,26 @@ async def test_connect_sets_device_id(hass: HomeAssistant, mock_websocket) -> No
         http_inst.post.return_value = type(
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
-        mock_websocket.recv.side_effect = [_login_ok(), _lst_device_ok("dev-123")]
+
+        def recv_generator():
+            yield _login_ok()
+            yield _lst_device_ok("dev-123")
+            # Keep recv loop alive
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
         await c.async_connect()
 
-    assert c.device_id == "dev-123"
-    http_cls.assert_called_with(verify=True, timeout=None)
+        try:
+            assert c.device_id == "dev-123"
+            http_cls.assert_called_with(verify=True, timeout=None)
+        finally:
+            # Clean up background task
+            await c.async_disconnect()
 
 
 async def test_get_status_returns_mapping(hass: HomeAssistant, mock_websocket) -> None:
@@ -90,13 +105,11 @@ async def test_get_status_returns_mapping(hass: HomeAssistant, mock_websocket) -
             # Initial connection: login (id=1), lst_device (id=2)
             yield _login_ok()
             yield _lst_device_ok("id")
-            # Reconnect during get_status: login (id=3)
-            yield _login_ok()
             # Get response with dynamic ID
-            # Wait for get request to be sent (login=1, lst=2, reconnect_login=3, get=4)
-            while len(mock_websocket.sent_requests) < 4:
+            # Wait for get request to be sent (login=1, lst=2, get=3)
+            while len(mock_websocket.sent_requests) < 3:
                 yield TimeoutError("waiting for get request")
-            get_request_id = mock_websocket.sent_requests[3]["id"]
+            get_request_id = mock_websocket.sent_requests[2]["id"]
             yield json.dumps(
                 {
                     "status": "ok",
@@ -108,6 +121,8 @@ async def test_get_status_returns_mapping(hass: HomeAssistant, mock_websocket) -
             # Keep recv loop alive
             while True:
                 yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
@@ -139,12 +154,10 @@ async def test_async_set_triggers_callback(hass: HomeAssistant, mock_websocket) 
             # Initial connection
             yield _login_ok()
             yield _lst_device_ok("id")
-            # Reconnect during async_set (from _ensure_ws_connected)
-            yield _login_ok()
-            # Wait for set request (login=1, lst=2, reconnect_login=3, set=4)
-            while len(mock_websocket.sent_requests) < 4:
+            # Wait for set request (login=1, lst=2, set=3)
+            while len(mock_websocket.sent_requests) < 3:
                 yield TimeoutError("waiting for set request")
-            set_request_id = mock_websocket.sent_requests[3]["id"]
+            set_request_id = mock_websocket.sent_requests[2]["id"]
             # The set ack with status
             yield json.dumps(
                 {
@@ -157,6 +170,8 @@ async def test_async_set_triggers_callback(hass: HomeAssistant, mock_websocket) 
             # Then keep returning timeouts to keep recv loop alive
             while True:
                 yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
@@ -213,6 +228,8 @@ async def test_async_set_uses_ack_status_when_present(hass: HomeAssistant, mock_
             # Then keep returning timeouts to keep recv loop alive
             while True:
                 yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
@@ -281,14 +298,29 @@ async def test_connect_ws_timeout_then_success_retries(hass: HomeAssistant):
 
         ws2 = AsyncMock()
         ws2.send = AsyncMock()
-        ws2.recv = AsyncMock(side_effect=[_login_ok(), _lst_device_ok("dev-retry")])
+
+        def recv_generator():
+            yield _login_ok()
+            yield _lst_device_ok("dev-retry")
+            # Keep recv loop alive
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        ws2.recv = AsyncMock(side_effect=recv_generator())
         ws2.close = AsyncMock()
+        ws2.state = State.OPEN
 
         ws_connect.side_effect = [ws1, ws2]
 
         await c.async_connect()
 
-    assert c.device_id == "dev-retry"
+        try:
+            assert c.device_id == "dev-retry"
+        finally:
+            # Clean up background task
+            await c.async_disconnect()
 
 
 async def test_connect_http_error_bubbles(hass: HomeAssistant):
