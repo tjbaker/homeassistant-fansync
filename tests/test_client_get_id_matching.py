@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 from homeassistant.core import HomeAssistant
 
@@ -38,7 +38,9 @@ async def test_get_matches_by_request_id(hass: HomeAssistant):
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_ctor,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_ctor,
     ):
         http = http_cls.return_value
         http.post.return_value.json.return_value = {"token": "t"}

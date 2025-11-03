@@ -50,21 +50,37 @@ def mock_httpx_client():
 
 @pytest.fixture
 def mock_websocket():
-    """Mock websocket.WebSocket for FanSyncClient."""
-    with patch("custom_components.fansync.client.websocket.WebSocket") as mock_ws_cls:
+    """Mock websockets.connect for FanSyncClient."""
+    with patch(
+        "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+    ) as mock_ws_connect:
+        # Create a proper mock for async websocket
         mock_ws = MagicMock()
-        mock_ws.recv.side_effect = [
-            json.dumps({"status": "ok", "response": "login", "id": 1}),
-            json.dumps(
+        mock_ws.send = AsyncMock()
+        mock_ws.recv = AsyncMock()
+        mock_ws.close = AsyncMock()
+
+        # Support async context manager
+        mock_ws.__aenter__ = AsyncMock(return_value=mock_ws)
+        mock_ws.__aexit__ = AsyncMock(return_value=None)
+
+        def recv_generator():
+            """Generator providing default responses."""
+            yield json.dumps({"status": "ok", "response": "login", "id": 1})
+            yield json.dumps(
                 {
                     "status": "ok",
                     "response": "lst_device",
                     "data": [{"device": "test-device", "owner": "test-owner"}],
                     "id": 2,
                 }
-            ),
-        ]
-        mock_ws_cls.return_value = mock_ws
+            )
+            # Keep loop alive
+            while True:
+                yield TimeoutError("timeout")
+
+        mock_ws.recv.side_effect = recv_generator()
+        mock_ws_connect.return_value = mock_ws
         yield mock_ws
 
 
@@ -171,11 +187,20 @@ async def test_client_reconnect_logged(
     client._token = "test-token"
 
     mock_ws = MagicMock()
-    mock_ws.recv.return_value = json.dumps({"status": "ok", "response": "login", "id": 1})
+    mock_ws.send = AsyncMock()
+    mock_ws.recv = AsyncMock(
+        return_value=json.dumps({"status": "ok", "response": "login", "id": 1})
+    )
+    mock_ws.__aenter__ = AsyncMock(return_value=mock_ws)
+    mock_ws.__aexit__ = AsyncMock(return_value=None)
 
     with caplog.at_level(logging.DEBUG, logger="custom_components.fansync.client"):
-        with patch("custom_components.fansync.client.websocket.WebSocket", return_value=mock_ws):
-            client._ensure_ws_connected()
+        with patch(
+            "custom_components.fansync.client.websockets.connect",
+            new_callable=AsyncMock,
+            return_value=mock_ws,
+        ):
+            await client._ensure_ws_connected()
 
     assert any(
         "_ensure_ws_connected: reconnecting websocket" in record.message
@@ -206,17 +231,29 @@ async def test_client_token_refresh_logged(
     client._http = mock_http
 
     mock_ws = MagicMock()
-    mock_ws.recv.return_value = json.dumps({"status": "ok", "response": "login", "id": 1})
+    mock_ws.send = AsyncMock()
+    mock_ws.recv = AsyncMock(
+        return_value=json.dumps({"status": "ok", "response": "login", "id": 1})
+    )
+    mock_ws.__aenter__ = AsyncMock(return_value=mock_ws)
+    mock_ws.__aexit__ = AsyncMock(return_value=None)
 
     with caplog.at_level(logging.DEBUG, logger="custom_components.fansync.client"):
-        with patch("custom_components.fansync.client.websocket.WebSocket", return_value=mock_ws):
-            client._ensure_ws_connected()
+        with patch(
+            "custom_components.fansync.client.websockets.connect",
+            new_callable=AsyncMock,
+            return_value=mock_ws,
+        ):
+            await client._ensure_ws_connected()
 
+    # Verify token refresh was attempted
     assert any(
         "_ensure_ws_connected: refreshing auth token" in record.message for record in caplog.records
     )
+    # Verify successful reconnection (which includes token refresh)
     assert any(
-        "_ensure_ws_connected: token refreshed" in record.message for record in caplog.records
+        "_ensure_ws_connected: websocket reconnected successfully" in record.message
+        for record in caplog.records
     )
 
 
@@ -392,21 +429,33 @@ async def test_set_ack_with_status_logged(
     client = FanSyncClient(hass, "test@example.com", "password", enable_push=True)
 
     mock_ws = MagicMock()
-    mock_ws.timeout = 10
-    mock_ws.recv.side_effect = [
-        json.dumps({"status": "ok", "response": "login", "id": 1}),
-        json.dumps(
+    mock_ws.send = AsyncMock()
+    mock_ws.close = AsyncMock()
+    mock_ws.__aenter__ = AsyncMock(return_value=mock_ws)
+    mock_ws.__aexit__ = AsyncMock(return_value=None)
+
+    def recv_generator():
+        yield json.dumps({"status": "ok", "response": "login", "id": 1})
+        yield json.dumps(
             {"status": "ok", "response": "lst_device", "data": [{"device": "dev1"}], "id": 2}
-        ),
-        json.dumps(
+        )
+        yield json.dumps(
             {
                 "response": "set",
                 "data": {"status": {KEY_POWER: 1, KEY_SPEED: 50}},
             }
-        ),
-    ]
+        )
+        # Keep loop alive
+        while True:
+            yield TimeoutError("timeout")
 
-    with patch("custom_components.fansync.client.websocket.WebSocket", return_value=mock_ws):
+    mock_ws.recv = AsyncMock(side_effect=recv_generator())
+
+    with patch(
+        "custom_components.fansync.client.websockets.connect",
+        new_callable=AsyncMock,
+        return_value=mock_ws,
+    ):
         with caplog.at_level(logging.DEBUG, logger="custom_components.fansync.client"):
             await client.async_connect()
             await hass.async_block_till_done()

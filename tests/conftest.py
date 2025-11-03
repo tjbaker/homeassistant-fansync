@@ -16,9 +16,10 @@ Provides a mocked client and automatic enabling of custom integrations so the
 tests can exercise setup and service calls without external network access.
 """
 
+import asyncio
 import pathlib
 import sys
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -91,3 +92,18 @@ def ensure_fansync_importable():
 
         pytest.skip("custom_components.fansync not importable in this environment")
     yield
+
+
+@pytest.fixture
+def mock_websocket():
+    """Create a mock WebSocket for testing async websockets library.
+
+    Returns a mock that simulates WebSocket protocol:
+    - send() and recv() are async methods
+    - close() is async method
+    """
+    mock_ws = MagicMock()
+    mock_ws.send = AsyncMock()
+    mock_ws.recv = AsyncMock()
+    mock_ws.close = AsyncMock()
+    return mock_ws

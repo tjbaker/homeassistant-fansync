@@ -12,10 +12,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-from unittest.mock import MagicMock, patch
+import logging
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.core import HomeAssistant
+
+from custom_components.fansync.client import FanSyncClient
 
 
 def _login_ok() -> str:
@@ -28,51 +32,47 @@ def _lst_device_ok(device_id: str = "id") -> str:
     )
 
 
-async def test_reconnect_on_timeout_and_logging(hass: HomeAssistant, caplog):
+async def test_reconnect_on_timeout_and_logging(hass: HomeAssistant, caplog, mock_websocket):
     """Test that reconnect triggers on timeouts and logs as expected."""
-    from custom_components.fansync.client import FanSyncClient
-    from websocket import WebSocketTimeoutException
-    import logging
-
     caplog.set_level(logging.DEBUG)
 
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
 
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch("custom_components.fansync.client.websocket.WebSocket") as ws_ctor,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
     ):
         http = http_cls.return_value
         http.post.return_value.json.return_value = {"token": "t"}
         http.post.return_value.raise_for_status.return_value = None
 
-        # First socket used for initial connect and triggers reconnect
-        ws1 = MagicMock()
-        ws1.connect.return_value = None
-        ws1.recv.side_effect = [
-            _login_ok(),
-            _lst_device_ok("dev"),
-            # trigger reconnect cycle
-            WebSocketTimeoutException("t"),
-            WebSocketTimeoutException("t"),
-            WebSocketTimeoutException("t"),
-            _login_ok(),  # reconnect login response
-        ]
+        def recv_generator():
+            """Generator that triggers reconnect after 3 consecutive timeouts."""
+            yield _login_ok()
+            yield _lst_device_ok("dev")
+            # Trigger reconnect cycle (3 consecutive timeouts)
+            yield TimeoutError("t")
+            yield TimeoutError("t")
+            yield TimeoutError("t")
+            # Reconnect login response
+            yield _login_ok()
+            # Keep loop alive
+            while True:
+                yield TimeoutError("timeout")
 
-        # Second socket is created by successful reconnect
-        ws2 = MagicMock()
-        ws2.timeout = 10
-        ws2.recv.return_value = json.dumps({"status": "ok"})
-
-        ws_ctor.side_effect = [ws1, ws2]
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
 
         await c.async_connect()
 
         # Let the background loop run and trigger reconnect
+        await asyncio.sleep(0.5)
         for _ in range(10):
             await hass.async_block_till_done()
 
         await c.async_disconnect()
 
         # Verify we logged timeout errors and at least attempted reconnect handling
-        assert any("recv error=WebSocketTimeoutException" in rec.message for rec in caplog.records)
+        assert any("recv error=TimeoutError" in rec.message for rec in caplog.records)
