@@ -61,7 +61,7 @@ async def test_no_profile_debug_logging(
     hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test that no profile message is logged when profile is missing.
-    
+
     When the API response does not include a 'profile' field, the client should
     silently skip profile caching without logging. This test verifies that behavior.
     """

@@ -137,9 +137,7 @@ async def test_json_parse_failure_logs_debug(
         await asyncio.sleep(0.2)  # Let recv_task process invalid JSON
 
         # Verify DEBUG log for invalid JSON
-        assert any(
-            "recv: invalid JSON, skipping" in record.message for record in caplog.records
-        )
+        assert any("recv: invalid JSON, skipping" in record.message for record in caplog.records)
 
 
 async def test_device_list_timeout_logging(
@@ -172,7 +170,9 @@ async def test_device_list_timeout_logging(
 
         # Verify both ERROR and DEBUG logs
         error_logs = [
-            r for r in caplog.records if r.levelname == "ERROR" and "Failed to fetch device list" in r.message
+            r
+            for r in caplog.records
+            if r.levelname == "ERROR" and "Failed to fetch device list" in r.message
         ]
         debug_logs = [
             r
@@ -181,4 +181,3 @@ async def test_device_list_timeout_logging(
         ]
         assert len(error_logs) == 1
         assert len(debug_logs) == 1
-
