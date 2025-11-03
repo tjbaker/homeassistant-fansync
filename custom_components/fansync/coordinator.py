@@ -159,8 +159,10 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 except TimeoutError:
                     # Warn on per-device timeout; we'll tolerate partial failures
                     self.logger.warning(
-                        "Status fetch timed out for device %s after %d seconds; "
-                        "check network or increase WebSocket timeout in Options",
+                        "Status fetch timed out for device %s after %d seconds. "
+                        "This may indicate high latency in Fanimation's cloud service. "
+                        "Last known state will be kept; updates resume when connectivity improves. "
+                        "If timeouts persist, consider increasing WebSocket timeout in Options",
                         did,
                         timeout_s,
                     )
