@@ -21,4 +21,4 @@ pytest-cov
 mypy
 # Runtime deps required by integration (for local tests)
 httpx
-websocket-client
+websockets>=12.0
