@@ -15,7 +15,6 @@ from __future__ import annotations
 from unittest.mock import Mock, patch
 
 import httpx
-from websocket import WebSocketTimeoutException
 from homeassistant import data_entry_flow
 
 
@@ -45,7 +44,7 @@ async def test_config_flow_ws_timeout_maps_cannot_connect(hass):
 
     with patch(
         "custom_components.fansync.config_flow.FanSyncClient.async_connect",
-        side_effect=WebSocketTimeoutException("Connection timed out"),
+        side_effect=TimeoutError("Connection timed out"),
     ):
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"],
