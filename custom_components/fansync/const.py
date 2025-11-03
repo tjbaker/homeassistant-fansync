@@ -72,11 +72,10 @@ WS_RECV_BACKOFF_MAX_SEC = 5.0  # Maximum backoff delay
 WS_RECV_SLEEP_SEC = 0.1  # Sleep between recv attempts
 WS_RECV_LOCK_TIMEOUT_SEC = 0.5  # Timeout for recv_lock acquisition in background loop
 
-# WebSocket request IDs (keep stable for compatibility)
+# WebSocket request IDs for connection bootstrap (keep stable for compatibility)
+# GET_STATUS and SET now use dynamic allocation via _next_request_id
 WS_REQUEST_ID_LOGIN = 1
 WS_REQUEST_ID_LIST_DEVICES = 2
-WS_REQUEST_ID_GET_STATUS = 3
-WS_REQUEST_ID_SET = 4
 
 # WebSocket bounded read settings
 WS_GET_RETRY_LIMIT = 5  # Max recv attempts to find get response
