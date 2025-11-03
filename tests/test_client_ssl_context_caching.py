@@ -29,6 +29,43 @@ from websockets.protocol import State
 from custom_components.fansync.client import FanSyncClient
 
 
+def _create_mock_websocket(
+    state: State = State.OPEN, recv_response: str | None = None
+) -> MagicMock:
+    """Create a mock WebSocket with common configuration.
+
+    Args:
+        state: The WebSocket state (default: State.OPEN)
+        recv_response: Optional response for recv() calls
+
+    Returns:
+        Configured MagicMock WebSocket
+    """
+    mock_ws = MagicMock()
+    mock_ws.send = AsyncMock()
+    mock_ws.close = AsyncMock()
+    mock_ws.state = state
+
+    if recv_response:
+        mock_ws.recv = AsyncMock(return_value=recv_response)
+    else:
+        mock_ws.recv = AsyncMock()
+
+    return mock_ws
+
+
+def _mock_http_client(http_cls_mock: MagicMock, token: str = "test-token") -> None:
+    """Configure mock HTTP client for authentication.
+
+    Args:
+        http_cls_mock: The httpx.Client class mock
+        token: Token to return from authentication (default: "test-token")
+    """
+    http_inst = http_cls_mock.return_value
+    http_inst.post.return_value.json.return_value = {"token": token}
+    http_inst.post.return_value.raise_for_status.return_value = None
+
+
 @pytest.mark.asyncio
 async def test_ssl_context_cached_after_first_creation(hass: HomeAssistant) -> None:
     """Test that SSL context is created once and cached."""
@@ -40,20 +77,15 @@ async def test_ssl_context_cached_after_first_creation(hass: HomeAssistant) -> N
             "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
         ) as ws_connect,
     ):
-        http_inst = http_cls.return_value
-        http_inst.post.return_value.json.return_value = {"token": "test-token"}
-        http_inst.post.return_value.raise_for_status.return_value = None
+        _mock_http_client(http_cls)
 
-        mock_ws = MagicMock()
-        mock_ws.send = AsyncMock()
+        mock_ws = _create_mock_websocket()
         mock_ws.recv = AsyncMock(
             side_effect=[
                 '{"status": "ok", "response": "login", "id": 1}',
                 '{"status": "ok", "response": "lst_device", "data": [{"device": "dev1"}], "id": 2}',
             ]
         )
-        mock_ws.close = AsyncMock()
-        mock_ws.state = State.OPEN
         ws_connect.return_value = mock_ws
 
         # First connection - should create SSL context
@@ -99,11 +131,7 @@ async def test_ensure_ws_connected_early_return_when_open(hass: HomeAssistant) -
     client = FanSyncClient(hass, "test@example.com", "password")
 
     # Create a mock WebSocket that's already open
-    mock_ws = MagicMock()
-    mock_ws.state = State.OPEN
-    mock_ws.close = AsyncMock()
-    mock_ws.send = AsyncMock()
-    mock_ws.recv = AsyncMock()
+    mock_ws = _create_mock_websocket()
 
     # Set up client with existing connection
     client._ws = mock_ws
@@ -129,9 +157,7 @@ async def test_ensure_ws_connected_reconnects_when_closed(hass: HomeAssistant) -
     client = FanSyncClient(hass, "test@example.com", "password")
 
     # Create a mock WebSocket that's closed
-    old_ws = MagicMock()
-    old_ws.state = State.CLOSED  # Connection is closed
-    old_ws.close = AsyncMock()
+    old_ws = _create_mock_websocket(state=State.CLOSED)
 
     # Set up client with closed connection
     client._ws = old_ws
@@ -140,11 +166,7 @@ async def test_ensure_ws_connected_reconnects_when_closed(hass: HomeAssistant) -
     client._ssl_context = ssl.create_default_context()  # Pre-cached
 
     # Create new WebSocket for reconnection
-    new_ws = MagicMock()
-    new_ws.send = AsyncMock()
-    new_ws.recv = AsyncMock(return_value='{"status": "ok", "response": "login", "id": 1}')
-    new_ws.close = AsyncMock()
-    new_ws.state = State.OPEN
+    new_ws = _create_mock_websocket(recv_response='{"status": "ok", "response": "login", "id": 1}')
 
     with patch(
         "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
@@ -175,11 +197,7 @@ async def test_ensure_ws_connected_reconnects_when_none(hass: HomeAssistant) -> 
     client._ssl_context = ssl.create_default_context()  # Pre-cached
 
     # Create new WebSocket
-    new_ws = MagicMock()
-    new_ws.send = AsyncMock()
-    new_ws.recv = AsyncMock(return_value='{"status": "ok", "response": "login", "id": 1}')
-    new_ws.close = AsyncMock()
-    new_ws.state = State.OPEN
+    new_ws = _create_mock_websocket(recv_response='{"status": "ok", "response": "login", "id": 1}')
 
     with patch(
         "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock

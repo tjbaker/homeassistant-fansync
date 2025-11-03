@@ -86,9 +86,9 @@ class FanSyncClient:
     def _create_ssl_context(self) -> ssl.SSLContext:
         """Create SSL context for WebSocket connections.
 
-        This is synchronous and performs blocking I/O (load_default_certs,
-        set_default_verify_paths), so it must be called via
-        hass.async_add_executor_job.
+        This is synchronous and performs blocking I/O internally
+        (ssl.create_default_context loads certificates and verify paths),
+        so it must be called via hass.async_add_executor_job.
         """
         ssl_context = ssl.create_default_context()
         if not self.verify_ssl:
