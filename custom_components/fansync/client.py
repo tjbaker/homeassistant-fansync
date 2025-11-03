@@ -161,8 +161,14 @@ class FanSyncClient:
                 if ws:
                     try:
                         await ws.close()
-                    except Exception:
-                        pass
+                    except Exception as cleanup_exc:
+                        # Ignore errors during cleanup after failed connection attempt
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug(
+                                "ws.close() cleanup failed (%s): %s",
+                                type(cleanup_exc).__name__,
+                                cleanup_exc,
+                            )
                     ws = None
                 # Retry for transient errors
                 transient = isinstance(exc, TimeoutError | asyncio.TimeoutError | OSError)
