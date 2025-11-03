@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.2.25](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.24...0.2.25) (2025-11-03)
+
+
+### Bug Fixes
+
+* handle WebSocket timeouts gracefully and fix device metadata timing ([8dee65b](https://github.com/tjbaker/homeassistant-fansync/commit/8dee65b24b67d56ddf335f4258d6495810e4a1cb))
+
 ## [0.2.24](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.23...0.2.24) (2025-11-03)
 
 
