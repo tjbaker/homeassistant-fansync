@@ -67,6 +67,9 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 continue
             if profile and device_id in self._registry_updated:
                 # Profile exists and we've already updated - skip redundant update
+                # NOTE: This doesn't detect profile changes (e.g., firmware updates).
+                # If profile change detection becomes needed, consider storing a hash
+                # of relevant fields (model, sw_version, connections) to trigger updates.
                 continue
             # Get the device entry by identifier
             device = self._device_registry.async_get_device(identifiers={(DOMAIN, device_id)})

@@ -12,6 +12,7 @@
 
 """Tests for device registry updates when profile data arrives."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from homeassistant.core import HomeAssistant
@@ -41,7 +42,7 @@ async def test_device_registry_updated_on_refresh(hass: HomeAssistant) -> None:
     }
 
     # Mock async_get_status to return device status
-    async def mock_get_status(device_id=None):
+    async def mock_get_status(device_id: str | None = None) -> dict[str, int]:
         return {"H00": 1, "H02": 50}
 
     client.async_get_status = AsyncMock(side_effect=mock_get_status)
@@ -65,7 +66,7 @@ async def test_device_registry_multi_device_update(hass: HomeAssistant) -> None:
     client.device_ids = ["device_1", "device_2"]
 
     # Mock device_profile to return different data for each device
-    def mock_device_profile(device_id):
+    def mock_device_profile(device_id: str) -> dict[str, Any]:
         if device_id == "device_1":
             return {
                 "module": {"firmware_version": "1.0.0", "mac_address": "AA:AA:AA:AA:AA:AA"},
@@ -81,7 +82,7 @@ async def test_device_registry_multi_device_update(hass: HomeAssistant) -> None:
     client.device_profile = MagicMock(side_effect=mock_device_profile)
 
     # Mock async_get_status for multiple devices
-    async def mock_get_status(device_id=None):
+    async def mock_get_status(device_id: str | None = None) -> dict[str, int]:
         return {"H00": 1, "H02": 50}
 
     client.async_get_status = AsyncMock(side_effect=mock_get_status)
