@@ -32,7 +32,9 @@ def _lst_device_ok(device_id: str = "id") -> str:
 
 
 @pytest.mark.skip(
-    reason="Complex reconnection mocking conflicts with background recv task - needs refactoring"
+    reason="Complex reconnection mocking conflicts with background recv task. "
+    "TODO: Convert to integration test with real WebSocket server to properly "
+    "test reconnection behavior under network failures."
 )
 async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websocket):
     """Test that async_get_status reconnects on closed socket error."""

@@ -37,7 +37,9 @@ def _get_ok(status: dict[str, int]):
 
 
 @pytest.mark.skip(
-    reason="Complex reconnection mocking conflicts with background recv task - needs refactoring"
+    reason="Complex reconnection mocking conflicts with background recv task. "
+    "TODO: Convert to integration test with real WebSocket server to properly "
+    "test reconnection behavior under network failures."
 )
 async def test_get_reconnects_on_closed(hass: HomeAssistant, mock_websocket) -> None:
     """Test get_status completes successfully (simplified from reconnect test)."""
