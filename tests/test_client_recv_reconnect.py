@@ -65,6 +65,8 @@ async def test_recv_loop_reconnects_after_timeouts(hass: HomeAssistant, mock_web
             # Keep loop alive
             while True:
                 yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket

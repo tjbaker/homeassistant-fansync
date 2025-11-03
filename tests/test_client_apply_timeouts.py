@@ -49,7 +49,15 @@ async def test_apply_timeouts_http_only(hass: HomeAssistant, mock_websocket) -> 
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
 
-        mock_websocket.recv.side_effect = [_login_ok(), _lst_device_ok("id")]
+        def recv_generator():
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
 
         await client.async_connect()
@@ -79,7 +87,15 @@ async def test_apply_timeouts_ws_only(hass: HomeAssistant, mock_websocket) -> No
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
 
-        mock_websocket.recv.side_effect = [_login_ok(), _lst_device_ok("id")]
+        def recv_generator():
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
 
         await client.async_connect()
@@ -110,7 +126,15 @@ async def test_apply_timeouts_both(hass: HomeAssistant, mock_websocket) -> None:
         )()
         http_inst.close.return_value = None
 
-        mock_websocket.recv.side_effect = [_login_ok(), _lst_device_ok("id")]
+        def recv_generator():
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
 
         await client.async_connect()
@@ -145,7 +169,15 @@ async def test_apply_timeouts_http_close_exception(hass: HomeAssistant, mock_web
         # Make close() raise an exception
         http_inst.close.side_effect = RuntimeError("Close failed")
 
-        mock_websocket.recv.side_effect = [_login_ok(), _lst_device_ok("id")]
+        def recv_generator():
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
 
         await client.async_connect()

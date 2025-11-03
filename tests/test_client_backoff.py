@@ -61,6 +61,8 @@ async def test_reconnect_on_timeout_and_logging(hass: HomeAssistant, caplog, moc
             # Keep loop alive
             while True:
                 yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket

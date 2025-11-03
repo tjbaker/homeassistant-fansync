@@ -16,7 +16,8 @@ Verifies that the HTTP client is instantiated with the expected verify flag
 when the integration is configured with verify_ssl=True.
 """
 
-from unittest.mock import patch, AsyncMock
+import json
+from unittest.mock import AsyncMock, patch
 
 from homeassistant.core import HomeAssistant
 
@@ -37,10 +38,15 @@ async def test_client_ssl_flag(hass: HomeAssistant, mock_websocket):
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
 
-        mock_websocket.recv.side_effect = [
-            '{"status":"ok","response":"login","id":1}',
-            '{"status":"ok","response":"lst_device","data":[{"device":"id"}],"id":2}',
-        ]
+        def recv_generator():
+            yield '{"status":"ok","response":"login","id":1}'
+            yield '{"status":"ok","response":"lst_device","data":[{"device":"id"}],"id":2}'
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
 
         await c.async_connect()

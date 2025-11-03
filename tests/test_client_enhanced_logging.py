@@ -129,15 +129,22 @@ async def test_json_parse_failure_logs_debug(
             yield "not valid json {{"  # Invalid JSON
             while True:
                 yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
 
         mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
 
         await client.async_connect()
-        await asyncio.sleep(0.2)  # Let recv_task process invalid JSON
+        try:
+            await asyncio.sleep(0.2)  # Let recv_task process invalid JSON
 
-        # Verify DEBUG log for invalid JSON
-        assert any("recv: invalid JSON, skipping" in record.message for record in caplog.records)
+            # Verify DEBUG log for invalid JSON
+            assert any(
+                "recv: invalid JSON, skipping" in record.message for record in caplog.records
+            )
+        finally:
+            await client.async_disconnect()
 
 
 async def test_device_list_timeout_logging(
