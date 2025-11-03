@@ -51,7 +51,6 @@ async def test_diagnostics_returns_metrics(hass: HomeAssistant) -> None:
         }
 
     client.device_profile = mock_device_profile
-    client._device_profile = {"test_device_123": {}}
 
     # Create mock coordinator
     coordinator = MagicMock()
@@ -138,7 +137,6 @@ async def test_diagnostics_warns_on_poor_connection(hass: HomeAssistant) -> None
     client.metrics = metrics
 
     client.device_profile = MagicMock(return_value={})
-    client._device_profile = {}
 
     # Create mock coordinator
     coordinator = MagicMock()
@@ -191,7 +189,6 @@ async def test_diagnostics_handles_disconnected_state(hass: HomeAssistant) -> No
     client.metrics.total_commands = 0
 
     client.device_profile = MagicMock(return_value={})
-    client._device_profile = {}
 
     # Create mock coordinator
     coordinator = MagicMock()
@@ -233,7 +230,6 @@ async def test_diagnostics_handles_no_data(hass: HomeAssistant) -> None:
     client.metrics.total_commands = 0  # No commands sent yet
 
     client.device_profile = MagicMock(return_value={})
-    client._device_profile = {}
 
     # Create mock coordinator
     coordinator = MagicMock()

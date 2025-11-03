@@ -18,6 +18,7 @@ from datetime import timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.typing import UNDEFINED
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import FanSyncClient
@@ -37,15 +38,34 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         )
         self.client = client
         self._device_registry = dr.async_get(hass)
+        # Track which devices have had registry updated to avoid redundant updates
+        self._registry_updated: set[str] = set()
 
     def _update_device_registry(self, device_ids: list[str]) -> None:
         """Update device registry with latest profile data from client.
 
         This ensures device model, firmware, and MAC address are displayed
         correctly even if profile data arrives after entity creation.
+
+        Note: Safe to call from async context. Device registry methods with
+        async_ prefix are @callback decorated and run in the event loop.
+
+        Only updates registry when profile data is newly available to avoid
+        redundant updates on every coordinator refresh.
         """
         for device_id in device_ids:
             if not device_id:
+                continue
+            # Skip if already updated and profile data hasn't changed
+            try:
+                profile = self.client.device_profile(device_id)
+            except AttributeError:
+                # Client doesn't have device_profile (e.g., in tests or old client)
+                profile = None
+            if not profile and device_id in self._registry_updated:
+                continue
+            if profile and device_id in self._registry_updated:
+                # Profile exists and we've already updated - skip redundant update
                 continue
             # Get the device entry by identifier
             device = self._device_registry.async_get_device(identifiers={(DOMAIN, device_id)})
@@ -53,14 +73,27 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 continue
             # Build updated device info from current profile data
             device_info = create_device_info(self.client, device_id)
+            # Only update if we have actual data to update
+            if not any(
+                [
+                    device_info.get("manufacturer"),
+                    device_info.get("model"),
+                    device_info.get("sw_version"),
+                    device_info.get("connections"),
+                ]
+            ):
+                continue
             # Update the device registry entry with new information
+            connections = device_info.get("connections")
             self._device_registry.async_update_device(
                 device.id,
                 manufacturer=device_info.get("manufacturer"),
                 model=device_info.get("model"),
                 sw_version=device_info.get("sw_version"),
-                connections=device_info.get("connections"),
+                merge_connections=connections if connections else UNDEFINED,
             )
+            # Mark this device as updated
+            self._registry_updated.add(device_id)
 
     async def _get_timeout_seconds(self) -> int:
         """Get dynamic timeout from client, with fallback to default."""
