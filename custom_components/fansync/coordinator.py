@@ -77,13 +77,13 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 continue
             # Build updated device info from current profile data
             device_info = create_device_info(self.client, device_id)
-            # Only update if we have actual data to update
+            # Only update if we have actual data to update (check for None, not falsiness)
             if not any(
                 (
-                    device_info.get("manufacturer"),
-                    device_info.get("model"),
-                    device_info.get("sw_version"),
-                    device_info.get("connections"),
+                    device_info.get("manufacturer") is not None,
+                    device_info.get("model") is not None,
+                    device_info.get("sw_version") is not None,
+                    device_info.get("connections") is not None,
                 )
             ):
                 continue

@@ -12,6 +12,8 @@
 
 """Diagnostics support for FanSync."""
 
+from __future__ import annotations
+
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -97,7 +99,10 @@ async def async_get_config_entry_diagnostics(
                         if "module" in profile:
                             # Mask MAC address for privacy (show first 3 octets only)
                             mac = profile["module"].get("mac_address", "")
-                            masked_mac = ":".join(mac.split(":")[:3]) + ":XX:XX:XX" if mac else None
+                            if mac and len(mac.split(":")) >= 3:
+                                masked_mac = ":".join(mac.split(":")[:3] + ["XX", "XX", "XX"])
+                            else:
+                                masked_mac = None
                             sanitized["module"] = {
                                 "firmware_version": profile["module"].get("firmware_version"),
                                 "mac_address": masked_mac,
