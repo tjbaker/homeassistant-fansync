@@ -88,13 +88,12 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             ):
                 continue
             # Update the device registry entry with new information
-            connections = device_info.get("connections")
             self._device_registry.async_update_device(
                 device.id,
                 manufacturer=device_info.get("manufacturer"),
                 model=device_info.get("model"),
                 sw_version=device_info.get("sw_version"),
-                merge_connections=connections if connections else UNDEFINED,
+                merge_connections=device_info.get("connections") or UNDEFINED,
             )
             # Mark this device as updated
             self._registry_updated.add(device_id)
