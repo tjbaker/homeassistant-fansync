@@ -15,10 +15,8 @@
 from unittest.mock import AsyncMock, MagicMock
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
 
 from custom_components.fansync.client import FanSyncClient
-from custom_components.fansync.const import DOMAIN
 from custom_components.fansync.coordinator import FanSyncCoordinator
 
 
