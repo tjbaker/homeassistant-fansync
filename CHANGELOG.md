@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.3.3](https://github.com/tjbaker/homeassistant-fansync/compare/0.3.2...0.3.3) (2025-11-03)
+
+
+### Bug Fixes
+
+* address Copilot PR feedback ([b0d530f](https://github.com/tjbaker/homeassistant-fansync/commit/b0d530f122e17a1998d4c79706c2ce95a83c853a))
+* address Copilot PR review suggestions ([c92674b](https://github.com/tjbaker/homeassistant-fansync/commit/c92674b84758cdafe1483f56efb316fdb8cd973c))
+* address remaining Copilot PR feedback ([c8c13d2](https://github.com/tjbaker/homeassistant-fansync/commit/c8c13d2ad82baa437231fc805ef4614995ac62b3))
+* resolve WebSocket concurrency error with message routing ([5941afb](https://github.com/tjbaker/homeassistant-fansync/commit/5941afb01056618fe913d152633d4d2bd4dad9f4))
+
+
+### Code Refactoring
+
+* add type parameter to _pending_requests dict ([29758b2](https://github.com/tjbaker/homeassistant-fansync/commit/29758b23d927514855aa3d960cc8c7c6d210b47b))
+* address final Copilot feedback ([901885a](https://github.com/tjbaker/homeassistant-fansync/commit/901885a00632a4080f2a1f449fcbfb6bdea67a00))
+* clean up skipped tests and improve test suite ([9543d1c](https://github.com/tjbaker/homeassistant-fansync/commit/9543d1c0ffc3bf4eb0c24222f00f8cf6853537a2))
+
 ## [0.3.2](https://github.com/tjbaker/homeassistant-fansync/compare/0.3.1...0.3.2) (2025-11-03)
 
 
