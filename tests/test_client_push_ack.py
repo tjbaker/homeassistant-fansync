@@ -50,14 +50,12 @@ async def test_set_ack_status_immediate_push(hass: HomeAssistant, mock_websocket
             # Initial connection
             yield _login_ok()
             yield _lst_device_ok("id")
-            # Reconnect login (from async_set's _ensure_ws_connected)
-            yield _login_ok()
-            # Set ACK with status data - this should trigger callback
+            # Set ACK with status data (ID 3, no reconnect with state=OPEN)
             yield json.dumps(
                 {
                     "status": "ok",
                     "response": "set",
-                    "id": 4,
+                    "id": 3,
                     "data": {"status": {"H00": 1, "H02": 77}},
                 }
             )

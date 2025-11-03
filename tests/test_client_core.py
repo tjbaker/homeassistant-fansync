@@ -214,14 +214,12 @@ async def test_async_set_uses_ack_status_when_present(hass: HomeAssistant, mock_
             # Initial connection
             yield _login_ok()
             yield _lst_device_ok("id")
-            # Reconnect during async_set (from _ensure_ws_connected)
-            yield _login_ok()
-            # The set ack with status
+            # The set ack with status (ID 3, no reconnect with state=OPEN)
             yield json.dumps(
                 {
                     "status": "ok",
                     "response": "set",
-                    "id": 4,
+                    "id": 3,
                     "data": {"status": {"H00": 0, "H02": 1}},
                 }
             )
