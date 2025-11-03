@@ -131,6 +131,7 @@ class FanSyncClient:
                     ),
                     timeout=ws_timeout,
                 )
+                assert ws is not None  # Type narrowing for mypy
                 # Login
                 await asyncio.wait_for(
                     ws.send(
@@ -237,6 +238,7 @@ class FanSyncClient:
             try:
                 await self._recv_task
             except asyncio.CancelledError:
+                # Task cancellation is expected during disconnect; safe to ignore
                 pass
             self._recv_task = None
 
@@ -244,16 +246,20 @@ class FanSyncClient:
         if self._ws:
             try:
                 await self._ws.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                # Ignore errors during WebSocket close; log for diagnostics
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("WebSocket close failed: %s: %s", type(exc).__name__, exc)
             self._ws = None
 
         # Close HTTP client
         if self._http:
             try:
                 self._http.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                # Ignore errors closing HTTP client; log for diagnostics
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("HTTP client close failed: %s: %s", type(exc).__name__, exc)
             self._http = None
 
     async def _recv_loop(self):
@@ -361,8 +367,10 @@ class FanSyncClient:
         if self._ws is not None:
             try:
                 await self._ws.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                # Ignore errors closing old WebSocket during reconnect
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("Error closing old WebSocket: %s: %s", type(exc).__name__, exc)
 
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug("_ensure_ws_connected: reconnecting websocket")
@@ -571,8 +579,12 @@ class FanSyncClient:
             if self._http is not None:
                 try:
                     self._http.close()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    # Ignore errors closing previous HTTP client; log for diagnostics
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug(
+                            "Error closing previous HTTP client: %s: %s", type(exc).__name__, exc
+                        )
                 timeout_value = float(http_timeout_s)
                 timeout = httpx.Timeout(
                     connect=timeout_value,
