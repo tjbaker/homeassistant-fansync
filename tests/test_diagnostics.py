@@ -114,6 +114,8 @@ async def test_diagnostics_returns_metrics(hass: HomeAssistant) -> None:
     profile = diagnostics["device_profiles"]["test_device_123"]
     assert profile["esh"]["model"] == "TestFan 3000"
     assert profile["module"]["firmware_version"] == "1.2.3"
+    # MAC address should be masked for privacy
+    assert profile["module"]["mac_address"] == "AA:BB:CC:XX:XX:XX"
 
 
 async def test_diagnostics_warns_on_poor_connection(hass: HomeAssistant) -> None:

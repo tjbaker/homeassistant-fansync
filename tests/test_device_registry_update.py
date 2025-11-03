@@ -67,17 +67,17 @@ async def test_device_registry_multi_device_update(hass: HomeAssistant) -> None:
 
     # Mock device_profile to return different data for each device
     def mock_device_profile(device_id: str) -> dict[str, Any]:
-        if device_id == "device_1":
-            return {
+        profiles = {
+            "device_1": {
                 "module": {"firmware_version": "1.0.0", "mac_address": "AA:AA:AA:AA:AA:AA"},
                 "esh": {"model": "Fan Model A", "brand": "BrandA"},
-            }
-        elif device_id == "device_2":
-            return {
+            },
+            "device_2": {
                 "module": {"firmware_version": "2.0.0", "mac_address": "BB:BB:BB:BB:BB:BB"},
                 "esh": {"model": "Fan Model B", "brand": "BrandB"},
-            }
-        return {}
+            },
+        }
+        return profiles.get(device_id, {})
 
     client.device_profile = MagicMock(side_effect=mock_device_profile)
 
