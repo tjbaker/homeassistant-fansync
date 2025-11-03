@@ -345,6 +345,9 @@ class FanSyncClient:
                     if _LOGGER.isEnabledFor(logging.DEBUG):
                         _LOGGER.debug("recv push status keys=%s", list(pushed_status.keys()))
                     if self._status_callback is not None:
+                        # Use call_soon_threadsafe even though we're in the event loop to ensure
+                        # the callback is invoked in a thread-safe manner. This is Home Assistant
+                        # best practice for callbacks that may interact with coordinator state.
                         self.hass.loop.call_soon_threadsafe(self._status_callback, pushed_status)
 
             except TimeoutError:
@@ -611,6 +614,9 @@ class FanSyncClient:
             self._http_timeout_s = http_timeout_s
             if self._http is not None:
                 try:
+                    # Using synchronous close() for httpx.Client (not AsyncClient).
+                    # This method is called via hass.async_add_executor_job() from __init__.py,
+                    # so it runs in a thread pool where blocking operations are safe.
                     self._http.close()
                 except Exception as exc:
                     # Ignore errors closing previous HTTP client; log for diagnostics

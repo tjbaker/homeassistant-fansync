@@ -60,7 +60,11 @@ async def test_profile_cached_debug_logging(
 async def test_no_profile_debug_logging(
     hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Test that no profile message is logged when profile is missing."""
+    """Test that no profile message is logged when profile is missing.
+    
+    When the API response does not include a 'profile' field, the client should
+    silently skip profile caching without logging. This test verifies that behavior.
+    """
     client = FanSyncClient(hass, "test@example.com", "password", verify_ssl=False)
 
     # Mock WebSocket response WITHOUT profile data
@@ -81,7 +85,9 @@ async def test_no_profile_debug_logging(
         with caplog.at_level("DEBUG", logger="custom_components.fansync.client"):
             await client.async_get_status()
 
-        # Verify no "profile cached" message was logged (since there's no profile)
+        # Verify no "profile cached" message was logged (since there's no profile).
+        # The client silently skips profile caching when the field is missing - this
+        # is expected behavior, not an error condition.
         assert not any(
             "profile cached for test_device_456" in record.message for record in caplog.records
         )
