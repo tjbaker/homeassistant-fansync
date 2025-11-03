@@ -183,6 +183,11 @@ class FanSyncClient:
                     raise
 
         if ws is None:
+            _LOGGER.error(
+                "WebSocket connection failed after %d attempts. "
+                "Check network connectivity and Fanimation cloud service status.",
+                WS_LOGIN_RETRY_ATTEMPTS,
+            )
             raise RuntimeError("WebSocket connection failed after retry attempts")
 
         self._ws = ws
@@ -190,13 +195,19 @@ class FanSyncClient:
             _LOGGER.debug("ws connect+login ms=%d", int((time.monotonic() - t1) * 1000))
 
         # List devices
-        await asyncio.wait_for(
-            ws.send(json.dumps({"id": WS_REQUEST_ID_LIST_DEVICES, "request": "lst_device"})),
-            timeout=ws_timeout,
-        )
-        raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
-        payload = json.loads(raw)
-        devices = payload.get("data") or []
+        try:
+            await asyncio.wait_for(
+                ws.send(json.dumps({"id": WS_REQUEST_ID_LIST_DEVICES, "request": "lst_device"})),
+                timeout=ws_timeout,
+            )
+            raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
+            payload = json.loads(raw)
+            devices = payload.get("data") or []
+        except Exception as exc:
+            _LOGGER.error("Failed to fetch device list: %s", type(exc).__name__)
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("Device list error details: %s", exc)
+            raise
 
         # Build device list
         _ids: list[str] = []
@@ -299,7 +310,13 @@ class FanSyncClient:
                 # Process message
                 try:
                     payload = json.loads(raw)
-                except Exception:
+                except Exception as parse_err:
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug(
+                            "recv: invalid JSON, skipping (error=%s, raw=%s...)",
+                            type(parse_err).__name__,
+                            raw[:100] if isinstance(raw, str) else str(raw)[:100],
+                        )
                     continue
 
                 if not isinstance(payload, dict):
@@ -373,6 +390,10 @@ class FanSyncClient:
                 except Exception:
                     await asyncio.sleep(backoff_sec)
                     backoff_sec = min(max_backoff_sec, backoff_sec * 2)
+
+        # Loop exited (client disconnected)
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("_recv_loop exited (client disconnected)")
 
     async def _ensure_ws_connected(self) -> None:
         """Ensure WebSocket is connected and authenticated."""
