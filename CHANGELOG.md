@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.3.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.25...0.3.0) (2025-11-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* The websocket-client library has been replaced with websockets>=12.0. All client methods now use native async/await patterns. Direct client users must update their code to use async/await. Home Assistant integration users are unaffected (integration already used async).
+
+### Features
+
+* add enhanced error logging for debugging ([7213660](https://github.com/tjbaker/homeassistant-fansync/commit/7213660b1d459cadd4ba95b0e1292737dcf8c73b))
+* migrate from websocket-client to async websockets ([95a587f](https://github.com/tjbaker/homeassistant-fansync/commit/95a587f0e8c1ae764f52d584ac3f96a4d1b84ba8))
+
+
+### Bug Fixes
+
+* add explanatory comment to WebSocket cleanup exception ([febc2b6](https://github.com/tjbaker/homeassistant-fansync/commit/febc2b6be33b0cfd7995ecf5fe7dfeb8204c9f82))
+* add explanatory comments and mypy type narrowing ([9c9b22e](https://github.com/tjbaker/homeassistant-fansync/commit/9c9b22ef91eb40db153a790eeb9375a6c05e3f9d))
+* improve warning messages to reflect cloud-side latency ([60a5a6c](https://github.com/tjbaker/homeassistant-fansync/commit/60a5a6c821394658f4f60aba4ce5353337fce679))
+* replace websocket-client exceptions with async equivalents ([af71943](https://github.com/tjbaker/homeassistant-fansync/commit/af71943ff9950d6bbf76817270f82570a3bbb1f7))
+* update requirements-dev.txt for websockets library ([891d608](https://github.com/tjbaker/homeassistant-fansync/commit/891d608f798256a9248f419cad3bf529608ea13b))
+
 ## [0.2.25](https://github.com/tjbaker/homeassistant-fansync/compare/0.2.24...0.2.25) (2025-11-03)
 
 
