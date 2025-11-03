@@ -30,8 +30,8 @@ def _lst_device_ok(device_id: str = "id") -> str:
     )
 
 
-async def test_set_ack_status_immediate_push(hass: HomeAssistant):
-    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
+async def test_set_ack_status_immediate_push(hass: HomeAssistant) -> None:
+    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
     with (
         patch("custom_components.fansync.client.httpx.Client") as http_cls,
         patch("custom_components.fansync.client.websocket.WebSocket") as ws_cls,
@@ -60,7 +60,10 @@ async def test_set_ack_status_immediate_push(hass: HomeAssistant):
         c.set_status_callback(lambda s: seen.append(s))
 
         await c.async_connect()
-        await c.async_set({"H02": 77})
-        await hass.async_block_till_done()
+        try:
+            await c.async_set({"H02": 77})
+            await hass.async_block_till_done()
+        finally:
+            await c.async_disconnect()
 
     assert seen and seen[-1].get("H02") == 77

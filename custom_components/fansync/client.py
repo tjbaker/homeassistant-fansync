@@ -484,35 +484,10 @@ class FanSyncClient:
                         raise RuntimeError("Websocket not connected after reconnect")
                     # mypy may flag this as unreachable; it's a valid retry after reconnect
                     ws2.send(json.dumps(message))  # type: ignore[unreachable]
-                # Best-effort ack read; ignore errors
-                try:
-                    if _LOGGER.isEnabledFor(logging.DEBUG):
-                        _LOGGER.debug("set waiting for ack d=%s", did)
-                    raw = self._ws.recv()
-                    if _LOGGER.isEnabledFor(logging.DEBUG):
-                        _LOGGER.debug("set received response d=%s", did)
-                    try:
-                        payload = json.loads(raw)
-                        if isinstance(payload, dict) and payload.get("response") == "set":
-                            d = payload.get("data")
-                            if isinstance(d, dict) and isinstance(d.get("status"), dict):
-                                if _LOGGER.isEnabledFor(logging.DEBUG):
-                                    _LOGGER.debug("set ack includes status d=%s", did)
-                                return d["status"]
-                        elif _LOGGER.isEnabledFor(logging.DEBUG):
-                            resp_type = (
-                                payload.get("response") if isinstance(payload, dict) else None
-                            )
-                            _LOGGER.debug("set ack wrong type d=%s response=%s", did, resp_type)
-                    except Exception as parse_exc:
-                        if _LOGGER.isEnabledFor(logging.DEBUG):
-                            _LOGGER.debug(
-                                "set ack parse failed d=%s: %s", did, type(parse_exc).__name__
-                            )
-                except Exception as recv_exc:
-                    if _LOGGER.isEnabledFor(logging.DEBUG):
-                        _LOGGER.debug("set ack recv failed d=%s: %s", did, type(recv_exc).__name__)
-                    return None
+            # Rely on push updates from _recv_loop instead of blocking to read response
+            # The _recv_loop will process the set ack and invoke the status callback
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("set sent d=%s, relying on push updates", did)
             return None
 
         t_total = time.monotonic()
