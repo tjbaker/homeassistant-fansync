@@ -177,7 +177,10 @@ async def test_other_exceptions_still_propagate(hass: HomeAssistant, mock_websoc
         def recv_generator():
             yield _login_ok()
             yield _lst_device_ok("test_device")
-            # Simulate a different exception (not timeout)
+            # Simulate a different exception (not timeout).
+            # Note: We use `raise` here (not `yield`) to test immediate propagation
+            # of non-timeout exceptions. This differs from timeout tests which yield
+            # exception instances to keep the generator alive for the recv loop.
             raise RuntimeError("Connection closed unexpectedly")
 
         mock_websocket.recv.side_effect = recv_generator()
