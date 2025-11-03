@@ -41,6 +41,17 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class FanSyncClient:
+    """WebSocket client for FanSync API.
+
+    Lock Hierarchy (acquire in this order to prevent deadlocks):
+    1. _conn_lock - Protects _ws during reconnection (held during blocking I/O)
+    2. _send_lock - Protects WebSocket send operations (fast, non-blocking)
+    3. _recv_lock - Protects WebSocket receive operations (may block up to ws_timeout)
+
+    Never acquire locks in reverse order. Always release locks before blocking I/O
+    unless the lock specifically protects the connection state (_conn_lock).
+    """
+
     def __init__(
         self,
         hass: HomeAssistant,
@@ -265,7 +276,8 @@ class FanSyncClient:
                                     backoff_sec = min(max_backoff_sec, backoff_sec * 2)
                                 # Skip to next iteration
                                 continue
-                        time.sleep(0.1)
+                            # For other timeout/connection errors, small sleep before retry
+                            time.sleep(0.1)
                     finally:
                         # Only release if we still hold it (not released in reconnect path)
                         if not lock_released:
