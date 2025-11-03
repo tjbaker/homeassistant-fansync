@@ -175,6 +175,49 @@ Any changes should be made there; this file syncs automatically via pre-commit h
   - Never block the Home Assistant event loop with synchronous operations
   - Executor jobs run in thread pool, keeping event loop responsive
 
+# Running Quality Checks in Cursor Sandbox
+When running quality checks in the Cursor sandbox environment, use these exact commands:
+
+**Tests**:
+```bash
+python -m pytest tests/ -v --tb=short
+```
+
+**Coverage** (87% target, minimum 75%):
+```bash
+python -m pytest tests/ --cov=custom_components/fansync --cov-report=term-missing
+```
+
+**Ruff** (linting):
+```bash
+python -m ruff check .
+```
+
+**Black** (formatting) - CRITICAL FOR CURSOR SANDBOX:
+```bash
+# CORRECT - Black will see all 65 Python files:
+python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/
+
+# WRONG - Black will report "No Python files" in sandbox:
+# black --check .
+# black --check custom_components/ tests/
+
+# The --include pattern is required for Black to work in the Cursor sandbox
+```
+
+**Mypy** (type checking):
+```bash
+python -m mypy custom_components/fansync --check-untyped-defs
+```
+
+**Comprehensive check** (run all at once):
+```bash
+python -m pytest tests/ -q --tb=no && \
+python -m ruff check . && \
+python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/ && \
+python -m mypy custom_components/fansync --check-untyped-defs
+```
+
 # Quality Checklist (before committing)
 **IMPORTANT**: Run through this checklist before every commit to catch issues early
 and reduce review cycles. Items below capture common issues found in code reviews.
@@ -199,7 +242,11 @@ and reduce review cycles. Items below capture common issues found in code review
 ## Linting & Formatting
 - [ ] No type errors (mypy custom_components/fansync --check-untyped-defs)
 - [ ] No linting errors (ruff check)
-- [ ] Code formatted (black --check)
+- [ ] Code formatted (black --check --line-length 100 --include '\.py$' custom_components/ tests/)
+  - IMPORTANT: Black in Cursor sandbox requires explicit --include pattern and directories
+  - Do NOT run "black --check ." or "black --check" without paths - it will report no files
+  - Always use: black --check --line-length 100 --include '\.py$' custom_components/ tests/
+  - Or check specific files: black --check --line-length 100 file1.py file2.py
 - [ ] Required headers present in Python/YAML files (SPDX + Apache-2.0)
 
 ## Git & Documentation
