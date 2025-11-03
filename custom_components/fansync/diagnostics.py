@@ -186,7 +186,7 @@ def _analyze_connection_quality(metrics: Any) -> dict[str, Any]:
             "Poor connection quality - consider restarting Home Assistant or the FanSync device"
         )
 
-    if not analysis["issues"]:
-        analysis["recommendations"].append("Connection is healthy - no action needed")
+    # Note: Recommendations are only added when there are actionable items
+    # An empty recommendations list indicates a healthy connection
 
     return analysis
