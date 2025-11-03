@@ -12,8 +12,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import patch
+import websocket as ws_module
 
 from homeassistant.core import HomeAssistant
 
@@ -95,9 +97,6 @@ async def test_set_uses_ack_status_when_present(hass: HomeAssistant) -> None:
         c.set_status_callback(lambda s: seen.append(s))
 
         # The recv_loop will consume the set ack in the background
-        import asyncio
-        import websocket as ws_module
-
         def recv_side_effect():
             # First call returns the set ack
             yield json.dumps(

@@ -257,9 +257,8 @@ class FanSyncClient:
                                         time.sleep(backoff_sec)
                                         backoff_sec = min(max_backoff_sec, backoff_sec * 2)
                             time.sleep(0.1)
-                            raise  # Re-raise to go to finally block
                     except Exception:
-                        # Handled above or unexpected error
+                        # Handled above or unexpected error; release lock and continue
                         pass
                     finally:
                         self._recv_lock.release()
@@ -411,7 +410,8 @@ class FanSyncClient:
                     sent = False
                 if not sent:
                     # reconnect and retry once
-                    with self._recv_lock:
+                    # Acquire both locks in consistent order to avoid race conditions
+                    with self._send_lock, self._recv_lock:
                         self._ws = None
                     self._ensure_ws_connected()
                     ws2 = self._ws
@@ -490,7 +490,8 @@ class FanSyncClient:
                     sent = False
                 if not sent:
                     # reconnect and retry once
-                    with self._recv_lock:
+                    # Acquire both locks in consistent order to avoid race conditions
+                    with self._send_lock, self._recv_lock:
                         self._ws = None
                     self._ensure_ws_connected()
                     ws2 = self._ws
