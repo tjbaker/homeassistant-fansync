@@ -57,12 +57,15 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 
 # Testing
 - Always add new tests, ensure they pass, and requisite code coverage is met when adding new functionality.
-- Use pytest; do not make real network calls. Patch httpx/websocket at module paths (custom_components.fansync.client.*).
+- Use pytest; do not make real network calls. Patch httpx and async websockets at module paths:
+  - HTTP: Patch `httpx.Client` at `custom_components.fansync.client.*`
+  - WebSocket: Patch `websockets.connect` at `custom_components.fansync.client.websockets.connect` with `new_callable=AsyncMock`
 - Coverage focus in CI is custom_components/fansync; target ≥ 75%.
 - Include tests for: push callback merge, reconnect paths, config flow (happy/error/duplicate),
   optimistic overlay expiry, and multi-device entity isolation.
 - Test debug logging with caplog to verify messages format correctly.
-- Ensure tests clean up background threads/tasks (call async_disconnect on FanSyncClient).
+- Ensure tests clean up background async tasks (call async_disconnect on FanSyncClient).
+  - This cancels the `_recv_task` (async WebSocket receiver) and closes connections.
 - Use Home Assistant's config flow test helpers (hass.config_entries.flow.async_init) instead of
   directly instantiating flow classes.
 - Type annotations in tests:
@@ -149,31 +152,34 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Prefer list comprehensions over loops for simple transformations (readability permitting).
 - Cache expensive computations when safe to do so.
 
-# Threading & Concurrency
-- Use separate locks for logically independent operations (e.g., send vs receive in WebSocket)
-- NEVER nest acquisition of the same non-reentrant lock (threading.Lock)
-  - Python's threading.Lock is NOT reentrant; acquiring it twice from the same thread deadlocks
-  - Always release locks before calling functions that may re-acquire them
-  - If reentrant locking is needed, use threading.RLock explicitly
-- Lock ordering must be consistent across all code paths to prevent deadlock
-  - Document the lock ordering hierarchy (e.g., "always acquire _send_lock before _recv_lock")
-  - Violating lock order can cause ABBA deadlocks between threads
-- Background threads should use timeout-based lock acquisition to avoid blocking forever
-  - Example: `acquired = lock.acquire(timeout=0.5)` then check if acquired
-  - This prevents threads from hanging indefinitely if primary thread holds lock
-- Always release locks before performing blocking I/O operations
-  - Blocking operations (network I/O, file I/O, sleep) while holding locks causes contention
-  - Release lock, do blocking work, then re-acquire if needed
-- Initialize variables to None before try blocks if they may be referenced after exceptions
-  - Prevents NameError if exception occurs before assignment
-  - Check for None after try block and skip processing if unset
-- Ensure background threads can be cleanly shut down
-  - Use a _running flag checked in thread loop
-  - Call thread.join() with timeout in cleanup/disconnect
-  - Avoid daemon threads holding critical resources
-- In async code calling sync threaded code, use hass.async_add_executor_job
-  - Never block the Home Assistant event loop with synchronous operations
-  - Executor jobs run in thread pool, keeping event loop responsive
+# Async Patterns & Concurrency
+- The client uses 100% async/await patterns with no threading
+  - Uses `asyncio.Task` for background operations (`_recv_task` for WebSocket receiver)
+  - All WebSocket operations use native async: `websockets.connect()`, `ws.send()`, `ws.recv()`
+  - All timeouts use `asyncio.wait_for()` with built-in `TimeoutError`
+- Never block the Home Assistant event loop
+  - All I/O operations must be async (await websockets, httpx async client)
+  - Use `hass.async_add_executor_job` only if calling truly synchronous/blocking third-party code
+  - Avoid `time.sleep()` - use `await asyncio.sleep()` instead
+- Background async task management
+  - Store tasks as `self._recv_task: asyncio.Task | None = None`
+  - Create tasks with `asyncio.create_task()` or `hass.async_create_task()`
+  - Cancel tasks with `task.cancel()` and optionally `await task` to collect CancelledError
+  - Always set task references to None after cancellation
+- Async exception handling
+  - Use built-in `TimeoutError` for `asyncio.wait_for()` timeouts (not `asyncio.TimeoutError`)
+  - Catch `OSError` for network errors (replaces old `WebSocketConnectionClosedException`)
+  - Use `asyncio.CancelledError` for handling cancelled tasks
+  - Always clean up resources (close connections, cancel tasks) in finally blocks
+- Async context managers
+  - Use `async with` for resources that support it (e.g., `async with websockets.connect() as ws`)
+  - Ensure proper cleanup even if exceptions occur
+- Testing async code
+  - Mock async functions with `AsyncMock` from `unittest.mock`
+  - Mock `websockets.connect` with `patch(..., new_callable=AsyncMock)`
+  - Mock WebSocket methods (`send`, `recv`, `close`) as `AsyncMock` objects
+  - Use `asyncio.sleep(0.1)` in tests to allow background tasks to process messages
+  - Always await async mocks to avoid "coroutine was never awaited" warnings
 
 # Running Quality Checks in Cursor Sandbox
 When running quality checks in the Cursor sandbox environment, use these exact commands:
