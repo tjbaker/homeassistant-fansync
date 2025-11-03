@@ -119,9 +119,25 @@ def mock_websocket():
     Returns a mock that simulates WebSocket protocol:
     - send() and recv() are async methods
     - close() is async method
+    - Tracks sent requests in mock_ws.sent_requests list
     """
+    import json
+
     mock_ws = MagicMock()
-    mock_ws.send = AsyncMock()
-    mock_ws.recv = AsyncMock()
     mock_ws.close = AsyncMock()
+
+    # Track all sent requests
+    mock_ws.sent_requests = []
+
+    async def track_send(msg):
+        """Track sent requests for test inspection."""
+        try:
+            data = json.loads(msg)
+            mock_ws.sent_requests.append(data)
+        except Exception:
+            pass  # Ignore malformed messages in tests
+
+    mock_ws.send = AsyncMock(side_effect=track_send)
+    mock_ws.recv = AsyncMock()
+
     return mock_ws
