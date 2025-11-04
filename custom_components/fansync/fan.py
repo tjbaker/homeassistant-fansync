@@ -331,7 +331,9 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
                         max(0.0, remaining),
                     )
                 return
-            # Predicate satisfied by push update; signal early termination of polling
+            # Predicate satisfied (by push or polling); signal early termination of polling.
+            # Note: Intended use case is confirmation via push, but this is set whenever
+            # the predicate is satisfied during the guard period, regardless of update source.
             self._confirmed_by_push = True
             # Clear the guard
             self._optimistic_until = None
