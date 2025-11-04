@@ -32,14 +32,13 @@ PRESET_MODES = {0: "normal", 1: "fresh_air"}
 
 # Optimistic update timing (shared by entities)
 # Guard window to prevent UI snap-back while awaiting confirmation
-# Reduced from 12.0s to 8.0s since push updates are reliable (see device_change events).
-# Confirmation is typically received within 1-2 seconds via push or polling.
-OPTIMISTIC_GUARD_SEC = 8.0
+# Push updates (device_change events) are reliable and typically arrive within 1-2 seconds.
+# Early termination logic stops polling once push confirms, so this is mainly a safety net.
+OPTIMISTIC_GUARD_SEC = 3.0
 # Confirmation polling attempts and delay between polls
-# Reduced from 20 to 10 attempts (10 × 0.25s = 2.5s) since push updates work reliably.
-# This reduces network traffic while still accommodating occasional device/network latency.
-# Push updates typically confirm changes within 1-2 seconds.
-CONFIRM_RETRY_ATTEMPTS = 10
+# Push updates typically confirm changes within 1-2 seconds, terminating polling early.
+# These fallback polls (3 × 0.25s = 0.75s) handle edge cases where push is delayed.
+CONFIRM_RETRY_ATTEMPTS = 3
 CONFIRM_RETRY_DELAY_SEC = 0.25
 
 # Options: fallback polling

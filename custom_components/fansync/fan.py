@@ -89,6 +89,8 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         # Per-key optimistic overlay to avoid snap-back during short races
         # key -> (value, expires_at_monotonic)
         self._overlay: dict[str, tuple[int, float]] = {}
+        # Flag to signal early termination of confirmation polling when push confirms
+        self._confirmed_by_push: bool = False
 
     def _get_with_overlay(self, key: str, default: int) -> int:
         now = time.monotonic()
@@ -120,9 +122,22 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         """Fetch status until predicate passes or attempts exhausted.
 
         Returns (status, satisfied). If not satisfied, caller may keep optimistic state.
+        Early terminates if push update confirms the change (via _confirmed_by_push flag).
         """
         status: dict = {}
         for _ in range(self._retry_attempts):
+            # Check if push update already confirmed before polling
+            if self._confirmed_by_push:
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(
+                        "optimism early confirm d=%s via push update",
+                        self._device_id,
+                    )
+                # Get final status from coordinator data
+                data = self.coordinator.data or {}
+                status = data.get(self._device_id, {}) if isinstance(data, dict) else {}
+                return status, True
+
             try:
                 status = await self.client.async_get_status(self._device_id)
             except TypeError:
@@ -163,6 +178,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         # Guard against snap-back from interim coordinator refreshes
         self._optimistic_until = expires
         self._optimistic_predicate = confirm_pred
+        self._confirmed_by_push = False  # Reset flag for new optimistic update
         try:
             try:
                 await self.client.async_set(payload, device_id=self._device_id)
@@ -315,7 +331,9 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
                         max(0.0, remaining),
                     )
                 return
-            # Predicate satisfied; clear the guard.
+            # Predicate satisfied by push update; signal early termination of polling
+            self._confirmed_by_push = True
+            # Clear the guard
             self._optimistic_until = None
             self._optimistic_predicate = None
 
