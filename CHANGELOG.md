@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.5.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.4.0...0.5.0) (2025-11-04)
+
+
+### Features
+
+* capture and display diagnostics on config flow timeout ([e6f86d6](https://github.com/tjbaker/homeassistant-fansync/commit/e6f86d679458dda11504bf444ffea1fb58423f64))
+
 ## [0.4.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.3.4...0.4.0) (2025-11-03)
 
 
