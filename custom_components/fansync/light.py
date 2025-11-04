@@ -95,6 +95,8 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         self._optimistic_predicate: Callable[[dict], bool] | None = None
         # Per-key optimistic overlay
         self._overlay: dict[str, tuple[int, float]] = {}
+        # Flag to signal early termination of confirmation polling when push confirms
+        self._confirmed_by_push: bool = False
 
     def _status_for(self, payload: dict) -> dict[str, object]:
         """Return this device's status mapping from an aggregated payload."""
@@ -130,9 +132,24 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         return int(default)
 
     async def _retry_update_until(self, predicate: Callable[[dict], bool]) -> tuple[dict, bool]:
-        """Fetch status until predicate passes or attempts exhausted."""
+        """Fetch status until predicate passes or attempts exhausted.
+
+        Early terminates if push update confirms the change (via _confirmed_by_push flag).
+        """
         status: dict = {}
         for _ in range(self._retry_attempts):
+            # Check if push update already confirmed before polling
+            if self._confirmed_by_push:
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(
+                        "optimism early confirm d=%s via push update",
+                        self._device_id,
+                    )
+                # Get final status from coordinator data
+                data = self.coordinator.data or {}
+                status = data.get(self._device_id, {}) if isinstance(data, dict) else {}
+                return status, True
+
             try:
                 status = await self.client.async_get_status(self._device_id)
             except TypeError:
@@ -169,6 +186,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         self.coordinator.async_set_updated_data(optimistic_all)
         self._optimistic_until = expires
         self._optimistic_predicate = confirm_pred
+        self._confirmed_by_push = False  # Reset flag for new optimistic update
         try:
             try:
                 await self.client.async_set(payload, device_id=self._device_id)
@@ -259,6 +277,9 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
                         max(0.0, remaining),
                     )
                 return
+            # Predicate satisfied by push update; signal early termination of polling
+            self._confirmed_by_push = True
+            # Clear the guard
             self._optimistic_until = None
             self._optimistic_predicate = None
 
