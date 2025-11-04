@@ -21,9 +21,13 @@ Thanks for your interest in contributing! Community pull requests and issues are
 - Be respectful and constructive. Assume good intent. We aim for a welcoming and inclusive
   environment for all contributors.
 
-## How to contribute
+## Getting Started
 
-- Open an issue (with logs)
+This guide covers everything you need to contribute: Docker development setup, workflow, code standards, and the PR process.
+
+## How to Contribute
+
+### Open an Issue (with logs)
   - Use GitHub Issues to report bugs, propose features, or ask questions.
   - Include clear steps to reproduce, expected behavior, and a concise log slice.
   - During initial login (config flow), enable HTTP stack logging so auth errors/timeouts are visible.
@@ -51,35 +55,107 @@ Thanks for your interest in contributing! Community pull requests and issues are
     - Redact sensitive data (email, tokens, IPs) before sharing.
   - Home Assistant docs: https://www.home-assistant.io/docs/configuration/troubleshooting/#enabling-debug-logging
 
-- Submit a pull request (PR)
-  - Small, focused PRs are easier to review and merge.
-  - Reference any related issue(s) in the PR description (e.g., "Fixes #123").
-  - Follow Conventional Commits for PR titles (e.g., feat, fix, docs).
+### Submit a Pull Request (PR)
 
-## Development
+See the **[Pull Request Workflow](#pull-request-workflow)** section below for the complete process.
 
-### Guidelines
+Quick guidelines:
+- Small, focused PRs are easier to review and merge
+- Reference any related issue(s) in the PR description (e.g., "Fixes #123")
+- Follow Conventional Commits for PR titles (e.g., `feat:`, `fix:`, `docs:`)
+- Include tests for new functionality
+- Ensure all quality checks pass
 
-- Coding style: Black + Ruff, Python 3.13, modern typing.
-- Home Assistant specifics: async patterns, CoordinatorEntity, push-first updates.
-- Tests: pytest with no real network calls; coverage enforced in CI.
-- Single canonical AI instruction file: `.cursorrules` in repo root (pre-commit syncs it to other locations). Edit only `.cursorrules`.
+## Development Setup
 
-### Setup
+### Quick Start: Docker (Recommended)
+
+The **fastest way** to develop is using Docker Compose - get a local Home Assistant instance running in seconds with your code mounted live.
+
+**Prerequisites:**
+- Docker Desktop (Mac/Windows) or Docker + Docker Compose (Linux)
+- Your FanSync account credentials (email/password)
+
+**Setup:**
+
+```bash
+# Start Home Assistant with your code mounted
+docker compose up -d
+```
+
+**Access Home Assistant:**
+- Open: http://localhost:8123
+- **First time only**: Complete 30-second onboarding (create account, e.g., "dev"/"dev")
+- **After onboarding**: No login required! (trusted network config)
+- Add FanSync integration: Settings → Devices & Services → Add Integration → "FanSync"
+  - **Note**: If you encounter SSL errors, uncheck "Verify SSL certificate" (some Docker environments have certificate trust issues)
+
+**Development workflow:**
+
+```bash
+# 1. Edit your code
+vim custom_components/fansync/fan.py
+
+# 2. Restart to see changes (~5-10 seconds!)
+docker compose restart
+
+# 3. Test in browser at http://localhost:8123
+
+# View logs
+docker compose logs -f
+
+# Filter for FanSync
+docker compose logs -f | grep -i fansync
+
+# Fresh start (removes all data)
+docker compose down -v
+docker compose up -d
+```
+
+**Debugging:**
+
+Debug logging is **enabled by default** for:
+- `custom_components.fansync`
+- `httpcore` (HTTP connections)
+- `httpx` (HTTP requests)
+- `websockets` (WebSocket frames)
+
+View logs with:
+```bash
+docker compose logs -f
+# Or filter for FanSync:
+docker compose logs -f | grep -i "fansync\|httpcore\|httpx\|websockets"
+```
+
+To disable debug logging, edit `dev-config/configuration.yaml` and remove the `logs:` section, then `docker compose restart`.
+
+### Alternative: Virtual Environment
+
+If you prefer not to use Docker:
 
 ```bash
 # Create and activate a virtualenv
 python3.13 -m venv venv
 source venv/bin/activate
 
-# Install tools
+# Install development tools
 pip install -U pip
 pip install -r requirements-dev.txt
-
-# Lint/format
-ruff --fix .
-black .
 ```
+
+Then manually install Home Assistant Core in development mode (see Home Assistant Core documentation).
+
+### Code Style Guidelines
+
+- **Formatter**: Black (line length 100) + Ruff
+- **Type checking**: mypy with strict settings  
+- **Python version**: 3.13
+- **Typing**: Modern syntax (`X | None` instead of `Optional[X]`)
+- **Async patterns**: Always use `async/await`, never block the event loop
+- **HA patterns**: CoordinatorEntity, push-first updates, optimistic UI
+- **Error handling**: Narrow exception catches, proper logging levels
+- **Testing**: pytest, no real network calls, ≥75% coverage target
+- **AI instructions**: Single canonical file: `.cursorrules` (pre-commit syncs to other locations)
 
 ### Pre-commit
 
@@ -107,26 +183,141 @@ Update hook versions:
 pre-commit autoupdate
 ```
 
-### Commit conventions
+### Commit Conventions
 
-- Use Conventional Commits for PR titles and commit subjects: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
-- Keep subject ≤ 72 characters.
+We use **Conventional Commits** for all PR titles and commit subjects:
 
-### Testing and type checking
+**Format**: `<type>: <description>`
 
-- See `tests/README.md` for test suite details and patterns.
-- Common commands:
+**Types**:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style (formatting, no logic change)
+- `refactor`: Code refactoring
+- `perf`: Performance improvement
+- `test`: Add or update tests
+- `build`: Build system changes
+- `ci`: CI configuration changes
+- `chore`: Maintenance tasks
+- `revert`: Revert previous commit
 
+**Rules**:
+- Subject must be ≤ 72 characters
+- Use imperative mood ("add feature" not "added feature")
+- Include detailed body for non-trivial changes
+- Reference issues in body (e.g., "Fixes #123")
+
+**Examples**:
 ```bash
-pytest -q --cov=custom_components/fansync
-mypy custom_components/fansync --check-untyped-defs
-ruff check
-black --check .
+feat: add optimistic light updates
+fix: prevent WebSocket reconnect loop
+docs: update Docker development guide
+test: add coverage for config flow errors
 ```
 
- 
+### Testing and Quality Checks
 
-## AI assistant guidance
+See **[tests/README.md](tests/README.md)** for comprehensive test patterns and suite details.
+
+**Quick commands**:
+
+```bash
+# Run tests with coverage
+pytest -q --cov=custom_components/fansync
+
+# Type checking
+mypy custom_components/fansync --check-untyped-defs
+
+# Linting
+ruff check .
+
+# Formatting check
+black --check --line-length 100 --include '\.py$' custom_components/ tests/
+
+# Run all checks
+pytest -q && ruff check . && black --check --line-length 100 --include '\.py$' custom_components/ tests/ && mypy custom_components/fansync
+```
+
+## Pull Request Workflow
+
+Follow this process for contributing code changes:
+
+### 1. Before You Start
+
+- Check existing issues and PRs to avoid duplicates
+- For significant changes, **open an issue first** to discuss the approach
+- Review the **[Development Setup](#development-setup)** section above
+
+### 2. Development
+
+```bash
+# Fork the repo and clone your fork
+git clone https://github.com/YOUR_USERNAME/homeassistant-fansync.git
+cd homeassistant-fansync
+
+# Create a feature branch
+git checkout -b feat/your-feature-name
+
+# Set up Docker environment (see Development Setup section)
+docker compose up -d
+
+# Make your changes, test locally
+docker compose restart  # After each change
+
+# Add tests for new functionality
+# See tests/README.md for test patterns
+```
+
+### 3. Before Submitting
+
+Ensure all quality checks pass:
+
+```bash
+# Run full test suite with coverage
+pytest --cov=custom_components/fansync --cov-report=term-missing
+
+# Check code style and types
+ruff check .
+black --check --line-length 100 --include '\.py$' custom_components/ tests/
+mypy custom_components/fansync --check-untyped-defs
+```
+
+### 4. Submit PR
+
+```bash
+# Commit with conventional commit format
+git add .
+git commit -m "feat: add new awesome feature"
+
+# Push to your fork
+git push origin feat/your-feature-name
+```
+
+Then open a PR on GitHub:
+- Use a clear, descriptive title following **Conventional Commits** format
+- Fill out the PR template completely
+- Reference any related issues (e.g., "Fixes #123")
+- Describe what changed and why
+- Include screenshots/logs if relevant
+
+### 5. Review Process
+
+- Maintainers will review your PR and may request changes
+- Address feedback by pushing new commits to your branch
+- Once approved, your PR will be **squash merged** to main
+- The PR title becomes the commit message, so make it clear!
+
+### 6. After Merge
+
+- Your changes will be included in the next release
+- Releases are automated via **Release Please** based on commit types:
+  - `feat:` → minor version bump (0.X.0)
+  - `fix:` → patch version bump (0.0.X)
+  - `feat!:` or `fix!:` → major version bump (X.0.0)
+- Changelog is auto-generated from commit messages
+
+## AI Assistant Guidance
 
 - The canonical rules live in `.cursorrules`. A pre-commit hook syncs content to other locations.
 - Edit only `.cursorrules`; do not hand-edit generated copies.
