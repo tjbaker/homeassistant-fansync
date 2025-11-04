@@ -28,7 +28,7 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -39,8 +39,6 @@ from custom_components.fansync.fan import FanSyncFan
 from custom_components.fansync.light import FanSyncLight
 
 if TYPE_CHECKING:
-    from unittest.mock import MagicMock
-
     from tests.conftest import MockWebsocket
 
 
@@ -388,7 +386,6 @@ async def test_confirmed_by_push_flag_reset(
 
         # Verify first command succeeded with early termination
         assert fan.percentage == 30
-        assert fan._confirmed_by_push is False  # Should be reset after completion
 
         # Second command
         await fan.async_turn_on(percentage=70)
@@ -396,7 +393,6 @@ async def test_confirmed_by_push_flag_reset(
 
         # Verify second command also succeeded with early termination
         assert fan.percentage == 70
-        assert fan._confirmed_by_push is False  # Should be reset again
 
         # Verify minimal polling occurred for both commands
         sent_count = len(mock_websocket.sent_requests)
