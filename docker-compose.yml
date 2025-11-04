@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Trevor Baker, all rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Docker Compose setup for local FanSync development
+# 
+# Usage:
+#   docker compose up -d              # Start HA in background
+#   docker compose logs -f            # Follow logs
+#   docker compose restart            # Quick restart after code changes
+#   docker compose down               # Stop and remove containers
+#   docker compose down -v            # Stop and remove ALL data (fresh start)
+#
+# After starting, access HA at: http://localhost:8123
+
+services:
+  homeassistant:
+    container_name: ha-fansync-dev
+    image: ghcr.io/home-assistant/home-assistant:2025.10.4
+    restart: unless-stopped
+    privileged: false
+    # Note: network_mode: host doesn't work on macOS/Windows Docker Desktop
+    # Use port mapping instead
+    ports:
+      - "8123:8123"
+    
+    volumes:
+      # Mount your integration code directly (live edits!)
+      - ./custom_components/fansync:/config/custom_components/fansync:ro
+      
+      # Persistent HA config (survives restarts, preserves your test setup)
+      - ha-config:/config
+      
+      # Dev config for skipping auth (see dev-config/README.md)
+      - ./dev-config/configuration.yaml:/config/configuration.yaml:ro
+      - ./dev-config/automations.yaml:/config/automations.yaml:ro
+      - ./dev-config/scripts.yaml:/config/scripts.yaml:ro
+      - ./dev-config/scenes.yaml:/config/scenes.yaml:ro
+      
+    environment:
+      - TZ=America/New_York  # Change to your timezone
+      
+    # Uncomment to enable debug logging from start
+    # command: >
+    #   bash -c "
+    #     echo 'logger:' >> /config/configuration.yaml &&
+    #     echo '  default: info' >> /config/configuration.yaml &&
+    #     echo '  logs:' >> /config/configuration.yaml &&
+    #     echo '    custom_components.fansync: debug' >> /config/configuration.yaml &&
+    #     python -m homeassistant --config /config
+    #   "
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  # Persistent volume for HA config, databases, etc.
+  # To start completely fresh: docker compose down -v
+  ha-config:
+
