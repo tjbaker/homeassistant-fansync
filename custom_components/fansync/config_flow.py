@@ -106,6 +106,12 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except TimeoutError as exc:
             # Catches both asyncio.wait_for timeouts and websockets connection timeouts
             _LOGGER.error("WebSocket connection timed out during setup")
+            _LOGGER.error(
+                "Timeout while waiting for server response. Common causes:\n"
+                "  1. Server not responding (possible Fanimation cloud issue)\n"
+                "  2. Network filtering (firewall/proxy blocking WebSocket data)\n"
+                "  3. Try from different network (mobile hotspot) to isolate issue"
+            )
 
             # Capture diagnostics before cleanup for structured logging
             if client is not None:

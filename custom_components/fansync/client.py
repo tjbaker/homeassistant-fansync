@@ -262,10 +262,16 @@ class FanSyncClient:
             try:
                 # Track WebSocket handshake timing separately
                 ws_connect_start = time.monotonic()
+                # Use mobile app headers to avoid server filtering
+                # The Android app identifies with X-Requested-With header
                 ws = await asyncio.wait_for(
                     websockets.connect(
                         "wss://fanimation.apps.exosite.io/api:1/phone",
                         ssl=self._ssl_context,
+                        additional_headers={
+                            "X-Requested-With": "com.fanimation.fanSyncW",
+                            "Origin": "http://localhost",
+                        },
                     ),
                     timeout=ws_timeout,
                 )
@@ -278,18 +284,23 @@ class FanSyncClient:
 
                 # Login - track send + response wait time
                 ws_login_start = time.monotonic()
+                login_msg = json.dumps(
+                    {
+                        "id": WS_REQUEST_ID_LOGIN,
+                        "request": "login",
+                        "data": {"token": token},
+                    }
+                )
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("Sending WebSocket login request (token length: %d)", len(token))
                 await asyncio.wait_for(
-                    ws.send(
-                        json.dumps(
-                            {
-                                "id": WS_REQUEST_ID_LOGIN,
-                                "request": "login",
-                                "data": {"token": token},
-                            }
-                        )
-                    ),
+                    ws.send(login_msg),
                     timeout=ws_timeout,
                 )
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(
+                        "Waiting for WebSocket login response (timeout: %ds)...", ws_timeout
+                    )
                 raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
                 self._last_ws_login_wait_ms = (time.monotonic() - ws_login_start) * 1000
 
@@ -602,10 +613,16 @@ class FanSyncClient:
         if self._ssl_context is None:
             self._ssl_context = await self.hass.async_add_executor_job(self._create_ssl_context)
 
+        # Use mobile app headers to avoid server filtering
+        # The Android app identifies with X-Requested-With header
         ws = await asyncio.wait_for(
             websockets.connect(
                 "wss://fanimation.apps.exosite.io/api:1/phone",
                 ssl=self._ssl_context,
+                additional_headers={
+                    "X-Requested-With": "com.fanimation.fanSyncW",
+                    "Origin": "http://localhost",
+                },
             ),
             timeout=ws_timeout,
         )
