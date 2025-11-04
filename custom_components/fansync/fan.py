@@ -128,15 +128,19 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         for _ in range(self._retry_attempts):
             # Check if push update already confirmed before polling
             if self._confirmed_by_push:
-                if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug(
-                        "optimism early confirm d=%s via push update",
-                        self._device_id,
-                    )
                 # Get final status from coordinator data
                 data = self.coordinator.data or {}
                 status = data.get(self._device_id, {}) if isinstance(data, dict) else {}
-                return status, True
+                # Validate predicate in case coordinator data changed between flag set and now
+                if predicate(status):
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug(
+                            "optimism early confirm d=%s via push update",
+                            self._device_id,
+                        )
+                    return status, True
+                # Predicate no longer satisfied, reset flag and continue polling
+                self._confirmed_by_push = False
 
             try:
                 status = await self.client.async_get_status(self._device_id)
