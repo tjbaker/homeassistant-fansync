@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.5.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.5.0...0.5.1) (2025-11-04)
+
+
+### Bug Fixes
+
+* validate predicate on early termination ([240af40](https://github.com/tjbaker/homeassistant-fansync/commit/240af40e9ba31e7f16b8a9854e1c2151d44fb236))
+
+
+### Performance Improvements
+
+* add early termination for confirmation polling ([8947ca2](https://github.com/tjbaker/homeassistant-fansync/commit/8947ca263d4db41e0c98e8d1fdb10fa4a04371c8))
+
+
+### Code Refactoring
+
+* address Copilot feedback ([94f7cd0](https://github.com/tjbaker/homeassistant-fansync/commit/94f7cd0c66ef60736a933d71402f51991a6618e0))
+
 ## [0.5.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.4.0...0.5.0) (2025-11-04)
 
 
