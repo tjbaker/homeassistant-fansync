@@ -15,6 +15,7 @@
     },
     "error": {
       "cannot_connect": "Failed to connect. Check your network or increase the HTTP/WebSocket timeouts in setup or Options, then try again.",
+      "ws_timeout": "WebSocket login timeout. HTTP: {http_ms}ms, WS handshake: {ws_handshake_ms}ms, Login wait: {login_wait_ms}ms. Check logs for full diagnostics.",
       "invalid_auth": "Invalid email or password. Please check your credentials.",
       "no_devices": "No FanSync devices found on your account. Please verify devices are registered in the Fanimation app.",
       "unknown": "An unexpected error occurred. Please check the logs for details."

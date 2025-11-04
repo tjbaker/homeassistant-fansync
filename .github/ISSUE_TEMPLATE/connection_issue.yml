@@ -146,19 +146,29 @@ body:
   - type: textarea
     id: diagnostics
     attributes:
-      label: Diagnostics File
+      label: Diagnostics File or Logs
       description: |
-        **IMPORTANT**: Please attach your diagnostics file!
+        **IMPORTANT**: Diagnostics are captured even when setup fails!
         
-        To download diagnostics:
+        **If integration is working:**
         1. Go to **Settings** → **Devices & Services**
         2. Find **FanSync** integration
         3. Click the **three dots (⋮)** menu
         4. Select **Download Diagnostics**
         5. Attach the JSON file here
         
-        This file contains critical timing and connection data (no passwords/tokens).
-      placeholder: Drag and drop the diagnostics JSON file here, or paste its contents
+        **If setup failed:**
+        Diagnostics are automatically logged! Look for "Connection diagnostics (structured)" in your logs (see below).
+        Copy the entire JSON block and paste it here.
+        
+        **Either way**: This contains critical timing and connection data (no passwords/tokens).
+      placeholder: |
+        Drag and drop the diagnostics JSON file here, or paste the structured JSON from logs:
+        {
+          "connection_timing": {...},
+          "token_metadata": {...},
+          ...
+        }
     validations:
       required: false
 
