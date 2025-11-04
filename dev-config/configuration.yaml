@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Trevor Baker, all rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#   http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Development configuration for Home Assistant
+# This file enables trusted network authentication so you can skip
+# creating a username/password for local development.
+
+# Core configuration
+homeassistant:
+  name: FanSync Dev
+  latitude: 40.7128
+  longitude: -74.0060
+  elevation: 0
+  unit_system: us_customary
+  currency: USD
+  time_zone: America/New_York
+  country: US
+  
+  # Allow integration to load
+  allowlist_external_dirs:
+    - /config
+  
+  # Skip onboarding on first start
+  # Note: You may still see onboarding screen, but it will auto-complete
+  
+# Enable frontend
+frontend:
+
+# Enable config UI
+config:
+
+# HTTP configuration - trust local network (no auth required!)
+http:
+  # Trust connections from localhost and Docker network
+  # This allows you to access HA without logging in
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+    - 172.17.0.0/16  # Docker default bridge network
+  use_x_forwarded_for: true
+  
+  # IMPORTANT: This skips authentication for trusted networks
+  # DO NOT use this in production!
+  ip_ban_enabled: false
+  login_attempts_threshold: -1
+
+# Enable logging
+logger:
+  default: info
+  logs:
+    custom_components.fansync: debug
+    httpcore: debug
+    httpx: debug
+    websockets: debug
+
+# Minimal recorder (faster startup, less disk usage)
+recorder:
+  db_url: sqlite:////config/home-assistant_v2.db
+  purge_keep_days: 1
+  commit_interval: 30
+
+# History for 1 day only
+history:
+  
+# Enable system health
+system_health:
+
+# Enable my integration
+my:
+
+# Mobile app support (optional)
+mobile_app:
+
+# Enable diagnostics
+diagnostics:
+
+# Person tracking (minimal)
+person:
+
+# Zones (minimal)
+zone:
+
+# Sun (useful for testing automations)
+sun:
+
+# Enable energy dashboard (optional)
+energy:
+
+# Automation support
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+

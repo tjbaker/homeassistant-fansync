@@ -209,9 +209,30 @@ Use the [Connection Issue template](https://github.com/tjbaker/homeassistant-fan
 For general contributing guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).  
 For detailed test suite info, see [tests/README.md](tests/README.md).
 
-## Contributing
+## Development & Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, lint/format, commit conventions, and PR guidance. For detailed test suite info and commands, see [tests/README.md](tests/README.md).
+Want to contribute or test changes locally?
+
+### 🚀 Quick Start: Docker Development
+
+Get a local Home Assistant instance running in seconds:
+
+```bash
+docker compose up -d              # Start HA with your code mounted
+# Access at http://localhost:8123 (no login after first setup!)
+# Edit code, then:
+docker compose restart            # See changes in ~10 seconds
+```
+
+### 📚 Contributing Guide
+
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for:
+- Complete Docker setup and workflow
+- Code standards and conventions
+- Pull request process
+- Testing guidelines
+
+For test-specific details, see **[tests/README.md](tests/README.md)**.
 
  
 
