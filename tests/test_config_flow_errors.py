@@ -16,9 +16,10 @@ from unittest.mock import Mock, patch
 
 import httpx
 from homeassistant import data_entry_flow
+from homeassistant.core import HomeAssistant
 
 
-async def test_config_flow_cannot_connect(hass):
+async def test_config_flow_cannot_connect(hass: HomeAssistant) -> None:
     # Start the config flow via Home Assistant to get a mutable context
     result = await hass.config_entries.flow.async_init("fansync", context={"source": "user"})
     assert result["type"] == data_entry_flow.FlowResultType.FORM
@@ -37,7 +38,7 @@ async def test_config_flow_cannot_connect(hass):
     assert result2["errors"].get("base") == "cannot_connect"
 
 
-async def test_config_flow_ws_timeout_maps_cannot_connect(hass):
+async def test_config_flow_ws_timeout_maps_ws_timeout(hass: HomeAssistant) -> None:
     # Start the config flow via Home Assistant to get a mutable context
     result = await hass.config_entries.flow.async_init("fansync", context={"source": "user"})
     assert result["type"] == data_entry_flow.FlowResultType.FORM
@@ -52,10 +53,13 @@ async def test_config_flow_ws_timeout_maps_cannot_connect(hass):
         )
 
     assert result2["type"] == data_entry_flow.FlowResultType.FORM
-    assert result2["errors"].get("base") == "cannot_connect"
+    # Now returns ws_timeout with diagnostics instead of generic cannot_connect
+    assert result2["errors"].get("base") == "ws_timeout"
+    # Verify description_placeholders are included (may be N/A if no timing available)
+    assert "description_placeholders" in result2
 
 
-async def test_config_flow_invalid_auth(hass):
+async def test_config_flow_invalid_auth(hass: HomeAssistant) -> None:
     # Start the config flow
     result = await hass.config_entries.flow.async_init("fansync", context={"source": "user"})
     assert result["type"] == data_entry_flow.FlowResultType.FORM
@@ -78,7 +82,7 @@ async def test_config_flow_invalid_auth(hass):
     assert result2["errors"].get("base") == "invalid_auth"
 
 
-async def test_config_flow_no_devices(hass):
+async def test_config_flow_no_devices(hass: HomeAssistant) -> None:
     # Start the config flow
     result = await hass.config_entries.flow.async_init("fansync", context={"source": "user"})
     assert result["type"] == data_entry_flow.FlowResultType.FORM

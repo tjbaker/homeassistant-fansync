@@ -72,15 +72,22 @@ Set via: Settings → Devices & Services → FanSync → Configure → Options.
 
 If you're experiencing connection or device control issues, follow these steps:
 
-#### 1. Download Diagnostics (Fastest!)
+#### 1. Get Diagnostics (Fastest!)
 
-The integration includes comprehensive diagnostics that capture timing, connection state, and error history:
+The integration captures comprehensive diagnostics **even when setup fails**!
 
+**If integration is working:**
 1. Go to **Settings** → **Devices & Services**
 2. Find the **FanSync** integration
 3. Click the **three dots (⋮)** menu
 4. Select **Download Diagnostics**
 5. Save the JSON file
+
+**If setup fails:**
+Diagnostics are automatically logged! Look for:
+- Error message in UI shows key metrics: `HTTP: XXXms, WS handshake: XXms, Login wait: XXXms`
+- Full diagnostics in logs: Search for "Connection diagnostics (structured)" message
+- Copy the entire JSON block from the logs
 
 **What's included** (no passwords or tokens):
 - **Connection timing breakdown**:
@@ -129,6 +136,8 @@ logger:
 - `websockets` - WebSocket connection, login messages, server responses
 
 Then restart Home Assistant and reproduce the issue. Check logs in **Settings** → **System** → **Logs**.
+
+**Note**: If setup fails, the integration automatically logs structured diagnostics at ERROR level, so debug logging is optional but helpful for additional context.
 
 ### Common Issues
 

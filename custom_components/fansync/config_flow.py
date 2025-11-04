@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -105,9 +106,46 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except TimeoutError as exc:
             # Catches both asyncio.wait_for timeouts and websockets connection timeouts
             _LOGGER.error("WebSocket connection timed out during setup")
+
+            # Capture diagnostics before cleanup for structured logging
+            if client is not None:
+                try:
+                    diag = client.get_diagnostics_data()
+                    _LOGGER.error(
+                        "Connection diagnostics (structured): %s", json.dumps(diag, indent=2)
+                    )
+
+                    # Extract key metrics for UI display in error message placeholders
+                    timing = diag.get("connection_timing", {})
+                    http_ms = timing.get("last_http_login_ms")
+                    ws_handshake_ms = timing.get("last_ws_connect_ms")
+                    login_wait_ms = timing.get("last_ws_login_wait_ms")
+
+                    # Helper to format millisecond values for display
+                    def format_ms(value: float | None) -> str:
+                        return f"{value:.0f}" if value is not None else "N/A"
+
+                    # Store placeholders for UI error message
+                    errors["base"] = "ws_timeout"
+                    # Store description_placeholders for this specific error
+                    # We'll pass this in async_show_form below
+                    self._ws_diag_placeholders = {
+                        "http_ms": format_ms(http_ms),
+                        "ws_handshake_ms": format_ms(ws_handshake_ms),
+                        "login_wait_ms": format_ms(login_wait_ms),
+                    }
+                except Exception as diag_exc:
+                    _LOGGER.debug(
+                        "Failed to capture diagnostics: %s: %s",
+                        type(diag_exc).__name__,
+                        str(diag_exc),
+                    )
+                    errors["base"] = "cannot_connect"
+            else:
+                errors["base"] = "cannot_connect"
+
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("WebSocket timeout details: %s", str(exc))
-            errors["base"] = "cannot_connect"
         except OSError as exc:
             # Network errors from async WebSocket operations (connection closed, refused, etc.)
             _LOGGER.error("WebSocket error during setup: %s", type(exc).__name__)
@@ -137,7 +175,14 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         )
 
         if errors:
-            return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA, errors=errors)
+            # If we have WebSocket timeout diagnostics, pass them for UI display
+            description_placeholders = getattr(self, "_ws_diag_placeholders", None)
+            return self.async_show_form(
+                step_id="user",
+                data_schema=DATA_SCHEMA,
+                errors=errors,
+                description_placeholders=description_placeholders,
+            )
 
         return self.async_create_entry(title="FanSync", data=user_input)
 

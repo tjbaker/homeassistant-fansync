@@ -14,6 +14,10 @@
 
 Validates that the initial form shows and that a user-provided configuration
 creates a config entry with the provided data.
+
+NOTE: Comprehensive config flow tests (including new timeout diagnostics capture)
+are in test_config_flow_*.py files. These tests use hass.config_entries.flow.async_init()
+which properly loads the integration before patching.
 """
 
 from unittest.mock import AsyncMock, patch
