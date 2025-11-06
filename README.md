@@ -136,6 +136,10 @@ For more detailed logs, enable debug logging for **all relevant components**:
 service: logger.set_level
 data:
   custom_components.fansync: debug
+  custom_components.fansync.client: debug
+  custom_components.fansync.coordinator: debug
+  custom_components.fansync.fan: debug
+  custom_components.fansync.light: debug
   httpcore: debug
   httpx: debug
   websockets: debug
@@ -147,15 +151,21 @@ logger:
   default: info
   logs:
     custom_components.fansync: debug
+    custom_components.fansync.client: debug
+    custom_components.fansync.coordinator: debug
+    custom_components.fansync.fan: debug
+    custom_components.fansync.light: debug
     httpcore: debug
     httpx: debug
     websockets: debug
 ```
 
 **Why all these loggers?**
-- `custom_components.fansync` - Integration logic, timing, connection flow
+- `custom_components.fansync.*` - Integration modules (client, coordinator, entities)
 - `httpcore` & `httpx` - HTTP authentication, token requests, SSL handshake
 - `websockets` - WebSocket connection, login messages, server responses
+
+**Tip**: Start with just `custom_components.fansync: debug` for most issues. Add the module-specific loggers (`client`, `coordinator`, etc.) only if you need more granular detail.
 
 Then restart Home Assistant and reproduce the issue. Check logs in **Settings** → **System** → **Logs**.
 

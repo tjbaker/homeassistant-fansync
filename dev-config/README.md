@@ -24,7 +24,7 @@ This configuration provides:
 - **No authentication** for localhost (trusted network)
 - **Fast startup** (minimal recorder, 1-day history)
 - **Pre-configured** components (frontend, config, mobile_app, etc.)
-- **Debug logging enabled** for FanSync, httpcore, httpx, and websockets
+- **Debug logging enabled** for FanSync (all modules), httpcore, httpx, and websockets
 
 ⚠️ **Security**: For local development ONLY. Never use in production!
 

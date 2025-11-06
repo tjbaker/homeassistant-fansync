@@ -30,6 +30,16 @@ SCAN_INTERVAL = timedelta(seconds=DEFAULT_FALLBACK_POLL_SECS)
 
 
 class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
+    """Coordinator for FanSync integration.
+
+    Manages data fetching and updates for all FanSync devices. Uses push-first
+    architecture with WebSocket updates and fallback polling.
+
+    Passing config_entry to DataUpdateCoordinator is the recommended pattern
+    for Home Assistant 2025.10+ integrations. This enables new features and
+    ensures compatibility with future HA releases.
+    """
+
     def __init__(
         self, hass: HomeAssistant, client: FanSyncClient, config_entry: ConfigEntry
     ) -> None:
