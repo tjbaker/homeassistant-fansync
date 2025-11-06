@@ -268,23 +268,18 @@ For test-specific details, see **[tests/README.md](tests/README.md)**.
 
 ## Support This Project
 
-If you find this fanSync integration valuable and want to support its continued development:
+If you find this integration useful and want to say thanks, you can send me some USDC to grab a cup of coffee! ☕ Your support helps keep this project maintained and updated with new features.
 
 **💙 USDC on Base Network**
 
 <p align="center">
-  <img src=".github/donations.png" width="200" alt="Base USDC Donation QR Code" />
+  <img src=".github/donations.png" width="200" alt="Base USDC QR Code" />
 </p>
 
 **Address**: `0x7CC11505c5fBb8FB0c52d2f63fd9A44763246397`  
-**Network**: Base (not Ethereum)
+**Network**: Base (not Ethereum mainnet)
 
-Your support helps:
-- Test new hardware and Home Assistant versions
-- Provide faster bug fixes and feature development
-- Maintain documentation and community support
-
-*All donations are appreciated but never required. This project is and will always be free and open source.* ❤️
+*Completely optional! This project is and will always be free and open source.* ❤️
 
  
 
