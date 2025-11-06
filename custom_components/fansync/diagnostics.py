@@ -25,8 +25,8 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
     runtime_data = entry.runtime_data
-    client = runtime_data.get("client")
-    coordinator = runtime_data.get("coordinator")
+    client = runtime_data["client"]
+    coordinator = runtime_data["coordinator"]
 
     diagnostics: dict[str, Any] = {
         "config_entry": {
