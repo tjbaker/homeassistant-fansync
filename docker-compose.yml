@@ -29,6 +29,7 @@ services:
     image: ghcr.io/home-assistant/home-assistant:2025.11.0
     restart: unless-stopped
     privileged: false
+    tty: true  # Enable TTY for proper log formatting and colors
     # Note: network_mode: host doesn't work on macOS/Windows Docker Desktop
     # Use port mapping instead
     ports:

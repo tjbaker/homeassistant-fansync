@@ -33,10 +33,12 @@ This guide covers everything you need to contribute: Docker development setup, w
   - During initial login (config flow), enable HTTP stack logging so auth errors/timeouts are visible.
     - Developer Tools → Services → `logger.set_level` → Data:
       ```yaml
-      httpcore: debug           # HTTP auth/login
-      httpx: debug              # HTTP client
-      websockets: debug         # WebSocket connections (v0.3.0+)
-      custom_components.fansync: debug  # Integration logic
+      custom_components.fansync: debug              # Integration (all modules)
+      custom_components.fansync.client: debug       # WebSocket client, connection details
+      custom_components.fansync.coordinator: debug  # Data updates, polling, push events
+      httpcore: debug                               # HTTP auth/login
+      httpx: debug                                  # HTTP client
+      websockets: debug                             # WebSocket protocol details
       ```
     - Reproduce the problem, then restore defaults via `logger.set_default_level` (or restart).
     - Persistent alternative (advanced): add to `configuration.yaml` and restart:
@@ -44,10 +46,12 @@ This guide covers everything you need to contribute: Docker development setup, w
       logger:
         default: info
         logs:
-          httpcore: debug       # HTTP auth/login
-          httpx: debug          # HTTP client
-          websockets: debug     # WebSocket connections (v0.3.0+)
-          custom_components.fansync: debug  # Integration logic
+          custom_components.fansync: debug              # Integration (all modules)
+          custom_components.fansync.client: debug       # WebSocket client
+          custom_components.fansync.coordinator: debug  # Data updates
+          httpcore: debug                               # HTTP auth/login
+          httpx: debug                                  # HTTP client
+          websockets: debug                             # WebSocket protocol
       ```
     - Include:
       - HTTP POST to FanSync session endpoint and response/timeout lines (`httpcore`/`httpx`).
@@ -115,10 +119,10 @@ docker compose up -d
 **Debugging:**
 
 Debug logging is **enabled by default** for:
-- `custom_components.fansync`
+- `custom_components.fansync` (all modules: client, coordinator, fan, light)
 - `httpcore` (HTTP connections)
 - `httpx` (HTTP requests)
-- `websockets` (WebSocket frames)
+- `websockets` (WebSocket protocol)
 
 View logs with:
 ```bash

@@ -58,6 +58,10 @@ logger:
   default: info
   logs:
     custom_components.fansync: debug
+    custom_components.fansync.client: debug
+    custom_components.fansync.coordinator: debug
+    custom_components.fansync.fan: debug
+    custom_components.fansync.light: debug
     httpcore: debug
     httpx: debug
     websockets: debug
