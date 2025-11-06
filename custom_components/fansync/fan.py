@@ -43,7 +43,7 @@ from .device_utils import create_device_info, module_attrs
 # Only overlay keys that directly affect HA UI state to prevent snap-back
 OVERLAY_KEYS = {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}
 
-# Coordinator handles all API calls, no need to limit parallel entity updates
+# Coordinator handles all API calls; allow unlimited parallel entity updates (no semaphore)
 PARALLEL_UPDATES = 0
 
 _LOGGER = logging.getLogger(__name__)
