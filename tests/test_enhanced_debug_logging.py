@@ -260,7 +260,7 @@ async def test_client_token_refresh_logged(
 
 
 async def test_coordinator_poll_trigger_logged(
-    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture, mock_config_entry
 ):
     """Test that coordinator poll trigger is logged."""
     from custom_components.fansync.coordinator import FanSyncCoordinator
@@ -269,7 +269,7 @@ async def test_coordinator_poll_trigger_logged(
     mock_client.device_ids = ["dev1"]
     mock_client.async_get_status.return_value = {KEY_POWER: 1, KEY_SPEED: 50}
 
-    coordinator = FanSyncCoordinator(hass, mock_client)
+    coordinator = FanSyncCoordinator(hass, mock_client, mock_config_entry)
 
     with caplog.at_level(logging.DEBUG, logger="custom_components.fansync.coordinator"):
         await coordinator._async_update_data()
@@ -282,7 +282,9 @@ async def test_coordinator_poll_trigger_logged(
     )
 
 
-async def test_overlay_expiry_logged(hass: HomeAssistant, caplog: pytest.LogCaptureFixture):
+async def test_overlay_expiry_logged(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture, mock_config_entry
+):
     """Test that overlay expiry is logged."""
     from custom_components.fansync.coordinator import FanSyncCoordinator
     from custom_components.fansync.fan import FanSyncFan
@@ -290,7 +292,7 @@ async def test_overlay_expiry_logged(hass: HomeAssistant, caplog: pytest.LogCapt
     mock_client = AsyncMock()
     mock_client.device_ids = ["dev1"]
 
-    coordinator = FanSyncCoordinator(hass, mock_client)
+    coordinator = FanSyncCoordinator(hass, mock_client, mock_config_entry)
     coordinator.data = {"dev1": {KEY_POWER: 0, KEY_SPEED: 0}}
 
     fan = FanSyncFan(coordinator, mock_client, "dev1")
@@ -308,7 +310,9 @@ async def test_overlay_expiry_logged(hass: HomeAssistant, caplog: pytest.LogCapt
     )
 
 
-async def test_fan_state_transition_logged(hass: HomeAssistant, caplog: pytest.LogCaptureFixture):
+async def test_fan_state_transition_logged(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture, mock_config_entry
+):
     """Test that fan state transitions are logged."""
     from custom_components.fansync.coordinator import FanSyncCoordinator
     from custom_components.fansync.fan import FanSyncFan
@@ -316,7 +320,7 @@ async def test_fan_state_transition_logged(hass: HomeAssistant, caplog: pytest.L
     mock_client = AsyncMock()
     mock_client.device_ids = ["dev1"]
 
-    coordinator = FanSyncCoordinator(hass, mock_client)
+    coordinator = FanSyncCoordinator(hass, mock_client, mock_config_entry)
     coordinator.data = {
         "dev1": {
             KEY_POWER: 1,
@@ -356,7 +360,9 @@ async def test_fan_state_transition_logged(hass: HomeAssistant, caplog: pytest.L
     )
 
 
-async def test_light_state_transition_logged(hass: HomeAssistant, caplog: pytest.LogCaptureFixture):
+async def test_light_state_transition_logged(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture, mock_config_entry
+):
     """Test that light state transitions are logged."""
     from custom_components.fansync.coordinator import FanSyncCoordinator
     from custom_components.fansync.light import FanSyncLight
@@ -364,7 +370,7 @@ async def test_light_state_transition_logged(hass: HomeAssistant, caplog: pytest
     mock_client = AsyncMock()
     mock_client.device_ids = ["dev1"]
 
-    coordinator = FanSyncCoordinator(hass, mock_client)
+    coordinator = FanSyncCoordinator(hass, mock_client, mock_config_entry)
     coordinator.data = {
         "dev1": {
             KEY_LIGHT_POWER: 1,

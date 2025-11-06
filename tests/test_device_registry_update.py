@@ -21,7 +21,7 @@ from custom_components.fansync.client import FanSyncClient
 from custom_components.fansync.coordinator import FanSyncCoordinator
 
 
-async def test_device_registry_updated_on_refresh(hass: HomeAssistant) -> None:
+async def test_device_registry_updated_on_refresh(hass: HomeAssistant, mock_config_entry) -> None:
     """Test that device registry is updated when profile data arrives."""
     # Create a mock client with profile data
     client = MagicMock(spec=FanSyncClient)
@@ -49,7 +49,7 @@ async def test_device_registry_updated_on_refresh(hass: HomeAssistant) -> None:
     client.ws_timeout_seconds = MagicMock(return_value=30)
 
     # Create coordinator
-    coordinator = FanSyncCoordinator(hass, client)
+    coordinator = FanSyncCoordinator(hass, client, mock_config_entry)
 
     # Trigger a coordinator refresh
     await coordinator.async_refresh()
@@ -59,7 +59,7 @@ async def test_device_registry_updated_on_refresh(hass: HomeAssistant) -> None:
     assert "test_device_123" in coordinator.data
 
 
-async def test_device_registry_multi_device_update(hass: HomeAssistant) -> None:
+async def test_device_registry_multi_device_update(hass: HomeAssistant, mock_config_entry) -> None:
     """Test that device registry handles multiple devices correctly."""
     # Create a mock client with multiple devices
     client = MagicMock(spec=FanSyncClient)
@@ -89,7 +89,7 @@ async def test_device_registry_multi_device_update(hass: HomeAssistant) -> None:
     client.ws_timeout_seconds = MagicMock(return_value=30)
 
     # Create coordinator
-    coordinator = FanSyncCoordinator(hass, client)
+    coordinator = FanSyncCoordinator(hass, client, mock_config_entry)
 
     # Trigger a coordinator refresh
     await coordinator.async_refresh()

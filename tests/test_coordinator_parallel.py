@@ -28,7 +28,9 @@ class _ClientStub:
         return {"H00": 1}
 
 
-async def test_parallel_status_allows_partial_results(hass: HomeAssistant) -> None:
+async def test_parallel_status_allows_partial_results(
+    hass: HomeAssistant, mock_config_entry
+) -> None:
     client = _ClientStub(["d1", "d2"])  # two devices
 
     async def _get_status(did: str | None = None):
@@ -38,7 +40,7 @@ async def test_parallel_status_allows_partial_results(hass: HomeAssistant) -> No
         raise TimeoutError()
 
     client.async_get_status = _get_status  # type: ignore[assignment]
-    coord = FanSyncCoordinator(hass, client)
+    coord = FanSyncCoordinator(hass, client, mock_config_entry)
 
     data = await coord._async_update_data()
     assert isinstance(data, dict)
@@ -47,14 +49,16 @@ async def test_parallel_status_allows_partial_results(hass: HomeAssistant) -> No
     assert "d2" not in data
 
 
-async def test_single_device_timeout_keeps_last_known_state(hass: HomeAssistant) -> None:
+async def test_single_device_timeout_keeps_last_known_state(
+    hass: HomeAssistant, mock_config_entry
+) -> None:
     client = _ClientStub([])  # single-device path (device_ids empty)
 
     async def _get_status(_did: str | None = None):
         raise TimeoutError()
 
     client.async_get_status = _get_status  # type: ignore[assignment]
-    coord = FanSyncCoordinator(hass, client)
+    coord = FanSyncCoordinator(hass, client, mock_config_entry)
 
     # Set some initial data
     coord.data = {"dev": {"H00": 1, "H02": 50}}
