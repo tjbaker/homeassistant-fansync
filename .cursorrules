@@ -54,6 +54,23 @@ Any changes should be made there; this file syncs automatically via pre-commit h
   device; entity unique_id must use self._device_id consistently.
 - Optimistic overlays: apply per-key overlays immediately; guard ~8s; confirm then clear;
   revert only on explicit failure.
+- Runtime Data (Modern Pattern - HA 2025.10+):
+  - Use ConfigEntry.runtime_data with TypedDict (not hass.data)
+  - Define type alias for better IDE support and type checking:
+    ```python
+    class FanSyncRuntimeData(TypedDict):
+        client: FanSyncClient
+        coordinator: FanSyncCoordinator
+    
+    type FanSyncConfigEntry = ConfigEntry[FanSyncRuntimeData]
+    
+    async def async_setup_entry(hass, entry: FanSyncConfigEntry) -> bool:
+        client = entry.runtime_data.client  # Full IDE autocomplete ✅
+    ```
+  - Pass config_entry to DataUpdateCoordinator.__init__ (recommended pattern)
+- Entity Performance:
+  - Set `should_poll = False` when using coordinator (inherited from CoordinatorEntity)
+  - Use `__slots__` for memory efficiency in high-entity-count scenarios (optional)
 
 # Testing
 - Always add new tests, ensure they pass, and requisite code coverage is met when adding new functionality.
@@ -73,6 +90,13 @@ Any changes should be made there; this file syncs automatically via pre-commit h
   - Always add return type `-> None` to async test functions
   - Import HomeAssistant from homeassistant.core
   - Import pytest for LogCaptureFixture type hint
+- Testing Best Practices (from HA core guidelines):
+  - **Never access hass.data directly** - Use entry.runtime_data in tests
+  - **Use snapshot testing** - For verifying entity states across refactors (syrupy)
+  - **Test through integration setup** - Don't instantiate entities directly
+  - **Mock external APIs** - Patch at module import paths where classes are used
+  - **Use init_integration fixture** - Standard pattern for setup in tests
+  - **Verify registries** - Ensure entities properly registered with devices
 
 # Git / Commits
 - Commit message subject MUST be ≤ 72 characters (to avoid GitHub truncation).
@@ -118,6 +142,10 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - In config flow, catch and map exceptions to user-friendly error keys
 - Ensure cleanup (async_disconnect) happens in finally blocks or error paths
 - For retries, use exponential backoff and log retry attempts at DEBUG level
+- Keep try blocks minimal - only wrap the fallible operation:
+  - ❌ Bad: `try: response = await api.get(); data = response["temp"] / 10; ...`
+  - ✅ Good: `try: response = await api.get(); except ApiError as err: ...; data = response["temp"] / 10`
+  - Process data outside try blocks to avoid masking processing errors
 
 # Code Organization
 - Extract duplicated logic into helper functions/methods.
@@ -223,6 +251,29 @@ python -m ruff check . && \
 python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/ && \
 python -m mypy custom_components/fansync --check-untyped-defs
 ```
+
+# Common Mistakes to Avoid
+These patterns violate HA best practices and should never appear in FanSync code:
+
+## ❌ Anti-Patterns
+- **Hardcoded entity names**: Use `_attr_translation_key = "fan"` not `_attr_name = "Fan"`
+- **Accessing hass.data in tests**: Use `entry.runtime_data` not `hass.data[DOMAIN][entry.entry_id]`
+- **Bare Exception catches**: Use `except (ValueError, KeyError):` not `except Exception:`
+- **Processing in try blocks**: Only wrap the API call, process data outside
+- **Blocking calls**: Use `await asyncio.sleep()` not `time.sleep()`
+- **BleakClient reuse**: Create fresh instances for each connection (if using Bluetooth)
+- **User-configurable polling**: Integration determines intervals, not users (FanSync exempt for diagnostics)
+- **Sensitive data in diagnostics**: Use `async_redact_data()` for api_key, password, token
+
+## ✅ Correct Patterns
+- Entity names via translation keys (translatable)
+- Test setup via config entry and fixtures
+- Specific exception types with logging
+- Minimal try block scope
+- Async operations with proper cleanup
+- Fresh client instances per connection
+- Integration-determined update intervals
+- Redacted diagnostics data
 
 # Quality Checklist (before committing)
 **IMPORTANT**: Run through this checklist before every commit to catch issues early

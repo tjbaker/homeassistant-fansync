@@ -167,4 +167,4 @@ async def test_early_registry_handles_exception_gracefully(hass: HomeAssistant) 
         await hass.async_block_till_done()
 
         # Integration should be loaded successfully
-        assert entry.entry_id in hass.data[DOMAIN]
+        assert hasattr(entry, "runtime_data")

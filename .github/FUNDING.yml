@@ -9,7 +9,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# Donation options for FanSync Home Assistant Integration
 #
-# Development automations (empty by default)
-[]
+# If you find FanSync valuable and want to support its continued development,
+# you can donate via USDC on Base network.
+#
+# Your support helps:
+# - Test new hardware and Home Assistant versions
+# - Provide faster bug fixes and feature development
+# - Maintain documentation and community support
+#
+# All donations are appreciated but never required.
+# This project is and will always be free and open source.
+
+custom: ['https://github.com/tjbaker/homeassistant-fansync#support-this-project']
 

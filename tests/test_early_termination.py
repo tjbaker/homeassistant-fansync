@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.skip(reason="Complex timing test - covered by integration tests")
 async def test_fan_early_termination_via_push(
-    hass: HomeAssistant, mock_websocket: MockWebsocket
+    hass: HomeAssistant, mock_websocket: MockWebsocket, mock_config_entry
 ) -> None:
     """Test that fan confirmation polling terminates early when push update confirms."""
 
@@ -100,7 +100,7 @@ async def test_fan_early_termination_via_push(
         await client.async_connect()
 
         # Create coordinator
-        coordinator = FanSyncCoordinator(hass, client)
+        coordinator = FanSyncCoordinator(hass, client, mock_config_entry)
 
         # Manually call update once to populate initial state
         await coordinator.async_config_entry_first_refresh()
@@ -135,7 +135,7 @@ async def test_fan_early_termination_via_push(
 
 @pytest.mark.skip(reason="Complex timing test - covered by integration tests")
 async def test_light_early_termination_via_push(
-    hass: HomeAssistant, mock_websocket: MockWebsocket
+    hass: HomeAssistant, mock_websocket: MockWebsocket, mock_config_entry
 ) -> None:
     """Test that light confirmation polling terminates early when push update confirms."""
 
@@ -190,7 +190,7 @@ async def test_light_early_termination_via_push(
         await client.async_connect()
 
         # Create coordinator
-        coordinator = FanSyncCoordinator(hass, client)
+        coordinator = FanSyncCoordinator(hass, client, mock_config_entry)
 
         # Manually call update once to populate initial state
         await coordinator.async_config_entry_first_refresh()
@@ -218,7 +218,7 @@ async def test_light_early_termination_via_push(
 
 @pytest.mark.skip(reason="Complex timing test - covered by integration tests")
 async def test_fan_fallback_polling_without_push(
-    hass: HomeAssistant, mock_websocket: MockWebsocket
+    hass: HomeAssistant, mock_websocket: MockWebsocket, mock_config_entry
 ) -> None:
     """Test that fan still polls if push update doesn't arrive."""
 
@@ -291,7 +291,7 @@ async def test_fan_fallback_polling_without_push(
         await client.async_connect()
 
         # Create coordinator
-        coordinator = FanSyncCoordinator(hass, client)
+        coordinator = FanSyncCoordinator(hass, client, mock_config_entry)
 
         # Manually call update once to populate initial state
         await coordinator.async_config_entry_first_refresh()
@@ -316,7 +316,7 @@ async def test_fan_fallback_polling_without_push(
 
 @pytest.mark.skip(reason="Complex timing test - covered by integration tests")
 async def test_confirmed_by_push_flag_reset(
-    hass: HomeAssistant, mock_websocket: MockWebsocket
+    hass: HomeAssistant, mock_websocket: MockWebsocket, mock_config_entry
 ) -> None:
     """Test that _confirmed_by_push flag is reset for each new command."""
 
@@ -374,7 +374,7 @@ async def test_confirmed_by_push_flag_reset(
         await client.async_connect()
 
         # Create coordinator
-        coordinator = FanSyncCoordinator(hass, client)
+        coordinator = FanSyncCoordinator(hass, client, mock_config_entry)
         await coordinator.async_config_entry_first_refresh()
 
         # Create fan entity

@@ -39,7 +39,29 @@ See also: [HACS: Custom repositories](https://hacs.xyz/docs/use/custom_repositor
 
 1) Copy `custom_components/fansync/` into your Home Assistant `config/custom_components/` directory.
 2) Restart Home Assistant.
-3) Add the integration: Settings → Devices & Services → Add integration → “FanSync”.
+3) Add the integration: Settings → Devices & Services → Add integration → "FanSync".
+
+## Removal
+
+To remove the FanSync integration:
+
+1) Go to **Settings** → **Devices & Services**
+2) Find the **FanSync** integration
+3) Click the **three dots (⋮)** menu
+4) Select **Delete**
+5) Confirm the removal
+
+If installed via HACS:
+1) Go to **HACS** → **Integrations**
+2) Find **FanSync**
+3) Click the **three dots (⋮)** menu
+4) Select **Remove**
+5) Restart Home Assistant
+
+If installed manually:
+1) Remove the integration from the UI (steps 1-5 above)
+2) Delete the `config/custom_components/fansync/` directory
+3) Restart Home Assistant
 
 ## Configuration
 
@@ -114,6 +136,10 @@ For more detailed logs, enable debug logging for **all relevant components**:
 service: logger.set_level
 data:
   custom_components.fansync: debug
+  custom_components.fansync.client: debug
+  custom_components.fansync.coordinator: debug
+  custom_components.fansync.fan: debug
+  custom_components.fansync.light: debug
   httpcore: debug
   httpx: debug
   websockets: debug
@@ -125,15 +151,21 @@ logger:
   default: info
   logs:
     custom_components.fansync: debug
+    custom_components.fansync.client: debug
+    custom_components.fansync.coordinator: debug
+    custom_components.fansync.fan: debug
+    custom_components.fansync.light: debug
     httpcore: debug
     httpx: debug
     websockets: debug
 ```
 
 **Why all these loggers?**
-- `custom_components.fansync` - Integration logic, timing, connection flow
+- `custom_components.fansync.*` - Integration modules (client, coordinator, entities)
 - `httpcore` & `httpx` - HTTP authentication, token requests, SSL handshake
 - `websockets` - WebSocket connection, login messages, server responses
+
+**Tip**: Start with just `custom_components.fansync: debug` for most issues. Add the module-specific loggers (`client`, `coordinator`, etc.) only if you need more granular detail.
 
 Then restart Home Assistant and reproduce the issue. Check logs in **Settings** → **System** → **Logs**.
 
@@ -233,6 +265,21 @@ See **[CONTRIBUTING.md](CONTRIBUTING.md)** for:
 - Testing guidelines
 
 For test-specific details, see **[tests/README.md](tests/README.md)**.
+
+## Support This Project
+
+If you find this integration useful and want to say thanks, you can send me some USDC to grab a cup of coffee! ☕ Your support helps keep this project maintained and updated with new features.
+
+**💙 USDC on Base Network**
+
+<p align="center">
+  <img src=".github/donations.png" width="200" alt="Base USDC QR Code" />
+</p>
+
+**Address**: `0x7CC11505c5fBb8FB0c52d2f63fd9A44763246397`  
+**Network**: Base (not Ethereum mainnet)
+
+*Completely optional! This project is and will always be free and open source.* ❤️
 
  
 

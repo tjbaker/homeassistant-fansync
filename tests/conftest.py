@@ -24,11 +24,23 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 # Ensure project root is on sys.path for direct module imports in tests
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+
+@pytest.fixture
+def mock_config_entry() -> MockConfigEntry:
+    """Create a mock config entry for tests."""
+    return MockConfigEntry(
+        domain="fansync",
+        title="FanSync",
+        data={"email": "test@example.com", "password": "testpass", "verify_ssl": False},
+        unique_id="test",
+    )
 
 
 @pytest.fixture(autouse=True)

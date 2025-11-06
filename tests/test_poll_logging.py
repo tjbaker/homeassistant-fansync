@@ -29,11 +29,11 @@ class DummyClient:
 
 
 async def test_poll_logs_mismatch_single_device(
-    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture, mock_config_entry
 ):
     caplog.set_level(logging.DEBUG)
     client = DummyClient()
-    coord = FanSyncCoordinator(hass, client)
+    coord = FanSyncCoordinator(hass, client, mock_config_entry)
 
     # Seed current data with one value
     coord.async_set_updated_data({"dev": {"H02": 20}})

@@ -54,3 +54,41 @@ async def test_fan_entity_lifecycle(hass: HomeAssistant, patch_client):
     await hass.async_block_till_done()
     state = hass.states.get("fan.fan")
     assert state.attributes.get("percentage") == 20
+
+
+async def test_fan_availability(hass: HomeAssistant, patch_client) -> None:
+    """Test fan entity availability based on device data presence."""
+    from custom_components.fansync import DOMAIN
+
+    # Create config entry
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": False},
+        unique_id="test",
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Initially available (device data exists)
+    state = hass.states.get("fan.fan")
+    assert state is not None
+    assert state.state != "unavailable"
+
+    # Get coordinator and simulate device data missing
+    coordinator = entry.runtime_data["coordinator"]
+    coordinator.async_set_updated_data({})  # Empty data, device_id not present
+    await hass.async_block_till_done()
+
+    # Entity should be unavailable when device data is missing
+    state = hass.states.get("fan.fan")
+    assert state.state == "unavailable"
+
+    # Restore device data (using the correct device_id from the fixture)
+    coordinator.async_set_updated_data({"test-device": {"power": 1, "speed": 41}})
+    await hass.async_block_till_done()
+
+    # Entity should be available again
+    state = hass.states.get("fan.fan")
+    assert state.state != "unavailable"

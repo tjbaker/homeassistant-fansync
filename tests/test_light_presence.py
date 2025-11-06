@@ -93,7 +93,7 @@ async def test_platforms_stored_and_forwarded_without_light(hass: HomeAssistant,
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    stored = hass.data[DOMAIN][entry.entry_id]["platforms"]
+    stored = entry.runtime_data["platforms"]
     assert stored == ["fan"]
     assert calls and calls[-1] == ["fan"]
 
@@ -130,7 +130,7 @@ async def test_platforms_stored_and_forwarded_with_light(hass: HomeAssistant, mo
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    stored = hass.data[DOMAIN][entry.entry_id]["platforms"]
+    stored = entry.runtime_data["platforms"]
     assert stored == ["fan", "light"]
     assert calls and calls[-1] == ["fan", "light"]
 
@@ -142,9 +142,10 @@ async def test_platforms_fallback_when_first_refresh_deferred(hass: HomeAssistan
 
     # Fake coordinator that simulates first refresh timeout and no data yet
     class _FakeCoordinator:
-        def __init__(self, hass, c):
+        def __init__(self, hass, c, config_entry):
             self.hass = hass
             self.client = c
+            self.config_entry = config_entry
             self.data = None
 
         def _update_device_registry(self, device_ids: list[str]) -> None:
@@ -180,6 +181,6 @@ async def test_platforms_fallback_when_first_refresh_deferred(hass: HomeAssistan
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    stored = hass.data[DOMAIN][entry.entry_id]["platforms"]
+    stored = entry.runtime_data["platforms"]
     assert stored == ["fan", "light"]
     assert calls and calls[-1] == ["fan", "light"]

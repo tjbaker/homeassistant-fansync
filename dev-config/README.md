@@ -1,3 +1,17 @@
+<!--
+SPDX-License-Identifier: Apache-2.0
+Copyright (c) 2025 Trevor Baker, all rights reserved.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+  http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # Development Configuration
 
 This directory contains a pre-configured Home Assistant setup for local Docker development.
@@ -10,7 +24,7 @@ This configuration provides:
 - **No authentication** for localhost (trusted network)
 - **Fast startup** (minimal recorder, 1-day history)
 - **Pre-configured** components (frontend, config, mobile_app, etc.)
-- **Debug logging enabled** for FanSync, httpcore, httpx, and websockets
+- **Debug logging enabled** for FanSync (all modules), httpcore, httpx, and websockets
 
 ⚠️ **Security**: For local development ONLY. Never use in production!
 

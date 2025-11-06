@@ -1,5 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Trevor Baker, all rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#   http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 # Development configuration for Home Assistant
 # This file enables trusted network authentication so you can skip
@@ -36,7 +45,7 @@ http:
   trusted_proxies:
     - 127.0.0.1
     - ::1
-    - 172.16.0.0/12  # Docker default network range
+    - 172.17.0.0/16  # Docker default bridge network
   use_x_forwarded_for: true
   
   # IMPORTANT: This skips authentication for trusted networks
@@ -49,6 +58,10 @@ logger:
   default: info
   logs:
     custom_components.fansync: debug
+    custom_components.fansync.client: debug
+    custom_components.fansync.coordinator: debug
+    custom_components.fansync.fan: debug
+    custom_components.fansync.light: debug
     httpcore: debug
     httpx: debug
     websockets: debug
