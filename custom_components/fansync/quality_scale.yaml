@@ -1,0 +1,242 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Trevor Baker, all rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#   http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# FanSync Integration Quality Scale Tracking
+# This file tracks progress toward Bronze/Silver/Gold/Platinum tiers
+# per Home Assistant Integration Quality Scale requirements.
+# https://developers.home-assistant.io/docs/core/integration-quality-scale/
+
+rules:
+  # ==========================================================================
+  # BRONZE TIER - Requirements for all new integrations
+  # ==========================================================================
+  
+  action-setup:
+    status: exempt
+    comment: No custom service actions defined; uses standard fan/light services only
+  
+  appropriate-polling:
+    status: done
+    comment: 60-second fallback poll interval configured; primary updates via WebSocket push
+  
+  brands:
+    status: exempt
+    comment: Third-party integration; brand assets controlled by Fanimation
+  
+  common-modules:
+    status: done
+    comment: Common patterns in const.py, device_utils.py, circuit_breaker.py, metrics.py
+  
+  config-flow-test-coverage:
+    status: done
+    comment: Full test coverage in test_config_flow*.py (happy path, errors, duplicates, timeouts)
+  
+  config-flow:
+    status: done
+    comment: UI setup with data_description in translations/en.json; uses ConfigEntry.data and .options correctly
+  
+  dependency-transparency:
+    status: done
+    comment: manifest.json specifies httpx and websockets>=12.0
+  
+  docs-actions:
+    status: exempt
+    comment: No custom service actions; uses standard Home Assistant fan/light services
+  
+  docs-high-level-description:
+    status: done
+    comment: README describes FanSync/Fanimation integration purpose and features
+  
+  docs-installation-instructions:
+    status: done
+    comment: README provides HACS and manual installation with step-by-step instructions
+  
+  docs-removal-instructions:
+    status: done
+    comment: README includes UI removal, HACS removal, and manual removal instructions
+  
+  entity-event-setup:
+    status: done
+    comment: Uses CoordinatorEntity lifecycle correctly; push callbacks registered in async_setup_entry
+  
+  entity-unique-id:
+    status: done
+    comment: All entities set _attr_unique_id using DOMAIN_deviceid_platform pattern
+  
+  has-entity-name:
+    status: in_progress
+    comment: Currently False to avoid breaking existing users; requires migration plan with entity ID transition strategy
+  
+  runtime-data:
+    status: done
+    comment: Uses ConfigEntry.runtime_data with FanSyncRuntimeData TypedDict
+  
+  test-before-configure:
+    status: done
+    comment: Config flow calls client.async_connect() and validates devices before creating entry
+  
+  test-before-setup:
+    status: done
+    comment: async_setup_entry validates connection and performs first refresh with timeout guard
+  
+  unique-config-entry:
+    status: done
+    comment: Uses async_set_unique_id(email) and _abort_if_unique_id_configured()
+  
+  # ==========================================================================
+  # SILVER TIER - Reliability and robustness requirements
+  # ==========================================================================
+  
+  action-exceptions:
+    status: exempt
+    comment: No custom service actions; standard fan/light services handle exceptions per HA core
+  
+  config-entry-unloading:
+    status: done
+    comment: Implements async_unload_entry with proper cleanup (disconnects client, unloads platforms)
+  
+  docs-configuration-parameters:
+    status: done
+    comment: README documents all config parameters (email, password, SSL, HTTP/WS timeouts)
+  
+  docs-installation-parameters:
+    status: done
+    comment: README documents all installation parameters and options with defaults
+  
+  entity-unavailable:
+    status: done
+    comment: Entities check super().available and device data presence; coordinator handles update failures
+  
+  integration-owner:
+    status: done
+    comment: Codeowner @tjbaker in manifest.json
+  
+  log-when-unavailable:
+    status: done
+    comment: Logs connection failures, timeouts, and reconnection at appropriate levels with context
+  
+  parallel-updates:
+    status: done
+    comment: PARALLEL_UPDATES = 0 set explicitly in fan.py and light.py (coordinator handles all API calls)
+  
+  reauthentication-flow:
+    status: done
+    comment: Raises ConfigEntryAuthFailed on auth errors triggering async_step_reauth flow
+  
+  test-coverage:
+    status: done
+    comment: 84% coverage (exceeds 75% Silver minimum); 146 tests pass
+  
+  # ==========================================================================
+  # GOLD TIER - Best-in-class user experience requirements
+  # ==========================================================================
+  
+  devices:
+    status: done
+    comment: Creates devices with model, manufacturer, firmware version, MAC address
+  
+  diagnostics:
+    status: done
+    comment: Implements async_get_config_entry_diagnostics with connection metrics and timing breakdown
+  
+  discovery-update-info:
+    status: exempt
+    comment: Cloud service without local network presence; no discovery info to update
+  
+  discovery:
+    status: exempt
+    comment: Cloud-based service requires account credentials; cannot be auto-discovered
+  
+  docs-data-update:
+    status: done
+    comment: README explains push-first updates with fallback polling and configurable intervals
+  
+  docs-examples:
+    status: in_progress
+    comment: Need to add automation examples (e.g., turn on fan when temperature exceeds threshold)
+  
+  docs-known-limitations:
+    status: done
+    comment: Troubleshooting section documents known limitations and network requirements
+  
+  docs-supported-devices:
+    status: in_progress
+    comment: Need to add list of compatible Fanimation fan models
+  
+  docs-supported-functions:
+    status: done
+    comment: README lists all entities (fan, light) and their capabilities (speed, direction, brightness)
+  
+  docs-troubleshooting:
+    status: done
+    comment: Extensive troubleshooting guide with diagnostics, common issues, and network debugging
+  
+  docs-use-cases:
+    status: in_progress
+    comment: Need to add use case examples illustrating integration scenarios
+  
+  dynamic-devices:
+    status: done
+    comment: Multi-device support; devices added/detected after integration setup
+  
+  entity-category:
+    status: exempt
+    comment: No diagnostic/config entities requiring EntityCategory assignment
+  
+  entity-device-class:
+    status: done
+    comment: Fan uses FanEntity, Light uses LightEntity with appropriate device classes
+  
+  entity-disabled-by-default:
+    status: exempt
+    comment: No noisy or less popular entities; all entities are primary user-facing controls
+  
+  entity-translations:
+    status: done
+    comment: translations/en.json provides config flow, options flow, and error translations
+  
+  exception-translations:
+    status: in_progress
+    comment: Error messages in config_flow.py not yet translatable (use translation keys)
+  
+  icon-translations:
+    status: exempt
+    comment: Uses static icons (mdi:ceiling-fan, mdi:ceiling-light); no dynamic icon translation needed
+  
+  reconfiguration-flow:
+    status: done
+    comment: Options flow allows reconfiguring timeouts and fallback polling interval
+  
+  repair-issues:
+    status: in_progress
+    comment: No repair flows implemented; could add for auth failures or connection issues
+  
+  stale-devices:
+    status: in_progress
+    comment: No automatic device removal; devices persist until manually removed from account
+  
+  # ==========================================================================
+  # PLATINUM TIER - Technical excellence requirements
+  # ==========================================================================
+  
+  async-dependency:
+    status: done
+    comment: Uses httpx (async HTTP) and websockets (async WebSocket); 100% async codebase
+  
+  inject-websession:
+    status: in_progress
+    comment: Client doesn't accept external httpx.AsyncClient session; creates its own
+  
+  strict-typing:
+    status: in_progress
+    comment: Type hints present but not using mypy --strict mode; some Any types remain
+
