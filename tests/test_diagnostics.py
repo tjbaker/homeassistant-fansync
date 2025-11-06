@@ -109,11 +109,11 @@ async def test_diagnostics_returns_metrics(hass: HomeAssistant) -> None:
     coordinator.last_update_success = True
     coordinator.data = {"test_device_123": {"H00": 1, "H02": 50}}
 
-    # Set up hass.data
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
+    # Set up entry.runtime_data
+    entry.runtime_data = {
         "client": client,
         "coordinator": coordinator,
+        "platforms": ["fan", "light"],
     }
 
     # Get diagnostics
@@ -253,11 +253,11 @@ async def test_diagnostics_warns_on_poor_connection(hass: HomeAssistant) -> None
     coordinator.last_update_success = False
     coordinator.data = {}
 
-    # Set up hass.data
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
+    # Set up entry.runtime_data
+    entry.runtime_data = {
         "client": client,
         "coordinator": coordinator,
+        "platforms": ["fan", "light"],
     }
 
     # Get diagnostics
@@ -347,11 +347,11 @@ async def test_diagnostics_handles_disconnected_state(hass: HomeAssistant) -> No
     coordinator.last_update_success = False
     coordinator.data = None
 
-    # Set up hass.data
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
+    # Set up entry.runtime_data
+    entry.runtime_data = {
         "client": client,
         "coordinator": coordinator,
+        "platforms": ["fan", "light"],
     }
 
     # Get diagnostics
@@ -435,11 +435,11 @@ async def test_diagnostics_handles_no_data(hass: HomeAssistant) -> None:
     coordinator.last_update_success = True
     coordinator.data = {}
 
-    # Set up hass.data
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
+    # Set up entry.runtime_data
+    entry.runtime_data = {
         "client": client,
         "coordinator": coordinator,
+        "platforms": ["fan", "light"],
     }
 
     # Get diagnostics

@@ -19,16 +19,14 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
-
 
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    shared = hass.data[DOMAIN][entry.entry_id]
-    client = shared.get("client")
-    coordinator = shared.get("coordinator")
+    runtime_data = entry.runtime_data
+    client = runtime_data.get("client")
+    coordinator = runtime_data.get("coordinator")
 
     diagnostics: dict[str, Any] = {
         "config_entry": {

@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import timedelta
+from typing import TypedDict
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -41,6 +42,15 @@ from .const import (
 from .coordinator import FanSyncCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class FanSyncRuntimeData(TypedDict):
+    """Runtime data stored in ConfigEntry.runtime_data."""
+
+    client: FanSyncClient
+    coordinator: FanSyncCoordinator
+    platforms: list[str]
+
 
 # Integration is config-entry only (no YAML config)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -133,11 +143,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ):
             platforms.append("light")
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        "client": client,
-        "coordinator": coordinator,
-        "platforms": platforms,
-    }
+    # Store runtime data in entry.runtime_data (modern pattern)
+    entry.runtime_data = FanSyncRuntimeData(
+        client=client,
+        coordinator=coordinator,
+        platforms=platforms,
+    )
 
     async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry) -> None:
         new_secs = updated_entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
@@ -178,11 +189,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    stored = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
-    platforms = stored.get("platforms", PLATFORMS)
+    """Unload a config entry."""
+    runtime_data: FanSyncRuntimeData = entry.runtime_data
+    platforms = runtime_data["platforms"]
     unloaded = await hass.config_entries.async_unload_platforms(entry, platforms)
     if unloaded:
-        data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
-        if data and data.get("client"):
-            await data["client"].async_disconnect()
+        await runtime_data["client"].async_disconnect()
     return unloaded

@@ -41,6 +41,9 @@ from .device_utils import create_device_info, module_attrs
 # Only overlay keys that directly affect HA UI state to prevent snap-back
 OVERLAY_KEYS = {KEY_LIGHT_POWER, KEY_LIGHT_BRIGHTNESS}
 
+# Coordinator handles all API calls, no need to limit parallel entity updates
+PARALLEL_UPDATES = 0
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -49,9 +52,9 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ):
-    shared = hass.data[DOMAIN][entry.entry_id]
-    coordinator: FanSyncCoordinator = shared["coordinator"]
-    client: FanSyncClient = shared["client"]
+    runtime_data = entry.runtime_data
+    coordinator: FanSyncCoordinator = runtime_data["coordinator"]
+    client: FanSyncClient = runtime_data["client"]
     entities: list[FanSyncLight] = []
 
     # Wait briefly for coordinator data if not already present; this handles race conditions
@@ -225,6 +228,11 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
                     self._device_id,
                     list(optimistic.keys()),
                 )
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return super().available and self._device_id in (self.coordinator.data or {})
 
     @property
     def is_on(self) -> bool:
