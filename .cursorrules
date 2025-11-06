@@ -148,7 +148,36 @@ Any changes should be made there; this file syncs automatically via pre-commit h
   - Process data outside try blocks to avoid masking processing errors
 
 # Code Organization
-- Extract duplicated logic into helper functions/methods.
+
+## DRY Principle (Don't Repeat Yourself) - REQUIRED
+- **Extract ALL duplicated code into reusable functions/methods** - No exceptions
+- **Rule of Three**: If code appears 3+ times, it MUST be extracted
+- **Rule of Two**: If code appears 2 times and is >10 lines, strongly consider extracting
+- **Examples of what to DRY out**:
+  - Repeated conditional expressions (e.g., `float(x) if x is not None else DEFAULT`)
+  - Duplicated setup/teardown sequences (e.g., WebSocket connection + SSL + headers)
+  - Repeated calculation or validation logic
+  - Similar data transformation patterns
+  - Repeated logging patterns
+- **How to extract duplication**:
+  - Create helper methods for repeated logic blocks
+  - Use parameters to handle variations between call sites
+  - Name methods clearly to describe what they do (e.g., `_get_timeout()`, `_build_headers()`)
+  - Document with docstrings explaining parameters and return values
+- **Benefits**: Single source of truth, easier testing, simpler maintenance, fewer bugs
+- **Example refactoring**:
+  ```python
+  # ❌ BAD - Duplicated 4 times
+  timeout = float(self._ws_timeout) if self._ws_timeout is not None else DEFAULT_TIMEOUT
+  
+  # ✅ GOOD - Extract to helper method
+  def _get_timeout(self) -> float:
+      return float(self._ws_timeout) if self._ws_timeout is not None else DEFAULT_TIMEOUT
+  
+  timeout = self._get_timeout()
+  ```
+
+## General Organization
 - Keep functions focused and single-purpose.
 - Use descriptive variable names that explain intent.
 - Prefer early returns to reduce nesting.

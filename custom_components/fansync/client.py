@@ -190,6 +190,104 @@ class FanSyncClient:
         """
         return httpx.Client(verify=self.verify_ssl, timeout=timeout)
 
+    def _get_ws_timeout(self) -> float:
+        """Get WebSocket timeout value.
+
+        Returns:
+            Configured WebSocket timeout or default fallback value
+        """
+        return (
+            float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
+        )
+
+    def _build_websocket_headers(self, session_cookie: str | None = None) -> dict[str, str]:
+        """Build WebSocket upgrade headers matching Android app exactly.
+
+        Args:
+            session_cookie: Optional session cookie from HTTP login
+
+        Returns:
+            Dictionary of headers for WebSocket upgrade
+        """
+        headers = {
+            "User-Agent": "okhttp/4.9.0",  # Exact Android app User-Agent
+            "X-Requested-With": "com.fanimation.fanSyncW",  # Android package
+            "Origin": "http://localhost",  # Mobile app origin
+        }
+
+        # DIAGNOSTIC: Include session cookie if present (may be required)
+        if session_cookie:
+            headers["Cookie"] = f"sid={session_cookie}"
+
+        return headers
+
+    async def _connect_websocket(
+        self, session_cookie: str | None = None, ws_timeout: float | None = None
+    ) -> websockets.asyncio.client.ClientConnection:
+        """Connect to WebSocket and optionally check for server hello.
+
+        Args:
+            session_cookie: Optional session cookie from HTTP login
+            ws_timeout: WebSocket timeout (uses default if None)
+
+        Returns:
+            Connected WebSocket client
+        """
+        if ws_timeout is None:
+            ws_timeout = self._get_ws_timeout()
+
+        # Create SSL context if needed
+        if self._ssl_context is None:
+            self._ssl_context = await self.hass.async_add_executor_job(self._create_ssl_context)
+
+        # Build headers
+        ws_headers = self._build_websocket_headers(session_cookie)
+
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "WS upgrade headers: UA=%s Cookie=%s",
+                ws_headers.get("User-Agent"),
+                "present" if "Cookie" in ws_headers else "absent",
+            )
+
+        # Connect
+        ws_connect_start = time.monotonic()
+        ws = await asyncio.wait_for(
+            websockets.connect(
+                "wss://fanimation.apps.exosite.io/api:1/phone",
+                ssl=self._ssl_context,
+                additional_headers=ws_headers,
+                extensions=[],  # Disable all extensions including permessage-deflate
+            ),
+            timeout=ws_timeout,
+        )
+        connect_ms = (time.monotonic() - ws_connect_start) * 1000
+
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "WS connected (%.0fms). Extensions: %s State: %s",
+                connect_ms,
+                ws.extensions if hasattr(ws, "extensions") else "N/A",
+                ws.state.name if hasattr(ws, "state") else "UNKNOWN",
+            )
+
+        # DIAGNOSTIC: Check if server sends initial message
+        # Only enabled via FANSYNC_CHECK_SERVER_HELLO=1 env var
+        check_hello = os.getenv("FANSYNC_CHECK_SERVER_HELLO") == "1"
+        if check_hello and _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("Checking for server hello (0.1s timeout)...")
+            try:
+                server_hello = await asyncio.wait_for(ws.recv(), timeout=0.1)
+                _LOGGER.debug("Server sent initial message: %s", server_hello[:200])
+                _LOGGER.warning(
+                    "Server sent unexpected initial message before login. "
+                    "This may indicate a protocol change."
+                )
+            except TimeoutError:
+                _LOGGER.debug("No server hello (expected). Proceeding with login.")
+
+        return ws
+
     def _http_login(
         self, url: str, headers: dict[str, str], json_data: dict[str, Any]
     ) -> tuple[str, str | None]:
@@ -256,80 +354,17 @@ class FanSyncClient:
 
         # WebSocket connection with retries
         ws_start = time.monotonic()
-        ws_timeout = (
-            float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
-        )
-
-        # Create SSL context in executor to avoid blocking event loop (cached after first call)
-        if self._ssl_context is None:
-            self._ssl_context = await self.hass.async_add_executor_job(self._create_ssl_context)
+        ws_timeout = self._get_ws_timeout()
 
         ws = None
         last_ws_error: Exception | None = None
         for attempt_idx in range(WS_LOGIN_RETRY_ATTEMPTS):
             ws_attempt_start = time.monotonic()
             try:
-                # Track WebSocket handshake timing separately
+                # Connect to WebSocket (handles SSL, headers, server hello check)
                 ws_connect_start = time.monotonic()
-
-                # DIAGNOSTIC BUILD: Enhanced headers matching Android app exactly
-                # Based on reverse engineering and network issue reports (#71)
-                ws_headers = {
-                    "User-Agent": "okhttp/4.9.0",  # Exact Android app User-Agent
-                    "X-Requested-With": "com.fanimation.fanSyncW",  # Android package
-                    "Origin": "http://localhost",  # Mobile app origin
-                }
-
-                # DIAGNOSTIC: Include session cookie if present (may be required)
-                if session_cookie:
-                    ws_headers["Cookie"] = f"sid={session_cookie}"
-
-                if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug(
-                        "WS upgrade headers: UA=%s Cookie=%s",
-                        ws_headers.get("User-Agent"),
-                        "present" if "Cookie" in ws_headers else "absent",
-                    )
-
-                # DIAGNOSTIC: Disable permessage-deflate (may cause issues)
-                ws = await asyncio.wait_for(
-                    websockets.connect(
-                        "wss://fanimation.apps.exosite.io/api:1/phone",
-                        ssl=self._ssl_context,
-                        additional_headers=ws_headers,
-                        extensions=[],  # Disable all extensions including permessage-deflate
-                    ),
-                    timeout=ws_timeout,
-                )
+                ws = await self._connect_websocket(session_cookie, ws_timeout)
                 self._last_ws_connect_ms = (time.monotonic() - ws_connect_start) * 1000
-
-                if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug(
-                        "WS connected (%.0fms). Extensions: %s State: %s",
-                        self._last_ws_connect_ms,
-                        ws.extensions if hasattr(ws, "extensions") else "N/A",
-                        ws.state.name if hasattr(ws, "state") else "UNKNOWN",
-                    )
-
-                # Type narrowing for mypy: websockets.connect() never returns None,
-                # it raises an exception on failure. This assert is purely for type checking
-                # and cannot fail at runtime (if it does, there's a bug in websockets library).
-                assert ws is not None
-
-                # DIAGNOSTIC: Check if server sends initial message
-                # Only enabled via FANSYNC_CHECK_SERVER_HELLO=1 env var
-                check_hello = os.getenv("FANSYNC_CHECK_SERVER_HELLO") == "1"
-                if check_hello and _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug("Checking for server hello (0.1s timeout)...")
-                    try:
-                        server_hello = await asyncio.wait_for(ws.recv(), timeout=0.1)
-                        _LOGGER.debug("Server sent initial message: %s", server_hello[:200])
-                        _LOGGER.warning(
-                            "Server sent unexpected initial message before login. "
-                            "This may indicate a protocol change."
-                        )
-                    except TimeoutError:
-                        _LOGGER.debug("No server hello (expected). Proceeding with login.")
 
                 # Login - track send + response wait time
                 ws_login_start = time.monotonic()
@@ -663,57 +698,11 @@ class FanSyncClient:
                 self._http_login, url, headers, json_data
             )
 
-        # Reconnect WebSocket
-        ws_timeout = (
-            float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
-        )
-
-        # Create SSL context in executor to avoid blocking event loop (cached after first call)
-        if self._ssl_context is None:
-            self._ssl_context = await self.hass.async_add_executor_job(self._create_ssl_context)
-
-        # DIAGNOSTIC BUILD: Enhanced headers matching Android app exactly (same as async_connect)
-        ws_headers = {
-            "User-Agent": "okhttp/4.9.0",  # Exact Android app User-Agent
-            "X-Requested-With": "com.fanimation.fanSyncW",  # Android package
-            "Origin": "http://localhost",  # Mobile app origin
-        }
-
-        # DIAGNOSTIC: Include session cookie if present (may be required for session binding)
-        if session_cookie:
-            ws_headers["Cookie"] = f"sid={session_cookie}"
-
-        if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug(
-                "Reconnect WS headers: UA=%s Cookie=%s",
-                ws_headers.get("User-Agent"),
-                "present" if "Cookie" in ws_headers else "absent",
-            )
-
-        # DIAGNOSTIC: Disable permessage-deflate extension (may cause issues with some servers)
-        ws = await asyncio.wait_for(
-            websockets.connect(
-                "wss://fanimation.apps.exosite.io/api:1/phone",
-                ssl=self._ssl_context,
-                additional_headers=ws_headers,
-                extensions=[],  # Disable all extensions including permessage-deflate
-            ),
-            timeout=ws_timeout,
-        )
-
-        # DIAGNOSTIC: Check for server hello (same as async_connect)
-        # Only enabled via FANSYNC_CHECK_SERVER_HELLO=1 env var
-        check_hello = os.getenv("FANSYNC_CHECK_SERVER_HELLO") == "1"
-        if check_hello and _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug("Reconnect: checking for server hello (0.1s)...")
-            try:
-                server_hello = await asyncio.wait_for(ws.recv(), timeout=0.1)
-                _LOGGER.debug("Server sent hello on reconnect: %s", server_hello[:200])
-                _LOGGER.warning("Server sent unexpected initial message on reconnect")
-            except TimeoutError:
-                _LOGGER.debug("No server hello on reconnect (expected)")
+        # Reconnect WebSocket (handles SSL, headers, server hello check)
+        ws = await self._connect_websocket(session_cookie)
 
         # Login
+        ws_timeout = self._get_ws_timeout()
         login_msg = json.dumps(
             {
                 "id": WS_REQUEST_ID_LOGIN,
@@ -750,9 +739,7 @@ class FanSyncClient:
         if ws is None:
             raise RuntimeError("WebSocket not connected")
 
-        ws_timeout = (
-            float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
-        )
+        ws_timeout = self._get_ws_timeout()
 
         # Allocate a unique request ID
         async with self._request_id_lock:
@@ -839,9 +826,7 @@ class FanSyncClient:
         if ws is None:
             raise RuntimeError("WebSocket not connected")
 
-        ws_timeout = (
-            float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
-        )
+        ws_timeout = self._get_ws_timeout()
 
         # Allocate a unique request ID
         async with self._request_id_lock:
