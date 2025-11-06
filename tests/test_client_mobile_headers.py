@@ -179,7 +179,9 @@ async def test_headers_documented_source(hass: HomeAssistant, mock_websocket) ->
             # These exact values are from Android app reverse engineering
             # Header: x-requested-with: com.fanimation.fanSyncW
             # Header: origin: http://localhost
+            # Header: user-agent: okhttp/4.9.0 (exact Android app UA)
             assert headers == {
+                "User-Agent": "okhttp/4.9.0",
                 "X-Requested-With": "com.fanimation.fanSyncW",
                 "Origin": "http://localhost",
             }, (
