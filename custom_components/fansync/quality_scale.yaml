@@ -129,8 +129,8 @@ rules:
     comment: PARALLEL_UPDATES = 0 set explicitly in fan.py and light.py (coordinator handles all API calls)
   
   reauthentication-flow:
-    status: done
-    comment: Raises ConfigEntryAuthFailed on auth errors triggering async_step_reauth flow
+    status: in_progress
+    comment: Detects auth errors but needs to raise ConfigEntryAuthFailed and implement async_step_reauth
   
   test-coverage:
     status: done
