@@ -52,6 +52,10 @@ class FanSyncRuntimeData(TypedDict):
     platforms: list[str]
 
 
+# Modern type alias for config entry with runtime data
+type FanSyncConfigEntry = ConfigEntry[FanSyncRuntimeData]
+
+
 # Integration is config-entry only (no YAML config)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -70,7 +74,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> bool:
     # Build and store a shared client+coordinator for platforms to reuse
     http_timeout = entry.options.get(CONF_HTTP_TIMEOUT, entry.data.get(CONF_HTTP_TIMEOUT))
     ws_timeout = entry.options.get(CONF_WS_TIMEOUT, entry.data.get(CONF_WS_TIMEOUT))
@@ -83,7 +87,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ws_timeout_s=ws_timeout,
     )
     await client.async_connect()
-    coordinator = FanSyncCoordinator(hass, client)
+    coordinator = FanSyncCoordinator(hass, client, entry)
     # Apply options-driven fallback polling
     secs = entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
     coordinator.update_interval = None if secs == 0 else timedelta(seconds=int(secs))
@@ -188,7 +192,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> bool:
     """Unload a config entry."""
     runtime_data: FanSyncRuntimeData = entry.runtime_data
     platforms = runtime_data["platforms"]

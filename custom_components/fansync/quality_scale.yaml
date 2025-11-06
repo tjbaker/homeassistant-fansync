@@ -225,6 +225,20 @@ rules:
     comment: No automatic device removal; devices persist until manually removed from account
   
   # ==========================================================================
+  # Additional Considerations (Not part of formal quality scale)
+  # ==========================================================================
+  
+  user-configurable-interval:
+    status: exempt
+    comment: |
+      User-configurable fallback polling interval is documented as an exemption.
+      While HA generally discourages user-configurable intervals, FanSync is primarily
+      push-based (update_interval=None) with fallback polling only for network
+      environments that block WebSocket push updates. The configurable interval allows
+      users experiencing connectivity issues to adjust polling frequency or disable it
+      entirely (0 = push-only). This is a diagnostic/troubleshooting tool, not a preference.
+  
+  # ==========================================================================
   # PLATINUM TIER - Technical excellence requirements
   # ==========================================================================
   

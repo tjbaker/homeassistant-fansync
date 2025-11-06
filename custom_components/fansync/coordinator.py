@@ -16,6 +16,7 @@ import asyncio
 import logging
 from datetime import timedelta
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import UNDEFINED
@@ -29,12 +30,15 @@ SCAN_INTERVAL = timedelta(seconds=DEFAULT_FALLBACK_POLL_SECS)
 
 
 class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
-    def __init__(self, hass: HomeAssistant, client: FanSyncClient):
+    def __init__(
+        self, hass: HomeAssistant, client: FanSyncClient, config_entry: ConfigEntry
+    ) -> None:
         super().__init__(
             hass,
             logger=logging.getLogger(__name__),
             name="fansync",
             update_interval=SCAN_INTERVAL,
+            config_entry=config_entry,
         )
         self.client = client
         # Note: dr.async_get() is @callback decorated, safe to call in __init__

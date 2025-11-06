@@ -142,9 +142,10 @@ async def test_platforms_fallback_when_first_refresh_deferred(hass: HomeAssistan
 
     # Fake coordinator that simulates first refresh timeout and no data yet
     class _FakeCoordinator:
-        def __init__(self, hass, c):
+        def __init__(self, hass, c, config_entry):
             self.hass = hass
             self.client = c
+            self.config_entry = config_entry
             self.data = None
 
         def _update_device_registry(self, device_ids: list[str]) -> None:
