@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.5.2](https://github.com/tjbaker/homeassistant-fansync/compare/0.5.1...0.5.2) (2025-11-06)
+
+
+### Bug Fixes
+
+* use bracket notation for TypedDict access in diagnostics ([d725b72](https://github.com/tjbaker/homeassistant-fansync/commit/d725b7233341bf3a0e7766c0870c2f4cbe4f36db))
+
+
+### Code Refactoring
+
+* improve code quality for Bronze tier compliance ([6dcac4e](https://github.com/tjbaker/homeassistant-fansync/commit/6dcac4e392cafa639f53885b7cc9352fd9d5de57))
+* modernize to HA best practices (config_entry, type alias, manifest) ([dd99e16](https://github.com/tjbaker/homeassistant-fansync/commit/dd99e162aa1f12acc130c6308c2319967db46a06))
+
 ## [0.5.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.5.0...0.5.1) (2025-11-04)
 
 
