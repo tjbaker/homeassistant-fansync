@@ -39,7 +39,29 @@ See also: [HACS: Custom repositories](https://hacs.xyz/docs/use/custom_repositor
 
 1) Copy `custom_components/fansync/` into your Home Assistant `config/custom_components/` directory.
 2) Restart Home Assistant.
-3) Add the integration: Settings → Devices & Services → Add integration → “FanSync”.
+3) Add the integration: Settings → Devices & Services → Add integration → "FanSync".
+
+## Removal
+
+To remove the FanSync integration:
+
+1) Go to **Settings** → **Devices & Services**
+2) Find the **FanSync** integration
+3) Click the **three dots (⋮)** menu
+4) Select **Delete**
+5) Confirm the removal
+
+If installed via HACS:
+1) Go to **HACS** → **Integrations**
+2) Find **FanSync**
+3) Click the **three dots (⋮)** menu
+4) Select **Remove**
+5) Restart Home Assistant
+
+If installed manually:
+1) Remove the integration from the UI (steps 1-5 above)
+2) Delete the `config/custom_components/fansync/` directory
+3) Restart Home Assistant
 
 ## Configuration
 
