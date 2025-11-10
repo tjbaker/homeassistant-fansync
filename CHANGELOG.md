@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.7.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.6.0...0.7.0) (2025-11-10)
+
+
+### Features
+
+* add reauthentication flow and multi-language support ([62a5906](https://github.com/tjbaker/homeassistant-fansync/commit/62a5906dfe60dc4386074a554f3017696e6a798e))
+
+
+### Bug Fixes
+
+* correct translation structure and address review comments ([98f57f9](https://github.com/tjbaker/homeassistant-fansync/commit/98f57f9762d9f8fab07d0981c6bbc7eb3b142fa1))
+
 ## [0.6.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.5.2...0.6.0) (2025-11-10)
 
 
