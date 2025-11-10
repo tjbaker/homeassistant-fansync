@@ -14,7 +14,7 @@
 pytest
 pytest-homeassistant-custom-component
 # Pin Home Assistant core to supported minor for development/tests (2025.10.x)
-homeassistant~=2025.10.4
+homeassistant~=2025.11.1
 ruff
 black
 pytest-cov
