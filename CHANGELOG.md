@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.6.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.5.2...0.6.0) (2025-11-10)
+
+
+### Features
+
+* prepare for HACS default list submission ([f754c43](https://github.com/tjbaker/homeassistant-fansync/commit/f754c4354684ea2f04ac8952b9b5efae2f35c652))
+
 ## [0.5.2](https://github.com/tjbaker/homeassistant-fansync/compare/0.5.1...0.5.2) (2025-11-06)
 
 
