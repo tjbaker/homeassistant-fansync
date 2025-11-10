@@ -248,8 +248,13 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if client is not None:
                     try:
                         await client.async_disconnect()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        # Ignore disconnect errors during cleanup, but log for diagnostics
+                        _LOGGER.debug(
+                            "Exception during client disconnect in reauth_confirm: %s: %s",
+                            type(exc).__name__,
+                            str(exc),
+                        )
 
         # Show form with just password field
         reauth_schema = vol.Schema({vol.Required(CONF_PASSWORD): str})
