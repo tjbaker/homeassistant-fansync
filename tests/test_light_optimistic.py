@@ -69,7 +69,7 @@ async def test_light_turn_on_reverts_on_error(hass: HomeAssistant):
     await setup_entry_with_client(hass, client)
 
     # Precondition: light off
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     assert state is not None
     assert state.state == "off"
 
@@ -78,12 +78,12 @@ async def test_light_turn_on_reverts_on_error(hass: HomeAssistant):
         await hass.services.async_call(
             "light",
             "turn_on",
-            {"entity_id": "light.light", "brightness": 128},
+            {"entity_id": "light.fansync_light", "brightness": 128},
             blocking=True,
         )
     await hass.async_block_till_done()
 
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     assert state.state == "off"
 
 
@@ -92,7 +92,7 @@ async def test_light_turn_off_reverts_on_error(hass: HomeAssistant):
     await setup_entry_with_client(hass, client)
 
     # Precondition: light on
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     assert state is not None
     assert state.state == "on"
 
@@ -101,10 +101,10 @@ async def test_light_turn_off_reverts_on_error(hass: HomeAssistant):
         await hass.services.async_call(
             "light",
             "turn_off",
-            {"entity_id": "light.light"},
+            {"entity_id": "light.fansync_light"},
             blocking=True,
         )
     await hass.async_block_till_done()
 
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     assert state.state == "on"

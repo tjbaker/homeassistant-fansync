@@ -1,0 +1,61 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuration FanSync",
+        "description": "Entrez vos identifiants de compte Fanimation",
+        "data": {
+          "email": "E-mail",
+          "password": "Mot de passe",
+          "verify_ssl": "Vérifier le certificat SSL",
+          "http_timeout_seconds": "Délai HTTP (secondes)",
+          "ws_timeout_seconds": "Délai WebSocket (secondes)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Échec de connexion. Vérifiez votre réseau ou augmentez les délais HTTP/WebSocket dans la configuration ou les Options, puis réessayez.",
+      "ws_timeout": "Délai d'attente de connexion WebSocket. HTTP : {http_ms}ms, établissement WS : {ws_handshake_ms}ms, attente de connexion : {login_wait_ms}ms. Consultez les journaux pour les diagnostics complets.",
+      "invalid_auth": "E-mail ou mot de passe invalide. Veuillez vérifier vos identifiants.",
+      "no_devices": "Aucun appareil FanSync trouvé sur votre compte. Veuillez vérifier que les appareils sont enregistrés dans l'application Fanimation.",
+      "unknown": "Une erreur inattendue s'est produite. Veuillez consulter les journaux pour plus de détails."
+    },
+    "abort": {
+      "already_configured": "Ce compte est déjà configuré",
+      "reauth_successful": "Ré-authentification réussie"
+    }
+  },
+  "reauth_confirm": {
+    "title": "Ré-authentifier FanSync",
+    "description": "Les identifiants pour {email} ne sont plus valides. Veuillez entrer votre mot de passe pour vous ré-authentifier.",
+    "data": {
+      "password": "Mot de passe"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options FanSync",
+        "description": "Configurer l'interrogation de secours et les délais réseau",
+        "data": {
+          "fallback_poll_seconds": "Intervalle d'interrogation de secours (secondes, 0 pour désactiver)",
+          "http_timeout_seconds": "Délai HTTP (secondes)",
+          "ws_timeout_seconds": "Délai WebSocket (secondes)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "fan": {
+      "fan": {
+        "name": "Ventilateur"
+      }
+    },
+    "light": {
+      "light": {
+        "name": "Lumière"
+      }
+    }
+  }
+}
+

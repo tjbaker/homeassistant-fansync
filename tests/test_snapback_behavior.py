@@ -82,11 +82,11 @@ async def test_fan_snapback_after_guard_expiry(hass: HomeAssistant):
         await hass.services.async_call(
             "fan",
             "set_percentage",
-            {"entity_id": "fan.fan", "percentage": 55},
+            {"entity_id": "fan.fansync_fan", "percentage": 55},
             blocking=True,
         )
         # During guard, optimistic state should be shown
-        state = hass.states.get("fan.fan")
+        state = hass.states.get("fan.fansync_fan")
         assert state.attributes.get("percentage") == 55
 
         # Advance time beyond guard window, then push old backend state (20%)
@@ -96,7 +96,7 @@ async def test_fan_snapback_after_guard_expiry(hass: HomeAssistant):
         await hass.async_block_till_done()
 
         # After guard expiry and a non-confirming update, UI should reflect backend (snap-back)
-        state = hass.states.get("fan.fan")
+        state = hass.states.get("fan.fansync_fan")
         assert state.attributes.get("percentage") == 20
 
 
@@ -114,10 +114,10 @@ async def test_light_snapback_after_guard_expiry(hass: HomeAssistant):
         await hass.services.async_call(
             "light",
             "turn_on",
-            {"entity_id": "light.light", "brightness": 128},
+            {"entity_id": "light.fansync_light", "brightness": 128},
             blocking=True,
         )
-        state = hass.states.get("light.light")
+        state = hass.states.get("light.fansync_light")
         assert state.attributes.get("brightness") is not None
 
         # Advance beyond guard window and push old brightness (20%)
@@ -126,5 +126,5 @@ async def test_light_snapback_after_guard_expiry(hass: HomeAssistant):
             client._cb({"H0B": 1, "H0C": 20})
         await hass.async_block_till_done()
 
-        state = hass.states.get("light.light")
+        state = hass.states.get("light.fansync_light")
         assert state.attributes.get("brightness") == pct_to_ha_brightness(20)

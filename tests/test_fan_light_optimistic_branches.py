@@ -66,10 +66,10 @@ async def test_fan_turn_on_with_percentage_and_preset(hass: HomeAssistant):
     await hass.services.async_call(
         "fan",
         "turn_on",
-        {"entity_id": "fan.fan", "percentage": 55, "preset_mode": "fresh_air"},
+        {"entity_id": "fan.fansync_fan", "percentage": 55, "preset_mode": "fresh_air"},
         blocking=True,
     )
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.state == "on"
     assert state.attributes.get("percentage") == 55
     assert state.attributes.get("preset_mode") == "fresh_air"
@@ -79,8 +79,10 @@ async def test_fan_turn_off_success(hass: HomeAssistant):
     client = BranchClient()
     await setup(hass, client)
 
-    await hass.services.async_call("fan", "turn_off", {"entity_id": "fan.fan"}, blocking=True)
-    state = hass.states.get("fan.fan")
+    await hass.services.async_call(
+        "fan", "turn_off", {"entity_id": "fan.fansync_fan"}, blocking=True
+    )
+    state = hass.states.get("fan.fansync_fan")
     assert state.state == "off"
 
 
@@ -91,10 +93,10 @@ async def test_fan_set_direction_success(hass: HomeAssistant):
     await hass.services.async_call(
         "fan",
         "set_direction",
-        {"entity_id": "fan.fan", "direction": "reverse"},
+        {"entity_id": "fan.fansync_fan", "direction": "reverse"},
         blocking=True,
     )
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("direction") == "reverse"
 
 
@@ -105,10 +107,10 @@ async def test_fan_set_preset_mode_success(hass: HomeAssistant):
     await hass.services.async_call(
         "fan",
         "set_preset_mode",
-        {"entity_id": "fan.fan", "preset_mode": "fresh_air"},
+        {"entity_id": "fan.fansync_fan", "preset_mode": "fresh_air"},
         blocking=True,
     )
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("preset_mode") == "fresh_air"
 
 
@@ -116,8 +118,10 @@ async def test_light_turn_on_without_brightness(hass: HomeAssistant):
     client = BranchClient()
     await setup(hass, client)
 
-    await hass.services.async_call("light", "turn_on", {"entity_id": "light.light"}, blocking=True)
-    state = hass.states.get("light.light")
+    await hass.services.async_call(
+        "light", "turn_on", {"entity_id": "light.fansync_light"}, blocking=True
+    )
+    state = hass.states.get("light.fansync_light")
     assert state.state == "on"
 
 
@@ -126,6 +130,8 @@ async def test_light_turn_off_success(hass: HomeAssistant):
     client.status.update({"H0B": 1, "H0C": 50})
     await setup(hass, client)
 
-    await hass.services.async_call("light", "turn_off", {"entity_id": "light.light"}, blocking=True)
-    state = hass.states.get("light.light")
+    await hass.services.async_call(
+        "light", "turn_off", {"entity_id": "light.fansync_light"}, blocking=True
+    )
+    state = hass.states.get("light.fansync_light")
     assert state.state == "off"

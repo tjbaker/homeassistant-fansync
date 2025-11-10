@@ -2,25 +2,38 @@
 
 [![CI](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml/badge.svg)](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/tjbaker/homeassistant-fansync/branch/main/graph/badge.svg)](https://codecov.io/gh/tjbaker/homeassistant-fansync)
+[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![License](https://img.shields.io/github/license/tjbaker/homeassistant-fansync)](https://github.com/tjbaker/homeassistant-fansync/blob/main/LICENSE)
 
-Custom Home Assistant integration for Fanimation FanSync devices.
+Custom Home Assistant integration for Fanimation FanSync devices with cloud push updates, automatic reauthentication, and multi-language support.
+
+**🏆 Quality:** Bronze & Silver tier compliant | 167 tests | 85% coverage  
+**🌍 Languages:** English, French (Français), Spanish (Español)  
+**🔄 Updates:** Real-time cloud push with fallback polling
 
 ## Requirements
 
-- Python 3.13
-- Home Assistant Core 2025.10.4 or newer
-- HACS (optional; only required if installing via HACS)
+- **Python:** 3.13+
+- **Home Assistant:** 2025.10.0 or newer (no backward compatibility)
+- **HACS:** Optional (only if installing via HACS)
+- **Account:** Valid Fanimation FanSync account with registered devices
 
 ## Features
 
-- Fan: on/off, percentage speed, direction, preset modes (normal, fresh_air)
-- Light: on/off, brightness (0–100 mapped to 0–255)
+### Device Control
+- **Fan:** On/off, percentage speed (1-100%), direction, preset modes (normal, fresh_air)
+- **Light:** On/off, brightness (0-255 with smooth mapping)
+- **Real-time Updates:** Cloud push updates for instant state synchronization
+- **Fallback Polling:** Configurable polling when push unavailable (default: 60s)
+
 
 ## Installation
 
 ### HACS
 
-Note: This integration is not in the HACS default registry. Add it as a custom repository:
+**Status:** Custom repository (HACS default submission in progress with approved branding assets)
+
+Add as a custom repository:
 
 1) In Home Assistant, go to HACS → Integrations.
 2) Click the three-dots menu (⋮) → Custom repositories.
@@ -87,6 +100,31 @@ Push-first updates are used by default. A low-frequency fallback poll can be con
 Set via: Settings → Devices & Services → FanSync → Configure → Options.
 - Poll interval allowed range: 15–600 seconds (0 disables)
 - Timeout ranges: 5–120 seconds (HTTP and WebSocket)
+
+## Reauthentication
+
+If your FanSync credentials expire or become invalid, Home Assistant will automatically prompt you to re-enter your password:
+
+1. A notification will appear: "FanSync requires re-authentication"
+2. Click the notification or go to **Settings** → **Devices & Services** → **FanSync**
+3. Click **Configure** → **Re-authenticate**
+4. Enter your password (email is pre-filled)
+5. The integration will reconnect automatically
+
+Your devices and automations remain unchanged during reauthentication.
+
+## Languages
+
+The integration UI is available in multiple languages:
+- 🇬🇧 **English** (en)
+- 🇫🇷 **French** (Français)
+- 🇪🇸 **Spanish** (Español)
+
+The UI language follows your Home Assistant language setting. To change:
+1. Go to your **User Profile** (bottom left)
+2. Select **Language**
+3. Choose your preferred language
+4. Refresh the page
 
 ## Troubleshooting
 
@@ -226,6 +264,23 @@ Then restart Home Assistant and reproduce the issue. Check logs in **Settings** 
 - Verify Home Assistant has stable network connection
 - Check for router/firewall idle timeout settings (may disconnect long-running WebSocket)
 
+#### Authentication Failures
+
+**Symptoms**: Notification that "FanSync requires re-authentication" or integration shows as "Authentication Failed"
+
+**What happens automatically**:
+- The integration detects expired or invalid credentials (401/403 HTTP errors)
+- Home Assistant triggers the reauthentication flow
+- You'll see a notification to re-enter your password
+
+**To resolve**:
+1. Click the notification or go to **Settings** → **Devices & Services** → **FanSync**
+2. Click **Configure** → **Re-authenticate**
+3. Enter your password (email is pre-filled)
+4. Integration reconnects automatically
+
+**Note**: This is normal if you changed your FanSync password or if the session expired. Your devices and automations are unaffected.
+
 ### Reporting Issues
 
 When reporting connection issues, please:
@@ -266,9 +321,38 @@ See **[CONTRIBUTING.md](CONTRIBUTING.md)** for:
 
 For test-specific details, see **[tests/README.md](tests/README.md)**.
 
+## Quality & Testing
+
+This integration follows Home Assistant's Integration Quality Scale:
+
+- ✅ **Bronze Tier:** Complete (8/8 requirements)
+- ✅ **Silver Tier:** Complete (4/4 requirements)  
+- 🔄 **Gold Tier:** In progress (85% coverage, targeting 95%)
+
+**Test Suite:** 167 tests covering:
+- Entity functionality (fan, light)
+- Push updates and optimistic updates
+- Connection handling and retries
+- Configuration and options flows
+- Reauthentication flows
+- Error handling and edge cases
+
+**Run tests locally:**
+```bash
+python -m pytest tests/ --cov=custom_components/fansync
+```
+
+See [QUALITY_SCALE_VERIFICATION.md](QUALITY_SCALE_VERIFICATION.md) for detailed compliance report.
+
 ## Support This Project
 
-If you find this integration useful and want to say thanks, you can send me some USDC to grab a cup of coffee! ☕ Your support helps keep this project maintained and updated with new features.
+If you find this integration useful, please consider:
+
+⭐ **Star this repository** on GitHub  
+🐛 **Report issues** or suggest features  
+🔧 **Contribute** improvements or translations  
+
+And if you'd like to buy me a coffee ☕:
 
 **💙 USDC on Base Network**
 
@@ -279,7 +363,7 @@ If you find this integration useful and want to say thanks, you can send me some
 **Address**: `0x7CC11505c5fBb8FB0c52d2f63fd9A44763246397`  
 **Network**: Base (not Ethereum mainnet)
 
-*Completely optional! This project is and will always be free and open source.* ❤️
+*Completely optional! This project is free and open source.* ❤️
 
  
 

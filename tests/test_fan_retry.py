@@ -72,10 +72,12 @@ async def test_retry_turn_off_updates_ui(hass: HomeAssistant, monkeypatch):
     monkeypatch.setattr("custom_components.fansync.fan.asyncio.sleep", fast_sleep)
     await setup_entry_with_client(hass, client)
 
-    await hass.services.async_call("fan", "turn_off", {"entity_id": "fan.fan"}, blocking=True)
+    await hass.services.async_call(
+        "fan", "turn_off", {"entity_id": "fan.fansync_fan"}, blocking=True
+    )
     await hass.async_block_till_done()
 
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.state == "off"
     # preserves prior speed (20 from DelayedClient)
     assert state.attributes.get("percentage") == 20
@@ -93,12 +95,12 @@ async def test_retry_set_percentage_updates_ui(hass: HomeAssistant, monkeypatch)
     await hass.services.async_call(
         "fan",
         "set_percentage",
-        {"entity_id": "fan.fan", "percentage": 55},
+        {"entity_id": "fan.fansync_fan", "percentage": 55},
         blocking=True,
     )
     await hass.async_block_till_done()
 
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("percentage") == 55
 
 
@@ -114,10 +116,10 @@ async def test_retry_set_direction_updates_ui(hass: HomeAssistant, monkeypatch):
     await hass.services.async_call(
         "fan",
         "set_direction",
-        {"entity_id": "fan.fan", "direction": "reverse"},
+        {"entity_id": "fan.fansync_fan", "direction": "reverse"},
         blocking=True,
     )
     await hass.async_block_till_done()
 
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("direction") == "reverse"

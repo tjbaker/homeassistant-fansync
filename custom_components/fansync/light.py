@@ -81,8 +81,8 @@ async def async_setup_entry(
 
 
 class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
-    _attr_has_entity_name = False
-    _attr_name = "light"
+    _attr_has_entity_name = True
+    _attr_translation_key = "light"
     _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
     _attr_color_mode = ColorMode.BRIGHTNESS
 

@@ -57,7 +57,7 @@ async def test_setup_registers_callback_and_unload_disconnects(hass: HomeAssista
         await hass.async_block_till_done()
 
     # Fan entity should exist and reflect initial status
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state is not None
     assert state.attributes.get("percentage") == 20
     # Ensure callback was registered
@@ -66,7 +66,7 @@ async def test_setup_registers_callback_and_unload_disconnects(hass: HomeAssista
     # Trigger push status
     client._cb({"H00": 1, "H02": 55, "H06": 0, "H01": 0})  # type: ignore[misc]
     await hass.async_block_till_done()
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("percentage") == 55
 
     # Unload entry should disconnect client

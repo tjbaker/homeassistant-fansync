@@ -43,21 +43,24 @@ async def test_set_direction_and_preset(hass: HomeAssistant, patch_client):
 
     # Direction reverse
     await hass.services.async_call(
-        "fan", "set_direction", {"entity_id": "fan.fan", "direction": "reverse"}, blocking=True
+        "fan",
+        "set_direction",
+        {"entity_id": "fan.fansync_fan", "direction": "reverse"},
+        blocking=True,
     )
     await hass.async_block_till_done()
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("direction") == "reverse"
 
     # Preset fresh_air
     await hass.services.async_call(
         "fan",
         "set_preset_mode",
-        {"entity_id": "fan.fan", "preset_mode": "fresh_air"},
+        {"entity_id": "fan.fansync_fan", "preset_mode": "fresh_air"},
         blocking=True,
     )
     await hass.async_block_till_done()
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("preset_mode") == "fresh_air"
 
 
@@ -67,18 +70,18 @@ async def test_percentage_bounds(hass: HomeAssistant, patch_client):
 
     # Below min -> coerced to 1
     await hass.services.async_call(
-        "fan", "set_percentage", {"entity_id": "fan.fan", "percentage": 0}, blocking=True
+        "fan", "set_percentage", {"entity_id": "fan.fansync_fan", "percentage": 0}, blocking=True
     )
     await hass.async_block_till_done()
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("percentage") == 1
 
     # Above max is rejected by HA schema; set to 100 and verify
     await hass.services.async_call(
-        "fan", "set_percentage", {"entity_id": "fan.fan", "percentage": 100}, blocking=True
+        "fan", "set_percentage", {"entity_id": "fan.fansync_fan", "percentage": 100}, blocking=True
     )
     await hass.async_block_till_done()
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("percentage") == 100
 
 
@@ -90,22 +93,22 @@ async def test_percentage_exits_fresh_air(hass: HomeAssistant, patch_client):
     await hass.services.async_call(
         "fan",
         "set_preset_mode",
-        {"entity_id": "fan.fan", "preset_mode": "fresh_air"},
+        {"entity_id": "fan.fansync_fan", "preset_mode": "fresh_air"},
         blocking=True,
     )
     await hass.async_block_till_done()
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("preset_mode") == "fresh_air"
 
     # Changing percentage should exit fresh_air -> normal
     await hass.services.async_call(
         "fan",
         "set_percentage",
-        {"entity_id": "fan.fan", "percentage": 50},
+        {"entity_id": "fan.fansync_fan", "percentage": 50},
         blocking=True,
     )
     await hass.async_block_till_done()
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("percentage") == 50
     assert state.attributes.get("preset_mode") == "normal"
 
@@ -114,10 +117,12 @@ async def test_turn_off_preserves_speed(hass: HomeAssistant, patch_client):
     """Turning off preserves last percentage speed while state reads off."""
     await setup_entry(hass, patch_client, entry_id="test5")
     # Capture current speed
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     prev_pct = state.attributes.get("percentage")
-    await hass.services.async_call("fan", "turn_off", {"entity_id": "fan.fan"}, blocking=True)
+    await hass.services.async_call(
+        "fan", "turn_off", {"entity_id": "fan.fansync_fan"}, blocking=True
+    )
     await hass.async_block_till_done()
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.state == "off"
     assert state.attributes.get("percentage") == prev_pct

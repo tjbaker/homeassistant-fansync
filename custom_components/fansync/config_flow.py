@@ -186,6 +186,81 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_create_entry(title="FanSync", data=user_input)
 
+    async def async_step_reauth(
+        self, entry_data: dict[str, Any]
+    ) -> config_entries.ConfigFlowResult:
+        """Handle reauth flow when credentials expire or become invalid."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Handle reauth confirmation step - prompt user for new password."""
+        reauth_entry = self._get_reauth_entry()
+        errors = {}
+
+        if user_input is not None:
+            # Get email from existing config entry
+            email = reauth_entry.data[CONF_EMAIL]
+            password = user_input[CONF_PASSWORD]
+
+            # Test new credentials
+            client: FanSyncClient | None = None
+            try:
+                # Preserve existing timeout settings
+                http_timeout = reauth_entry.data.get(CONF_HTTP_TIMEOUT, DEFAULT_HTTP_TIMEOUT_SECS)
+                ws_timeout = reauth_entry.data.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS)
+                verify_ssl = reauth_entry.data.get(CONF_VERIFY_SSL, True)
+
+                client = FanSyncClient(
+                    self.hass,
+                    email,
+                    password,
+                    verify_ssl,
+                    enable_push=False,
+                    http_timeout_s=http_timeout,
+                    ws_timeout_s=ws_timeout,
+                )
+                await client.async_connect()
+
+                # Update config entry with new password
+                self.hass.config_entries.async_update_entry(
+                    reauth_entry,
+                    data={
+                        **reauth_entry.data,
+                        CONF_PASSWORD: password,
+                    },
+                )
+                await self.hass.config_entries.async_reload(reauth_entry.entry_id)
+
+                return self.async_abort(reason="reauth_successful")
+
+            except httpx.HTTPStatusError as exc:
+                _LOGGER.error(
+                    "Reauth failed: HTTP %s",
+                    exc.response.status_code if hasattr(exc, "response") else "unknown",
+                )
+                errors["base"] = "invalid_auth"
+            except Exception as exc:
+                _LOGGER.error("Reauth failed: %s: %s", type(exc).__name__, str(exc))
+                errors["base"] = "unknown"
+            finally:
+                if client is not None:
+                    try:
+                        await client.async_disconnect()
+                    except Exception:
+                        pass
+
+        # Show form with just password field
+        reauth_schema = vol.Schema({vol.Required(CONF_PASSWORD): str})
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=reauth_schema,
+            errors=errors,
+            description_placeholders={"email": reauth_entry.data[CONF_EMAIL]},
+        )
+
     @staticmethod
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,

@@ -78,11 +78,11 @@ async def test_overlay_ignores_interim_update_then_confirms(hass: HomeAssistant)
         await hass.services.async_call(
             "fan",
             "set_percentage",
-            {"entity_id": "fan.fan", "percentage": 55},
+            {"entity_id": "fan.fansync_fan", "percentage": 55},
             blocking=True,
         )
         # During guard, coordinator update that doesn't match predicate should be ignored by entity
-        state = hass.states.get("fan.fan")
+        state = hass.states.get("fan.fansync_fan")
         assert state.attributes.get("percentage") == 55
 
         # Advance time beyond guard window
@@ -91,5 +91,5 @@ async def test_overlay_ignores_interim_update_then_confirms(hass: HomeAssistant)
         fake_monotonic.t = base + OPTIMISTIC_GUARD_SEC + 1.0
         await hass.async_block_till_done()
         # State remains at confirmed value because callback already applied; no snap-back
-        state = hass.states.get("fan.fan")
+        state = hass.states.get("fan.fansync_fan")
         assert state.attributes.get("percentage") == 55

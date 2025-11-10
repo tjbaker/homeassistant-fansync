@@ -65,10 +65,10 @@ async def test_fan_success_confirm_updates_state(hass: HomeAssistant):
     await hass.services.async_call(
         "fan",
         "set_percentage",
-        {"entity_id": "fan.fan", "percentage": 50},
+        {"entity_id": "fan.fansync_fan", "percentage": 50},
         blocking=True,
     )
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("percentage") == 50
     assert state.attributes.get("preset_mode") == "normal"
 
@@ -81,9 +81,9 @@ async def test_light_success_confirm_updates_state(hass: HomeAssistant):
     await hass.services.async_call(
         "light",
         "turn_on",
-        {"entity_id": "light.light", "brightness": 128},
+        {"entity_id": "light.fansync_light", "brightness": 128},
         blocking=True,
     )
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     assert state.state == "on"
     assert state.attributes.get("brightness") >= 120
