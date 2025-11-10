@@ -68,8 +68,8 @@ async def async_setup_entry(
 
 
 class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
-    _attr_has_entity_name = False
-    _attr_name = "fan"
+    _attr_has_entity_name = True
+    _attr_translation_key = "fan"
     _attr_supported_features = (
         FanEntityFeature.SET_SPEED
         | FanEntityFeature.DIRECTION

@@ -36,23 +36,25 @@ async def test_fan_entity_lifecycle(hass: HomeAssistant, patch_client):
     await hass.async_block_till_done()
 
     # Fan state
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state is not None
     assert state.state == "on"
     assert state.attributes.get("percentage") == 41
 
     # Turn off
-    await hass.services.async_call("fan", "turn_off", {"entity_id": "fan.fan"}, blocking=True)
+    await hass.services.async_call(
+        "fan", "turn_off", {"entity_id": "fan.fansync_fan"}, blocking=True
+    )
     await hass.async_block_till_done()
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.state == "off"
 
     # Set percentage
     await hass.services.async_call(
-        "fan", "set_percentage", {"entity_id": "fan.fan", "percentage": 20}, blocking=True
+        "fan", "set_percentage", {"entity_id": "fan.fansync_fan", "percentage": 20}, blocking=True
     )
     await hass.async_block_till_done()
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("percentage") == 20
 
 
@@ -72,7 +74,7 @@ async def test_fan_availability(hass: HomeAssistant, patch_client) -> None:
     await hass.async_block_till_done()
 
     # Initially available (device data exists)
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state is not None
     assert state.state != "unavailable"
 
@@ -82,7 +84,7 @@ async def test_fan_availability(hass: HomeAssistant, patch_client) -> None:
     await hass.async_block_till_done()
 
     # Entity should be unavailable when device data is missing
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.state == "unavailable"
 
     # Restore device data (using the correct device_id from the fixture)
@@ -90,5 +92,5 @@ async def test_fan_availability(hass: HomeAssistant, patch_client) -> None:
     await hass.async_block_till_done()
 
     # Entity should be available again
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.state != "unavailable"

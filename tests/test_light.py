@@ -35,16 +35,16 @@ async def test_light_entity_lifecycle(hass: HomeAssistant, patch_client):
     await hass.async_block_till_done()
 
     # Light initial off
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     assert state is not None
     assert state.state == "off"
 
     # Turn on with brightness
     await hass.services.async_call(
-        "light", "turn_on", {"entity_id": "light.light", "brightness": 128}, blocking=True
+        "light", "turn_on", {"entity_id": "light.fansync_light", "brightness": 128}, blocking=True
     )
     await hass.async_block_till_done()
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     assert state.state == "on"
     # rounding differences (128 maps to 50.2% => 128 or 127). Accept within 1.
     assert abs(state.attributes.get("brightness") - 128) <= 1
@@ -66,7 +66,7 @@ async def test_light_availability(hass: HomeAssistant, patch_client) -> None:
     await hass.async_block_till_done()
 
     # Initially available (device data exists)
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     assert state is not None
     assert state.state != "unavailable"
 
@@ -76,7 +76,7 @@ async def test_light_availability(hass: HomeAssistant, patch_client) -> None:
     await hass.async_block_till_done()
 
     # Entity should be unavailable when device data is missing
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     assert state.state == "unavailable"
 
     # Restore device data (using the correct device_id from the fixture)
@@ -84,5 +84,5 @@ async def test_light_availability(hass: HomeAssistant, patch_client) -> None:
     await hass.async_block_till_done()
 
     # Entity should be available again
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     assert state.state != "unavailable"

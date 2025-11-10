@@ -16,8 +16,10 @@ import asyncio
 import logging
 from datetime import timedelta
 
+import httpx
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import UNDEFINED
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -210,6 +212,15 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             # Update device registry with any new profile data for all devices
             self._update_device_registry(list(statuses.keys()))
             return statuses
+        except httpx.HTTPStatusError as err:
+            # Handle authentication failures by triggering reauth flow
+            if err.response.status_code in (401, 403):
+                raise ConfigEntryAuthFailed(
+                    "Authentication failed. Please re-enter your credentials in the "
+                    "FanSync integration settings."
+                ) from err
+            # Other HTTP errors are treated as temporary failures
+            raise UpdateFailed(f"HTTP error {err.response.status_code}: {err}") from err
         except TimeoutError as err:
             raise UpdateFailed(
                 f"Coordinator update timed out after {POLL_STATUS_TIMEOUT_SECS} seconds"

@@ -40,10 +40,10 @@ async def test_brightness_mapping(hass: HomeAssistant, patch_client):
 
     # Set brightness mid (should map near 50% -> 127/128)
     await hass.services.async_call(
-        "light", "turn_on", {"entity_id": "light.light", "brightness": 128}, blocking=True
+        "light", "turn_on", {"entity_id": "light.fansync_light", "brightness": 128}, blocking=True
     )
     await hass.async_block_till_done()
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     assert state.attributes.get("brightness") in (127, 128)
 
 
@@ -53,9 +53,9 @@ async def test_brightness_bounds(hass: HomeAssistant, patch_client):
 
     # Brightness 0 still turns on with min percent 1
     await hass.services.async_call(
-        "light", "turn_on", {"entity_id": "light.light", "brightness": 0}, blocking=True
+        "light", "turn_on", {"entity_id": "light.fansync_light", "brightness": 0}, blocking=True
     )
     await hass.async_block_till_done()
-    state = hass.states.get("light.light")
+    state = hass.states.get("light.fansync_light")
     # Our implementation turns on with min brightness 1% -> 2-3 HA units
     assert state.state in ("on", "off")

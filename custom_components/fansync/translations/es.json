@@ -1,0 +1,61 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuración de FanSync",
+        "description": "Ingrese las credenciales de su cuenta de Fanimation",
+        "data": {
+          "email": "Correo electrónico",
+          "password": "Contraseña",
+          "verify_ssl": "Verificar certificado SSL",
+          "http_timeout_seconds": "Tiempo de espera HTTP (segundos)",
+          "ws_timeout_seconds": "Tiempo de espera WebSocket (segundos)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Error al conectar. Verifique su red o aumente los tiempos de espera HTTP/WebSocket en la configuración u Opciones, luego intente nuevamente.",
+      "ws_timeout": "Tiempo de espera de inicio de sesión WebSocket. HTTP: {http_ms}ms, enlace WS: {ws_handshake_ms}ms, espera de inicio de sesión: {login_wait_ms}ms. Consulte los registros para diagnósticos completos.",
+      "invalid_auth": "Correo electrónico o contraseña no válidos. Por favor, verifique sus credenciales.",
+      "no_devices": "No se encontraron dispositivos FanSync en su cuenta. Por favor, verifique que los dispositivos estén registrados en la aplicación Fanimation.",
+      "unknown": "Ocurrió un error inesperado. Por favor, consulte los registros para obtener más detalles."
+    },
+    "abort": {
+      "already_configured": "Esta cuenta ya está configurada",
+      "reauth_successful": "Re-autenticación exitosa"
+    }
+  },
+  "reauth_confirm": {
+    "title": "Re-autenticar FanSync",
+    "description": "Las credenciales para {email} ya no son válidas. Por favor, ingrese su contraseña para re-autenticarse.",
+    "data": {
+      "password": "Contraseña"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones de FanSync",
+        "description": "Configurar sondeo de respaldo y tiempos de espera de red",
+        "data": {
+          "fallback_poll_seconds": "Intervalo de sondeo de respaldo (segundos, 0 para deshabilitar)",
+          "http_timeout_seconds": "Tiempo de espera HTTP (segundos)",
+          "ws_timeout_seconds": "Tiempo de espera WebSocket (segundos)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "fan": {
+      "fan": {
+        "name": "Ventilador"
+      }
+    },
+    "light": {
+      "light": {
+        "name": "Luz"
+      }
+    }
+  }
+}
+

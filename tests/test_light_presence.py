@@ -60,8 +60,8 @@ async def test_light_not_created_when_no_light_keys(hass: HomeAssistant):
         await hass.async_block_till_done()
 
     # Fan should exist, light should not
-    assert hass.states.get("fan.fan") is not None
-    assert hass.states.get("light.light") is None
+    assert hass.states.get("fan.fansync_fan") is not None
+    assert hass.states.get("light.fansync_light") is None
 
 
 async def test_platforms_stored_and_forwarded_without_light(hass: HomeAssistant, monkeypatch):

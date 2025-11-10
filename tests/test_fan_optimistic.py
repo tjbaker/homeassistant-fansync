@@ -62,20 +62,20 @@ async def test_set_percentage_reverts_on_error(hass: HomeAssistant):
     await setup_entry_with_client(hass, client)
 
     # Precondition
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("percentage") == 20
 
     with pytest.raises(RuntimeError):
         await hass.services.async_call(
             "fan",
             "set_percentage",
-            {"entity_id": "fan.fan", "percentage": 55},
+            {"entity_id": "fan.fansync_fan", "percentage": 55},
             blocking=True,
         )
     await hass.async_block_till_done()
 
     # After failure, state should be reverted to previous (20%)
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("percentage") == 20
 
 
@@ -84,18 +84,18 @@ async def test_set_direction_reverts_on_error(hass: HomeAssistant):
     await setup_entry_with_client(hass, client)
 
     # Precondition
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("direction") == "forward"
 
     with pytest.raises(RuntimeError):
         await hass.services.async_call(
             "fan",
             "set_direction",
-            {"entity_id": "fan.fan", "direction": "reverse"},
+            {"entity_id": "fan.fansync_fan", "direction": "reverse"},
             blocking=True,
         )
     await hass.async_block_till_done()
 
     # After failure, state should be reverted to previous (forward)
-    state = hass.states.get("fan.fan")
+    state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("direction") == "forward"

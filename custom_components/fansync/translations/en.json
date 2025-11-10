@@ -21,7 +21,15 @@
       "unknown": "An unexpected error occurred. Please check the logs for details."
     },
     "abort": {
-      "already_configured": "This account is already configured"
+      "already_configured": "This account is already configured",
+      "reauth_successful": "Re-authentication successful"
+    }
+  },
+  "reauth_confirm": {
+    "title": "Re-authenticate FanSync",
+    "description": "The credentials for {email} are no longer valid. Please enter your password to re-authenticate.",
+    "data": {
+      "password": "Password"
     }
   },
   "options": {
@@ -34,6 +42,18 @@
           "http_timeout_seconds": "HTTP timeout (seconds)",
           "ws_timeout_seconds": "WebSocket timeout (seconds)"
         }
+      }
+    }
+  },
+  "entity": {
+    "fan": {
+      "fan": {
+        "name": "Fan"
+      }
+    },
+    "light": {
+      "light": {
+        "name": "Light"
       }
     }
   }

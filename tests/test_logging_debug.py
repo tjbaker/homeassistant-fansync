@@ -81,7 +81,7 @@ async def test_fan_emits_debug_logs(hass: HomeAssistant, caplog: pytest.LogCaptu
         await hass.services.async_call(
             "fan",
             "set_percentage",
-            {"entity_id": "fan.fan", "percentage": 55},
+            {"entity_id": "fan.fansync_fan", "percentage": 55},
             blocking=True,
         )
 
