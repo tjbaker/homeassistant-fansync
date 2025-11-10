@@ -11,6 +11,13 @@
           "http_timeout_seconds": "HTTP timeout (seconds)",
           "ws_timeout_seconds": "WebSocket timeout (seconds)"
         }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate FanSync",
+        "description": "The credentials for {email} are no longer valid. Please enter your password to re-authenticate.",
+        "data": {
+          "password": "Password"
+        }
       }
     },
     "error": {
@@ -23,13 +30,6 @@
     "abort": {
       "already_configured": "This account is already configured",
       "reauth_successful": "Re-authentication successful"
-    }
-  },
-  "reauth_confirm": {
-    "title": "Re-authenticate FanSync",
-    "description": "The credentials for {email} are no longer valid. Please enter your password to re-authenticate.",
-    "data": {
-      "password": "Password"
     }
   },
   "options": {

@@ -11,6 +11,13 @@
           "http_timeout_seconds": "Délai HTTP (secondes)",
           "ws_timeout_seconds": "Délai WebSocket (secondes)"
         }
+      },
+      "reauth_confirm": {
+        "title": "Ré-authentifier FanSync",
+        "description": "Les identifiants pour {email} ne sont plus valides. Veuillez entrer votre mot de passe pour vous ré-authentifier.",
+        "data": {
+          "password": "Mot de passe"
+        }
       }
     },
     "error": {
@@ -23,13 +30,6 @@
     "abort": {
       "already_configured": "Ce compte est déjà configuré",
       "reauth_successful": "Ré-authentification réussie"
-    }
-  },
-  "reauth_confirm": {
-    "title": "Ré-authentifier FanSync",
-    "description": "Les identifiants pour {email} ne sont plus valides. Veuillez entrer votre mot de passe pour vous ré-authentifier.",
-    "data": {
-      "password": "Mot de passe"
     }
   },
   "options": {
