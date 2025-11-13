@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml/badge.svg)](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/tjbaker/homeassistant-fansync/branch/main/graph/badge.svg)](https://codecov.io/gh/tjbaker/homeassistant-fansync)
-[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/github/license/tjbaker/homeassistant-fansync)](https://github.com/tjbaker/homeassistant-fansync/blob/main/LICENSE)
 
 Custom Home Assistant integration for Fanimation FanSync devices with cloud push updates, automatic reauthentication, and multi-language support.
@@ -29,24 +29,14 @@ Custom Home Assistant integration for Fanimation FanSync devices with cloud push
 
 ## Installation
 
-### HACS
-
-**Status:** Custom repository (HACS default submission in progress with approved branding assets)
-
-Add as a custom repository:
+### HACS (Recommended)
 
 1) In Home Assistant, go to HACS → Integrations.
-2) Click the three-dots menu (⋮) → Custom repositories.
-3) In Repository, enter: `https://github.com/tjbaker/homeassistant-fansync`
-4) In Category, choose: `Integration` → Add.
-5) Back in HACS → Integrations, click Explore & Download Repositories.
-6) Search for "FanSync" → Download.
-7) Restart Home Assistant.
-8) Add the integration: Settings → Devices & Services → Add integration → “FanSync”.
-
-See also: [HACS: Custom repositories](https://hacs.xyz/docs/use/custom_repositories/)
-• Issues: [Open or track issues](https://github.com/tjbaker/homeassistant-fansync/issues)
-• PRs: [Create a pull request](https://github.com/tjbaker/homeassistant-fansync/pulls)
+2) Click **Explore & Download Repositories**.
+3) Search for "FanSync".
+4) Click **Download** and confirm.
+5) Restart Home Assistant.
+6) Add the integration: Settings → Devices & Services → Add integration → "FanSync".
 
 ### Manual
 
