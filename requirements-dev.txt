@@ -11,6 +11,7 @@
 # limitations under the License.
 
 # Development requirements for CI and local checks
+pycares==4.11.0
 pytest
 pytest-homeassistant-custom-component
 # Pin Home Assistant core to supported minor for development/tests (2025.10.x)
