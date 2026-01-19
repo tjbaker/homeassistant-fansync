@@ -12,7 +12,7 @@
 
 # Development requirements for CI and local checks
 black
-homeassistant==2025.12.2
+homeassistant==2026.1.2
 mypy
 pycares==4.11.0
 pytest-cov==7.0.0
