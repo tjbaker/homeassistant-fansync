@@ -692,8 +692,13 @@ class FanSyncClient:
                         if self._ws:
                             try:
                                 await self._ws.close()
-                            except Exception:
-                                pass
+                            except Exception as close_err:
+                                if _LOGGER.isEnabledFor(logging.DEBUG):
+                                    _LOGGER.debug(
+                                        "WebSocket close failed during retry (%s): %s",
+                                        type(close_err).__name__,
+                                        close_err,
+                                    )
                         continue
                     raise
 
@@ -801,8 +806,13 @@ class FanSyncClient:
                         if self._ws:
                             try:
                                 await self._ws.close()
-                            except Exception:
-                                pass
+                            except Exception as close_err:
+                                if _LOGGER.isEnabledFor(logging.DEBUG):
+                                    _LOGGER.debug(
+                                        "WebSocket close failed during retry (%s): %s",
+                                        type(close_err).__name__,
+                                        close_err,
+                                    )
                         continue
                     raise
 
