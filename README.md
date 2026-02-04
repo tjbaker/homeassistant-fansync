@@ -301,6 +301,16 @@ docker compose up -d              # Start HA with your code mounted
 docker compose restart            # See changes in ~10 seconds
 ```
 
+### 🧰 Local Dev (Virtualenv + Make)
+
+If you prefer to run checks outside Docker:
+
+```bash
+make venv
+make install
+make check
+```
+
 ### 📚 Contributing Guide
 
 See **[CONTRIBUTING.md](CONTRIBUTING.md)** for:
@@ -329,7 +339,7 @@ This integration follows Home Assistant's Integration Quality Scale:
 
 **Run tests locally:**
 ```bash
-python -m pytest tests/ --cov=custom_components/fansync
+make coverage
 ```
 
 See [QUALITY_SCALE_VERIFICATION.md](QUALITY_SCALE_VERIFICATION.md) for detailed compliance report.
