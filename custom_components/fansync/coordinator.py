@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import timedelta
+from typing import Any
 
 import httpx
 from homeassistant.config_entries import ConfigEntry
@@ -168,7 +169,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 return statuses
 
             # Run per-device status in parallel with timeouts; tolerate partial failures
-            async def _get(did: str):
+            async def _get(did: str) -> tuple[str, dict[str, Any] | None]:
                 timeout_s = await self._get_timeout_seconds()
                 try:
                     return did, await asyncio.wait_for(self.client.async_get_status(did), timeout_s)
@@ -185,18 +186,20 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     return did, None
 
             results = await asyncio.gather(*(_get(d) for d in ids))
-            for did, s in results:
-                if isinstance(s, dict):
-                    statuses[did] = s
+            for did, status in results:
+                if isinstance(status, dict):
+                    statuses[did] = status
             # Debug: log mismatches for multi-device
             current = self.data or {}
             if isinstance(current, dict):
-                for did, s in statuses.items():
+                for did, status in statuses.items():
                     prev = current.get(did, {})
-                    if isinstance(prev, dict) and isinstance(s, dict) and prev != s:
+                    if isinstance(prev, dict) and isinstance(status, dict) and prev != status:
                         if self.logger.isEnabledFor(logging.DEBUG):
                             self.logger.debug(
-                                "poll mismatch d=%s changed_keys=%s", did, _changed_keys(prev, s)
+                                "poll mismatch d=%s changed_keys=%s",
+                                did,
+                                _changed_keys(prev, status),
                             )
             if self.logger.isEnabledFor(logging.DEBUG):
                 self.logger.debug("poll sync done devices=%d", len(statuses))

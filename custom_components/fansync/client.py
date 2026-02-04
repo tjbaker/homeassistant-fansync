@@ -211,7 +211,7 @@ class FanSyncClient:
         resp.raise_for_status()
         return resp.json()["token"]
 
-    async def async_connect(self):
+    async def async_connect(self) -> None:
         """Connect to FanSync cloud API and authenticate."""
         t0 = time.monotonic()
 
@@ -345,7 +345,7 @@ class FanSyncClient:
                             )
                     ws = None
                 # Retry for transient errors
-                transient = isinstance(exc, TimeoutError | asyncio.TimeoutError | OSError)
+                transient = isinstance(exc, TimeoutError | OSError)
                 if transient and (attempt_idx + 1 < WS_LOGIN_RETRY_ATTEMPTS):
                     await asyncio.sleep(WS_LOGIN_RETRY_BACKOFF_SEC)
                 else:
@@ -421,7 +421,7 @@ class FanSyncClient:
         # message routing system and for push updates from the server.
         self._recv_task = asyncio.create_task(self._recv_loop())
 
-    async def async_disconnect(self):
+    async def async_disconnect(self) -> None:
         """Disconnect from FanSync cloud API."""
         self._running = False
         self.metrics.is_connected = False
@@ -457,7 +457,7 @@ class FanSyncClient:
                     _LOGGER.debug("HTTP client close failed: %s: %s", type(exc).__name__, exc)
             self._http = None
 
-    async def _recv_loop(self):
+    async def _recv_loop(self) -> None:
         """Background task to receive push updates from WebSocket."""
         timeout_errors = 0
         backoff_sec = 0.5
@@ -763,7 +763,7 @@ class FanSyncClient:
             self.metrics.record_command(success=False)
             raise
 
-    async def async_set(self, data: dict[str, int], *, device_id: str | None = None):
+    async def async_set(self, data: dict[str, int], *, device_id: str | None = None) -> None:
         """Set device parameters."""
         t_total = time.monotonic()
         did = device_id or self._device_id
