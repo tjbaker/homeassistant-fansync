@@ -18,10 +18,11 @@ from unittest.mock import patch
 import httpx
 import pytest
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError, ConfigEntryNotReady
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.fansync import async_setup_entry
+from custom_components.fansync.client import FanSyncConfigError
 
 
 class ClientWithCallback:
@@ -72,7 +73,29 @@ class ClientAuthError:
         self.disconnected = True
 
 
-async def test_setup_registers_callback_and_unload_disconnects(hass: HomeAssistant):
+class ClientConfigError:
+    def __init__(self) -> None:
+        self.disconnected = False
+
+    async def async_connect(self) -> None:
+        raise FanSyncConfigError("Invalid configuration")
+
+    async def async_disconnect(self) -> None:
+        self.disconnected = True
+
+
+class ClientRuntimeError:
+    def __init__(self) -> None:
+        self.disconnected = False
+
+    async def async_connect(self) -> None:
+        raise RuntimeError("Temporary failure")
+
+    async def async_disconnect(self) -> None:
+        self.disconnected = True
+
+
+async def test_setup_registers_callback_and_unload_disconnects(hass: HomeAssistant) -> None:
     client = ClientWithCallback()
     entry = MockConfigEntry(
         domain="fansync",
@@ -116,6 +139,8 @@ async def test_setup_retries_on_transient_connect_error(hass: HomeAssistant) -> 
     entry.add_to_hass(hass)
 
     with patch("custom_components.fansync.FanSyncClient", return_value=client):
+        # Call async_setup_entry directly to assert exception mapping; HA helpers
+        # convert these exceptions into boolean results.
         with pytest.raises(ConfigEntryNotReady):
             await async_setup_entry(hass, entry)
     assert client.disconnected is True
@@ -132,6 +157,61 @@ async def test_setup_raises_reauth_on_auth_error(hass: HomeAssistant) -> None:
     entry.add_to_hass(hass)
 
     with patch("custom_components.fansync.FanSyncClient", return_value=client):
+        # Call async_setup_entry directly to assert exception mapping; HA helpers
+        # convert these exceptions into boolean results.
         with pytest.raises(ConfigEntryAuthFailed):
+            await async_setup_entry(hass, entry)
+    assert client.disconnected is True
+
+
+async def test_setup_raises_config_error_without_retry(hass: HomeAssistant) -> None:
+    client = ClientConfigError()
+    entry = MockConfigEntry(
+        domain="fansync",
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": True},
+        unique_id="setup-config-error",
+    )
+    entry.add_to_hass(hass)
+
+    with patch("custom_components.fansync.FanSyncClient", return_value=client):
+        # Call async_setup_entry directly to assert exception mapping; HA helpers
+        # convert these exceptions into boolean results.
+        with pytest.raises(ConfigEntryError):
+            await async_setup_entry(hass, entry)
+    assert client.disconnected is True
+
+
+async def test_setup_config_error_via_hass_helper(hass: HomeAssistant) -> None:
+    client = ClientConfigError()
+    entry = MockConfigEntry(
+        domain="fansync",
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": True},
+        unique_id="setup-config-error-helper",
+    )
+    entry.add_to_hass(hass)
+
+    with patch("custom_components.fansync.FanSyncClient", return_value=client):
+        result = await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert result is False
+    assert client.disconnected is True
+
+
+async def test_setup_retries_on_runtime_error(hass: HomeAssistant) -> None:
+    client = ClientRuntimeError()
+    entry = MockConfigEntry(
+        domain="fansync",
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": True},
+        unique_id="setup-runtime-error",
+    )
+    entry.add_to_hass(hass)
+
+    with patch("custom_components.fansync.FanSyncClient", return_value=client):
+        # Call async_setup_entry directly to assert exception mapping; HA helpers
+        # convert these exceptions into boolean results.
+        with pytest.raises(ConfigEntryNotReady):
             await async_setup_entry(hass, entry)
     assert client.disconnected is True

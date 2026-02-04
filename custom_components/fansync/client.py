@@ -44,11 +44,19 @@ from .metrics import ConnectionMetrics
 _LOGGER = logging.getLogger(__name__)
 
 
+class FanSyncConfigError(Exception):
+    """Non-retryable configuration error."""
+
+    ...
+
+
 class FanSyncClient:
     """Async WebSocket client for FanSync API.
 
     Uses websockets library for native async WebSocket support.
     All operations run in the Home Assistant event loop without threading.
+    RuntimeError indicates transient remote failures; use FanSyncConfigError
+    for deterministic misconfiguration.
     """
 
     def __init__(

@@ -20,11 +20,11 @@ from typing import TypedDict
 import httpx
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .client import FanSyncClient
+from .client import FanSyncClient, FanSyncConfigError
 from .const import (
     CONF_EMAIL,
     CONF_HTTP_TIMEOUT,
@@ -93,8 +93,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
     try:
         try:
             await client.async_connect()
+        except FanSyncConfigError as err:
+            _LOGGER.error("FanSync setup config error: %s", err)
+            raise ConfigEntryError(str(err)) from err
         except httpx.HTTPStatusError as err:
-            status = err.response.status_code if getattr(err, "response", None) else None
+            status = err.response.status_code
             if status in (401, 403):
                 raise ConfigEntryAuthFailed(
                     "Authentication failed. Please re-enter your FanSync credentials."
@@ -170,13 +173,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
             ):
                 platforms.append("light")
 
-        # Store runtime data in entry.runtime_data (modern pattern)
-        entry.runtime_data = FanSyncRuntimeData(
-            client=client,
-            coordinator=coordinator,
-            platforms=platforms,
-        )
-
         async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry) -> None:
             new_secs = updated_entry.options.get(
                 OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS
@@ -203,6 +199,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug("apply_timeouts failed: %s", exc)
 
+        # Store runtime data in entry.runtime_data (modern pattern)
+        entry.runtime_data = FanSyncRuntimeData(
+            client=client,
+            coordinator=coordinator,
+            platforms=platforms,
+        )
         unsubscribe_options = entry.add_update_listener(_async_options_updated)
 
         await hass.config_entries.async_forward_entry_setups(entry, platforms)
@@ -226,8 +228,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
                 except Exception as exc:
                     if _LOGGER.isEnabledFor(logging.DEBUG):
                         _LOGGER.debug("options cleanup failed: %s", exc)
-            if hasattr(entry, "runtime_data"):
+            try:
                 delattr(entry, "runtime_data")
+            except AttributeError:
+                pass
             try:
                 await client.async_disconnect()
             except Exception as exc:
