@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.7.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.0...0.7.1) (2026-02-04)
+
+
+### Bug Fixes
+
+* retry transient setup failures and clean up client ([#149](https://github.com/tjbaker/homeassistant-fansync/issues/149)) ([f6bc7fa](https://github.com/tjbaker/homeassistant-fansync/commit/f6bc7fa159724b84ff609319a789001258e27088))
+
 ## [0.7.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.6.0...0.7.0) (2025-11-10)
 
 
