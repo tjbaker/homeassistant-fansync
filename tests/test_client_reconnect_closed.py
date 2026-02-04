@@ -54,7 +54,20 @@ async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
             # Wait for get request to be sent (login=1, lst=2, get=3)
             while len(mock_websocket.sent_requests) < 3:
                 yield TimeoutError("waiting for get request")
-            get_request_id = mock_websocket.sent_requests[2]["id"]
+            
+            # Wait for reconnection requests (login=4, lst=5 not sent)
+            # _ensure_ws_connected only sends Login (id=1 hardcoded).
+            # So next request is Login.
+            while len(mock_websocket.sent_requests) < 4:
+                 yield TimeoutError("waiting for reconnect login")
+
+            yield _login_ok()
+
+            # Now we are reconnected, the retry will send the get request again (count 5)
+            while len(mock_websocket.sent_requests) < 5:
+                yield TimeoutError("waiting for retry get")
+
+            get_request_id = mock_websocket.sent_requests[4]["id"]
             # Then get response with dynamic ID
             yield json.dumps(
                 {
@@ -117,7 +130,18 @@ async def test_set_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
             # Wait for set request to be sent (login=1, lst=2, set=3)
             while len(mock_websocket.sent_requests) < 3:
                 yield TimeoutError("waiting for set request")
-            set_request_id = mock_websocket.sent_requests[2]["id"]
+            
+            # Wait for reconnection login (4)
+            while len(mock_websocket.sent_requests) < 4:
+                 yield TimeoutError("waiting for reconnect login")
+
+            yield _login_ok()
+
+            # Wait for retry set (5)
+            while len(mock_websocket.sent_requests) < 5:
+                yield TimeoutError("waiting for retry set")
+
+            set_request_id = mock_websocket.sent_requests[4]["id"]
             # Then set response with dynamic ID
             yield json.dumps(
                 {

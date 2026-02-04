@@ -80,8 +80,6 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
     _attr_preset_modes = list(PRESET_MODES.values())
 
     __slots__ = (
-        "coordinator",
-        "client",
         "_device_id",
         "_retry_attempts",
         "_retry_delay",
@@ -89,7 +87,6 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         "_optimistic_predicate",
         "_overlay",
         "_confirmed_by_push",
-        "_attr_unique_id",
     )
 
     def __init__(self, coordinator: FanSyncCoordinator, client: FanSyncClient, device_id: str):

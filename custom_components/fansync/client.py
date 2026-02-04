@@ -699,6 +699,7 @@ class FanSyncClient:
                                         type(close_err).__name__,
                                         close_err,
                                     )
+                            self._ws = None
                         continue
                     raise
 
