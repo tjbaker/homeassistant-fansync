@@ -7,7 +7,7 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Use Black/Ruff exactly as configured in pyproject.toml (line length 100, Python 3.13).
 - Follow PEP 8 principles; Black/Ruff are authoritative for enforcement.
 - Optimize for clarity and readability; prefer explicit types where helpful.
-- Prefer `X | None` in type annotations; `isinstance()` requires tuples.
+- Prefer `X | None` in type annotations; prefer union syntax in `isinstance()` checks (e.g., `int | str`) over tuples.
 - Type Annotations:
   - Always add type hints to function/method parameters and return types
   - Use modern Python 3.10+ syntax: `X | None` instead of `Optional[X]`

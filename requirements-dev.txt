@@ -11,14 +11,15 @@
 # limitations under the License.
 
 # Development requirements for CI and local checks
-black
-homeassistant==2025.12.2
-mypy
+black==26.1.0
+homeassistant==2026.1.3
+mypy==1.19.1
 pycares==4.11.0
 pytest-cov==7.0.0
-pytest-homeassistant-custom-component
+pytest-homeassistant-custom-component==0.13.308
 pytest==9.0.0
-ruff
+pre-commit==4.5.1
+ruff==0.15.0
 # Runtime deps required by integration (for local tests)
-httpx
-websockets>=12.0
+httpx==0.28.1
+websockets==16.0

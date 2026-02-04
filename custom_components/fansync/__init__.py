@@ -89,6 +89,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
         ws_timeout_s=ws_timeout,
     )
     setup_complete = False
+    unsubscribe_options = None
     try:
         try:
             await client.async_connect()
@@ -202,7 +203,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug("apply_timeouts failed: %s", exc)
 
-        entry.add_update_listener(_async_options_updated)
+        unsubscribe_options = entry.add_update_listener(_async_options_updated)
 
         await hass.config_entries.async_forward_entry_setups(entry, platforms)
 
@@ -219,6 +220,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
         return True
     finally:
         if not setup_complete:
+            if unsubscribe_options is not None:
+                try:
+                    unsubscribe_options()
+                except Exception as exc:
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug("options cleanup failed: %s", exc)
+            if hasattr(entry, "runtime_data"):
+                delattr(entry, "runtime_data")
             try:
                 await client.async_disconnect()
             except Exception as exc:

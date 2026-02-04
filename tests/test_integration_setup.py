@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from unittest.mock import patch
 
 import httpx
@@ -24,26 +25,26 @@ from custom_components.fansync import async_setup_entry
 
 
 class ClientWithCallback:
-    def __init__(self):
+    def __init__(self) -> None:
         self.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0}
         self.device_id = "setup-device"
         self._cb = None
         self.connected = False
         self.disconnected = False
 
-    async def async_connect(self):
+    async def async_connect(self) -> None:
         self.connected = True
 
-    async def async_disconnect(self):
+    async def async_disconnect(self) -> None:
         self.disconnected = True
 
-    async def async_get_status(self, device_id: str | None = None):
+    async def async_get_status(self, device_id: str | None = None) -> dict[str, int]:
         return dict(self.status)
 
-    async def async_set(self, data, *, device_id: str | None = None):
+    async def async_set(self, data: dict[str, int], *, device_id: str | None = None) -> None:
         self.status.update(data)
 
-    def set_status_callback(self, cb):
+    def set_status_callback(self, cb: Callable[[dict[str, object]], None]) -> None:
         self._cb = cb
 
 
@@ -51,18 +52,24 @@ class ClientConnectTimeout:
     def __init__(self) -> None:
         self.disconnected = False
 
-    async def async_connect(self):
+    async def async_connect(self) -> None:
         raise TimeoutError("timeout")
 
-    async def async_disconnect(self):
+    async def async_disconnect(self) -> None:
         self.disconnected = True
 
 
 class ClientAuthError:
-    async def async_connect(self):
+    def __init__(self) -> None:
+        self.disconnected = False
+
+    async def async_connect(self) -> None:
         request = httpx.Request("POST", "https://fanimation.apps.exosite.io/api:1/session")
         response = httpx.Response(401, request=request)
         raise httpx.HTTPStatusError("Unauthorized", request=request, response=response)
+
+    async def async_disconnect(self) -> None:
+        self.disconnected = True
 
 
 async def test_setup_registers_callback_and_unload_disconnects(hass: HomeAssistant):
@@ -115,6 +122,7 @@ async def test_setup_retries_on_transient_connect_error(hass: HomeAssistant) -> 
 
 
 async def test_setup_raises_reauth_on_auth_error(hass: HomeAssistant) -> None:
+    client = ClientAuthError()
     entry = MockConfigEntry(
         domain="fansync",
         title="FanSync",
@@ -123,6 +131,7 @@ async def test_setup_raises_reauth_on_auth_error(hass: HomeAssistant) -> None:
     )
     entry.add_to_hass(hass)
 
-    with patch("custom_components.fansync.FanSyncClient", return_value=ClientAuthError()):
+    with patch("custom_components.fansync.FanSyncClient", return_value=client):
         with pytest.raises(ConfigEntryAuthFailed):
             await async_setup_entry(hass, entry)
+    assert client.disconnected is True

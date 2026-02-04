@@ -139,12 +139,21 @@ If you prefer not to use Docker:
 
 ```bash
 # Create and activate a virtualenv
+# Tip: .python-version sets the recommended Python version (3.13.x) for pyenv/mise/uv
 python3.13 -m venv venv
 source venv/bin/activate
 
 # Install development tools
 pip install -U pip
 pip install -r requirements-dev.txt
+```
+
+Or use Make targets:
+
+```bash
+make venv
+make install
+make check
 ```
 
 Then manually install Home Assistant Core in development mode (see Home Assistant Core documentation).
