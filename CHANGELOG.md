@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.7.2](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.1...0.7.2) (2026-02-04)
+
+
+### Bug Fixes
+
+* disable websocket compression and optimize client ([#151](https://github.com/tjbaker/homeassistant-fansync/issues/151)) ([53d0a94](https://github.com/tjbaker/homeassistant-fansync/commit/53d0a94718aeefd8c06b4cc6b10559de05a86143))
+
 ## [0.7.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.0...0.7.1) (2026-02-04)
 
 
