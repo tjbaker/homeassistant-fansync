@@ -14,8 +14,13 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import httpx
+import pytest
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.fansync import async_setup_entry
 
 
 class ClientWithCallback:
@@ -40,6 +45,24 @@ class ClientWithCallback:
 
     def set_status_callback(self, cb):
         self._cb = cb
+
+
+class ClientConnectTimeout:
+    def __init__(self) -> None:
+        self.disconnected = False
+
+    async def async_connect(self):
+        raise TimeoutError("timeout")
+
+    async def async_disconnect(self):
+        self.disconnected = True
+
+
+class ClientAuthError:
+    async def async_connect(self):
+        request = httpx.Request("POST", "https://fanimation.apps.exosite.io/api:1/session")
+        response = httpx.Response(401, request=request)
+        raise httpx.HTTPStatusError("Unauthorized", request=request, response=response)
 
 
 async def test_setup_registers_callback_and_unload_disconnects(hass: HomeAssistant):
@@ -73,3 +96,33 @@ async def test_setup_registers_callback_and_unload_disconnects(hass: HomeAssista
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert client.disconnected is True
+
+
+async def test_setup_retries_on_transient_connect_error(hass: HomeAssistant) -> None:
+    client = ClientConnectTimeout()
+    entry = MockConfigEntry(
+        domain="fansync",
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": True},
+        unique_id="setup-timeout",
+    )
+    entry.add_to_hass(hass)
+
+    with patch("custom_components.fansync.FanSyncClient", return_value=client):
+        with pytest.raises(ConfigEntryNotReady):
+            await async_setup_entry(hass, entry)
+    assert client.disconnected is True
+
+
+async def test_setup_raises_reauth_on_auth_error(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain="fansync",
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": True},
+        unique_id="setup-auth-fail",
+    )
+    entry.add_to_hass(hass)
+
+    with patch("custom_components.fansync.FanSyncClient", return_value=ClientAuthError()):
+        with pytest.raises(ConfigEntryAuthFailed):
+            await async_setup_entry(hass, entry)

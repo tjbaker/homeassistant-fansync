@@ -17,8 +17,10 @@ import logging
 from datetime import timedelta
 from typing import TypedDict
 
+import httpx
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
@@ -86,110 +88,142 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
         http_timeout_s=http_timeout,
         ws_timeout_s=ws_timeout,
     )
-    await client.async_connect()
-    coordinator = FanSyncCoordinator(hass, client, entry)
-    # Apply options-driven fallback polling
-    secs = entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
-    coordinator.update_interval = None if secs == 0 else timedelta(seconds=int(secs))
-    if _LOGGER.isEnabledFor(logging.DEBUG):
-        _LOGGER.debug(
-            "setup interval=%s verify_ssl=%s",
-            coordinator.update_interval,
-            entry.data.get(CONF_VERIFY_SSL, True),
-        )
-
-    # Register a push callback if supported by the client
-    if hasattr(client, "set_status_callback"):
-
-        def _on_status(status: dict[str, object]) -> None:
-            # Merge pushed status for this device into the coordinator's mapping
-            did = getattr(client, "device_id", None) or "unknown"
-            current = coordinator.data or {}
-            merged: dict[str, dict[str, object]] = dict(current)
-            merged[did] = status
-            coordinator.async_set_updated_data(merged)
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                keys = list(status.keys()) if isinstance(status, dict) else []
-                _LOGGER.debug("push merge d=%s keys=%s", did, keys)
-
-        client.set_status_callback(_on_status)
-    # Perform first refresh with a guard; proceed even if it times out
+    setup_complete = False
     try:
-        # Use a first-refresh guard equal to the configured WS timeout
         try:
-            _val = client.ws_timeout_seconds()
-            if asyncio.iscoroutine(_val):
-                _val = await _val
-            first_refresh_timeout = int(_val)
-        except Exception:
-            first_refresh_timeout = POLL_STATUS_TIMEOUT_SECS
-        await asyncio.wait_for(
-            coordinator.async_config_entry_first_refresh(), first_refresh_timeout
-        )
-    except Exception as exc:  # pragma: no cover
-        # Log at INFO and let entities hydrate on next push/poll
-        _LOGGER.info(
-            "Initial refresh deferred (%s); entities will update via push or next poll",
-            type(exc).__name__,
-        )
-
-    # Determine which platforms to load.
-    # If no data yet (first refresh deferred or empty), fall back to all PLATFORMS
-    # so that capability platforms (e.g., light) are available once data arrives.
-    data_now = coordinator.data
-    if not isinstance(data_now, dict) or not data_now:
-        platforms = list(PLATFORMS)
-    else:
-        platforms = ["fan"]
-        if any(
-            isinstance(s, dict) and (KEY_LIGHT_POWER in s or KEY_LIGHT_BRIGHTNESS in s)
-            for s in data_now.values()
-        ):
-            platforms.append("light")
-
-    # Store runtime data in entry.runtime_data (modern pattern)
-    entry.runtime_data = FanSyncRuntimeData(
-        client=client,
-        coordinator=coordinator,
-        platforms=platforms,
-    )
-
-    async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry) -> None:
-        new_secs = updated_entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
-        old = coordinator.update_interval
-        coordinator.update_interval = None if new_secs == 0 else timedelta(seconds=int(new_secs))
+            await client.async_connect()
+        except httpx.HTTPStatusError as err:
+            status = err.response.status_code if getattr(err, "response", None) else None
+            if status in (401, 403):
+                raise ConfigEntryAuthFailed(
+                    "Authentication failed. Please re-enter your FanSync credentials."
+                ) from err
+            _LOGGER.warning("FanSync setup HTTP error (%s); retrying", status)
+            raise ConfigEntryNotReady from err
+        except (
+            httpx.ConnectError,
+            httpx.TimeoutException,
+            TimeoutError,
+            OSError,
+            RuntimeError,
+        ) as err:
+            _LOGGER.warning("FanSync setup connect failed (%s); retrying", type(err).__name__)
+            raise ConfigEntryNotReady from err
+        coordinator = FanSyncCoordinator(hass, client, entry)
+        # Apply options-driven fallback polling
+        secs = entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
+        coordinator.update_interval = None if secs == 0 else timedelta(seconds=int(secs))
         if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug("interval changed old=%s new=%s", old, coordinator.update_interval)
+            _LOGGER.debug(
+                "setup interval=%s verify_ssl=%s",
+                coordinator.update_interval,
+                entry.data.get(CONF_VERIFY_SSL, True),
+            )
 
-        # Apply timeout changes immediately when options are updated
-        http_t = updated_entry.options.get(
-            CONF_HTTP_TIMEOUT,
-            updated_entry.data.get(CONF_HTTP_TIMEOUT, DEFAULT_HTTP_TIMEOUT_SECS),
-        )
-        ws_t = updated_entry.options.get(
-            CONF_WS_TIMEOUT,
-            updated_entry.data.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
-        )
+        # Register a push callback if supported by the client
+        if hasattr(client, "set_status_callback"):
+
+            def _on_status(status: dict[str, object]) -> None:
+                # Merge pushed status for this device into the coordinator's mapping
+                did = getattr(client, "device_id", None) or "unknown"
+                current = coordinator.data or {}
+                merged: dict[str, dict[str, object]] = dict(current)
+                merged[did] = status
+                coordinator.async_set_updated_data(merged)
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    keys = list(status.keys()) if isinstance(status, dict) else []
+                    _LOGGER.debug("push merge d=%s keys=%s", did, keys)
+
+            client.set_status_callback(_on_status)
+        # Perform first refresh with a guard; proceed even if it times out
         try:
-            await hass.async_add_executor_job(client.apply_timeouts, http_t, ws_t)
+            # Use a first-refresh guard equal to the configured WS timeout
+            try:
+                _val = client.ws_timeout_seconds()
+                if asyncio.iscoroutine(_val):
+                    _val = await _val
+                first_refresh_timeout = int(_val)
+            except Exception:
+                first_refresh_timeout = POLL_STATUS_TIMEOUT_SECS
+            await asyncio.wait_for(
+                coordinator.async_config_entry_first_refresh(), first_refresh_timeout
+            )
         except Exception as exc:  # pragma: no cover
+            # Log at INFO and let entities hydrate on next push/poll
+            _LOGGER.info(
+                "Initial refresh deferred (%s); entities will update via push or next poll",
+                type(exc).__name__,
+            )
+
+        # Determine which platforms to load.
+        # If no data yet (first refresh deferred or empty), fall back to all PLATFORMS
+        # so that capability platforms (e.g., light) are available once data arrives.
+        data_now = coordinator.data
+        if not isinstance(data_now, dict) or not data_now:
+            platforms = list(PLATFORMS)
+        else:
+            platforms = ["fan"]
+            if any(
+                isinstance(s, dict) and (KEY_LIGHT_POWER in s or KEY_LIGHT_BRIGHTNESS in s)
+                for s in data_now.values()
+            ):
+                platforms.append("light")
+
+        # Store runtime data in entry.runtime_data (modern pattern)
+        entry.runtime_data = FanSyncRuntimeData(
+            client=client,
+            coordinator=coordinator,
+            platforms=platforms,
+        )
+
+        async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry) -> None:
+            new_secs = updated_entry.options.get(
+                OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS
+            )
+            old = coordinator.update_interval
+            coordinator.update_interval = (
+                None if new_secs == 0 else timedelta(seconds=int(new_secs))
+            )
             if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("apply_timeouts failed: %s", exc)
+                _LOGGER.debug("interval changed old=%s new=%s", old, coordinator.update_interval)
 
-    entry.add_update_listener(_async_options_updated)
+            # Apply timeout changes immediately when options are updated
+            http_t = updated_entry.options.get(
+                CONF_HTTP_TIMEOUT,
+                updated_entry.data.get(CONF_HTTP_TIMEOUT, DEFAULT_HTTP_TIMEOUT_SECS),
+            )
+            ws_t = updated_entry.options.get(
+                CONF_WS_TIMEOUT,
+                updated_entry.data.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
+            )
+            try:
+                await hass.async_add_executor_job(client.apply_timeouts, http_t, ws_t)
+            except Exception as exc:  # pragma: no cover
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("apply_timeouts failed: %s", exc)
 
-    await hass.config_entries.async_forward_entry_setups(entry, platforms)
+        entry.add_update_listener(_async_options_updated)
 
-    # Update device registry now that entities (and their device entries) exist
-    # This ensures device metadata (model, firmware, MAC) is visible in UI
-    coordinator._update_device_registry(_get_client_device_ids(client))
+        await hass.config_entries.async_forward_entry_setups(entry, platforms)
 
-    # Log connection success with device count at INFO, details at DEBUG
-    ids = _get_client_device_ids(client)
-    _LOGGER.info("FanSync connected: %d device(s)", len(ids))
-    if _LOGGER.isEnabledFor(logging.DEBUG):
-        _LOGGER.debug("connected device_ids=%s", ids)
-    return True
+        # Update device registry now that entities (and their device entries) exist
+        # This ensures device metadata (model, firmware, MAC) is visible in UI
+        coordinator._update_device_registry(_get_client_device_ids(client))
+
+        # Log connection success with device count at INFO, details at DEBUG
+        ids = _get_client_device_ids(client)
+        _LOGGER.info("FanSync connected: %d device(s)", len(ids))
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("connected device_ids=%s", ids)
+        setup_complete = True
+        return True
+    finally:
+        if not setup_complete:
+            try:
+                await client.async_disconnect()
+            except Exception as exc:
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("setup cleanup failed: %s", exc)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> bool:

@@ -7,7 +7,7 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Use Black/Ruff exactly as configured in pyproject.toml (line length 100, Python 3.13).
 - Follow PEP 8 principles; Black/Ruff are authoritative for enforcement.
 - Optimize for clarity and readability; prefer explicit types where helpful.
-- Prefer union syntax in isinstance checks (e.g., int | str) over tuples.
+- Prefer `X | None` in type annotations; `isinstance()` requires tuples.
 - Type Annotations:
   - Always add type hints to function/method parameters and return types
   - Use modern Python 3.10+ syntax: `X | None` instead of `Optional[X]`
@@ -139,6 +139,7 @@ Any changes should be made there; this file syncs automatically via pre-commit h
   - Always use `except TimeoutError:` to catch timeouts from `asyncio.wait_for()`
 - Log exceptions with type and message at appropriate level before re-raising or returning error state
 - Use RuntimeError for integration-specific errors (connection failures, invalid state)
+- Use `ConfigEntryNotReady` for transient setup failures so HA retries with backoff
 - In config flow, catch and map exceptions to user-friendly error keys
 - Ensure cleanup (async_disconnect) happens in finally blocks or error paths
 - For retries, use exponential backoff and log retry attempts at DEBUG level
@@ -209,49 +210,6 @@ Any changes should be made there; this file syncs automatically via pre-commit h
   - Use `asyncio.sleep(0.1)` in tests to allow background tasks to process messages
   - Always await async mocks to avoid "coroutine was never awaited" warnings
 
-# Running Quality Checks in Cursor Sandbox
-When running quality checks in the Cursor sandbox environment, use these exact commands:
-
-**Tests**:
-```bash
-python -m pytest tests/ -v --tb=short
-```
-
-**Coverage** (87% target, minimum 75%):
-```bash
-python -m pytest tests/ --cov=custom_components/fansync --cov-report=term-missing
-```
-
-**Ruff** (linting):
-```bash
-python -m ruff check .
-```
-
-**Black** (formatting) - CRITICAL FOR CURSOR SANDBOX:
-```bash
-# CORRECT - Black will see all 65 Python files:
-python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/
-
-# WRONG - Black will report "No Python files" in sandbox:
-# black --check .
-# black --check custom_components/ tests/
-
-# The --include pattern is required for Black to work in the Cursor sandbox
-```
-
-**Mypy** (type checking):
-```bash
-python -m mypy custom_components/fansync --check-untyped-defs
-```
-
-**Comprehensive check** (run all at once):
-```bash
-python -m pytest tests/ -q --tb=no && \
-python -m ruff check . && \
-python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/ && \
-python -m mypy custom_components/fansync --check-untyped-defs
-```
-
 # Common Mistakes to Avoid
 These patterns violate HA best practices and should never appear in FanSync code:
 
@@ -310,3 +268,46 @@ and reduce review cycles. Items below capture common issues found in code review
 - [ ] Commit message follows Conventional Commits and ≤ 72 char subject
 - [ ] Non-trivial changes have detailed commit body
 - [ ] Docstrings added for complex logic or trade-offs
+
+# Cursor Sandbox Quality Checks
+When running quality checks in the Cursor sandbox environment, use these exact commands:
+
+**Tests**:
+```bash
+python -m pytest tests/ -v --tb=short
+```
+
+**Coverage** (87% target, minimum 75%):
+```bash
+python -m pytest tests/ --cov=custom_components/fansync --cov-report=term-missing
+```
+
+**Ruff** (linting):
+```bash
+python -m ruff check .
+```
+
+**Black** (formatting) - CRITICAL FOR CURSOR SANDBOX:
+```bash
+# CORRECT - Black will see all 65 Python files:
+python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/
+
+# WRONG - Black will report "No Python files" in sandbox:
+# black --check .
+# black --check custom_components/ tests/
+
+# The --include pattern is required for Black to work in the Cursor sandbox
+```
+
+**Mypy** (type checking):
+```bash
+python -m mypy custom_components/fansync --check-untyped-defs
+```
+
+**Comprehensive check** (run all at once):
+```bash
+python -m pytest tests/ -q --tb=no && \
+python -m ruff check . && \
+python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/ && \
+python -m mypy custom_components/fansync --check-untyped-defs
+```
