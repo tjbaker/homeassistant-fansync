@@ -145,10 +145,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
                 # Predicate no longer satisfied, reset flag and continue polling
                 self._confirmed_by_push = False
 
-            try:
-                status = await self.client.async_get_status(self._device_id)
-            except TypeError:
-                status = await self.client.async_get_status()
+            status = await self.client.async_get_status(self._device_id)
             if predicate(status):
                 return status, True
             await asyncio.sleep(self._retry_delay)
@@ -187,10 +184,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         self._optimistic_predicate = confirm_pred
         self._confirmed_by_push = False  # Reset flag for new optimistic update
         try:
-            try:
-                await self.client.async_set(payload, device_id=self._device_id)
-            except TypeError:
-                await self.client.async_set(payload)
+            await self.client.async_set(payload, device_id=self._device_id)
         except RuntimeError as exc:
             # Only revert on explicit failure; otherwise keep optimistic state
             # Clear guard first so revert is not ignored
@@ -254,7 +248,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         percentage: int | None = None,
         preset_mode: str | None = None,
         **kwargs,
-    ):
+    ) -> None:
         optimistic = {KEY_POWER: 1}
         payload = {KEY_POWER: 1}
         if percentage is not None:
@@ -284,7 +278,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
 
         await self._apply_with_optimism(optimistic, payload, _confirm)
 
-    async def async_turn_off(self, **kwargs):
+    async def async_turn_off(self, **kwargs) -> None:
         # Toggling power should not change percentage speed
         optimistic = {KEY_POWER: 0}
         payload = {KEY_POWER: 0}

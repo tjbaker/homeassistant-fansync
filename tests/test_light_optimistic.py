@@ -32,16 +32,16 @@ class FailingLightClient:
         }
         self.device_id = "light-optimistic-fail"
 
-    async def async_connect(self):
+    async def async_connect(self) -> None:
         return None
 
-    async def async_disconnect(self):
+    async def async_disconnect(self) -> None:
         return None
 
-    async def async_get_status(self):
+    async def async_get_status(self, device_id: str | None = None) -> dict[str, int]:
         return dict(self.status)
 
-    async def async_set(self, data: dict[str, int]):
+    async def async_set(self, data: dict[str, int], *, device_id: str | None = None) -> None:
         # Simulate backend failure so the entity must revert optimistic state
         raise RuntimeError("boom")
 

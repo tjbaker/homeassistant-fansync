@@ -157,10 +157,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
                 # Predicate no longer satisfied, reset flag and continue polling
                 self._confirmed_by_push = False
 
-            try:
-                status = await self.client.async_get_status(self._device_id)
-            except TypeError:
-                status = await self.client.async_get_status()
+            status = await self.client.async_get_status(self._device_id)
             if predicate(status):
                 return status, True
             await asyncio.sleep(self._retry_delay)
@@ -195,10 +192,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         self._optimistic_predicate = confirm_pred
         self._confirmed_by_push = False  # Reset flag for new optimistic update
         try:
-            try:
-                await self.client.async_set(payload, device_id=self._device_id)
-            except TypeError:
-                await self.client.async_set(payload)
+            await self.client.async_set(payload, device_id=self._device_id)
         except RuntimeError as exc:
             self._optimistic_until = None
             self._optimistic_predicate = None
@@ -243,7 +237,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         val = self._get_with_overlay(KEY_LIGHT_BRIGHTNESS, 0)
         return pct_to_ha_brightness(val)
 
-    async def async_turn_on(self, brightness: int | None = None, **kwargs):
+    async def async_turn_on(self, brightness: int | None = None, **kwargs) -> None:
         optimistic = {KEY_LIGHT_POWER: 1}
         payload = {KEY_LIGHT_POWER: 1}
         if brightness is not None:
@@ -261,7 +255,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
 
         await self._apply_with_optimism(optimistic, payload, _confirm)
 
-    async def async_turn_off(self, **kwargs):
+    async def async_turn_off(self, **kwargs) -> None:
         optimistic = {KEY_LIGHT_POWER: 0}
         payload = {KEY_LIGHT_POWER: 0}
         await self._apply_with_optimism(
