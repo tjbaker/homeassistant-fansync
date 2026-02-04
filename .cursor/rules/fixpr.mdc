@@ -1,0 +1,33 @@
+---
+description: Ignores humans. Fixes ONLY GitHub Copilot/Bot feedback and Workflow/CI failures using MCP + CLI.
+globs: *
+---
+# Automated PR Fixer (Bots Only)
+
+When the user triggers this rule with a PR number (e.g., "@fixpr 15"):
+
+1.  **GATHER CONTEXT (Hybrid)**:
+    * **Comments (via MCP):** Use `get_issue_comments` to fetch feedback.
+    * **Workflow Status (via Terminal):** Run `gh pr checks <PR_NUMBER>` in the terminal to see the status.
+    * **Workflow Logs (via Terminal):** If checks are failing, run `gh run view --log-failed` (select the relevant run if asked) to get the specific error output.
+
+2.  **STRICT FILTERING**:
+    * **Discard Human Comments:** If `user.type` is "User", IGNORE it.
+    * **Keep Bot Comments:** Process comments where `user.type` is "Bot" or username contains "copilot", "code-scanning", "sonar", or "github-actions".
+    * **Keep Workflow Failures:** Process any failed checks identified by the `gh` command.
+
+3.  **ANALYZE FAILURES**:
+    * **Bot Feedback:** Treat bot comments as absolute instructions.
+    * **Workflow Logs:** Analyze the `gh run view` output to pinpoint the exact line or dependency causing the crash.
+
+4.  **EXECUTE STRATEGY**:
+    * **Priority 1: Build/Compile Errors.** (Fix these first).
+    * **Priority 2: Lint/Style Bots.** (Run local auto-fixers like `npm run lint -- --fix` or `black .`).
+    * **Priority 3: Copilot Logic Suggestions.** (Implement specific code changes requested by the bot).
+
+5.  **VERIFY**:
+    * Run the specific local test/lint command related to the fix.
+
+6.  **REPORT**:
+    * Explicitly state: "Ignored X comments from human reviewers."
+    * List the Bot/Workflow issues resolved.
