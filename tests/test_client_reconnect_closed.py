@@ -54,12 +54,12 @@ async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
             # Wait for get request to be sent (login=1, lst=2, get=3)
             while len(mock_websocket.sent_requests) < 3:
                 yield TimeoutError("waiting for get request")
-            
+
             # Wait for reconnection requests (login=4, lst=5 not sent)
             # _ensure_ws_connected only sends Login (id=1 hardcoded).
             # So next request is Login.
             while len(mock_websocket.sent_requests) < 4:
-                 yield TimeoutError("waiting for reconnect login")
+                yield TimeoutError("waiting for reconnect login")
 
             yield _login_ok()
 
@@ -130,10 +130,10 @@ async def test_set_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
             # Wait for set request to be sent (login=1, lst=2, set=3)
             while len(mock_websocket.sent_requests) < 3:
                 yield TimeoutError("waiting for set request")
-            
+
             # Wait for reconnection login (4)
             while len(mock_websocket.sent_requests) < 4:
-                 yield TimeoutError("waiting for reconnect login")
+                yield TimeoutError("waiting for reconnect login")
 
             yield _login_ok()
 
