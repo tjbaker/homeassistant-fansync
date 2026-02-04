@@ -86,16 +86,6 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
     _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
     _attr_color_mode = ColorMode.BRIGHTNESS
 
-    __slots__ = (
-        "_device_id",
-        "_retry_attempts",
-        "_retry_delay",
-        "_optimistic_until",
-        "_optimistic_predicate",
-        "_overlay",
-        "_confirmed_by_push",
-    )
-
     def __init__(self, coordinator: FanSyncCoordinator, client: FanSyncClient, device_id: str):
         super().__init__(coordinator)
         self.coordinator = coordinator
