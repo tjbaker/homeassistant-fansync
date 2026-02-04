@@ -18,7 +18,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
-@dataclass(slots=True)
+@dataclass
 class ConnectionMetrics:
     """Track connection health and performance metrics."""
 

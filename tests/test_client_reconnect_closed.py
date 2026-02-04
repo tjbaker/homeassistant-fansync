@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from typing import Any
 from unittest.mock import patch, AsyncMock
 
 import pytest
@@ -32,7 +33,7 @@ def _lst_device_ok(device_id: str = "id") -> str:
     )
 
 
-async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websocket):
+async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websocket) -> None:
     """Test that async_get_status reconnects on closed socket error."""
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
     with (
@@ -46,7 +47,7 @@ async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
 
-        def recv_generator():
+        def recv_generator() -> Any:
             """Generator for reconnect scenario."""
             # Initial connect: login, list
             yield _login_ok()
@@ -88,7 +89,7 @@ async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
         # Only the first send (the get request) should fail; subsequent sends (login) should work
         send_calls = {"count": 0}
 
-        async def _send(payload):
+        async def _send(payload) -> None:
             send_calls["count"] += 1
             # Track request so recv_generator knows when to proceed
             mock_websocket.sent_requests.append(json.loads(payload))
@@ -108,7 +109,7 @@ async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
             await c.async_disconnect()
 
 
-async def test_set_reconnects_on_closed_socket(hass: HomeAssistant, mock_websocket):
+async def test_set_reconnects_on_closed_socket(hass: HomeAssistant, mock_websocket) -> None:
     """Test that async_set reconnects on closed socket error."""
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
     with (
@@ -122,7 +123,7 @@ async def test_set_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
 
-        def recv_generator():
+        def recv_generator() -> Any:
             """Generator for reconnect scenario."""
             # Initial connect: login, list
             yield _login_ok()
@@ -162,7 +163,7 @@ async def test_set_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
         # Only the first send (the set request) should fail; subsequent sends (login) should work
         send_calls = {"count": 0}
 
-        async def _send(payload):
+        async def _send(payload) -> None:
             send_calls["count"] += 1
             # Track request so recv_generator knows when to proceed
             mock_websocket.sent_requests.append(json.loads(payload))
@@ -179,7 +180,7 @@ async def test_set_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
             # We need to capture the callback to verify the status update from the set response
             callback_status = {}
 
-            def on_status(s):
+            def on_status(s) -> None:
                 callback_status.update(s)
 
             c.set_status_callback(on_status)

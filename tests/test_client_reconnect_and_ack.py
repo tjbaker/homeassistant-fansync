@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -22,7 +23,7 @@ from homeassistant.core import HomeAssistant
 from custom_components.fansync.client import FanSyncClient
 
 
-def _login_ok():
+def _login_ok() -> str:
     return json.dumps({"status": "ok", "response": "login", "id": 1})
 
 
@@ -32,7 +33,7 @@ def _lst_device_ok(device_id: str = "id") -> str:
     )
 
 
-def _get_ok(status: dict[str, int]):
+def _get_ok(status: dict[str, int]) -> str:
     return json.dumps({"status": "ok", "response": "get", "data": {"status": status}, "id": 3})
 
 
@@ -55,7 +56,7 @@ async def test_set_uses_ack_status_when_present(hass: HomeAssistant, mock_websoc
         http.post.return_value.json.return_value = {"token": "t"}
         http.post.return_value.raise_for_status.return_value = None
 
-        def recv_generator():
+        def recv_generator() -> Any:
             """Generator that simulates WebSocket recv with set ack."""
             yield _login_ok()
             yield _lst_device_ok("dev")
@@ -105,7 +106,7 @@ async def test_verify_ssl_false_sets_no_cert_check(hass: HomeAssistant, mock_web
         http.post.return_value.json.return_value = {"token": "t"}
         http.post.return_value.raise_for_status.return_value = None
 
-        def recv_generator():
+        def recv_generator() -> Any:
             yield _login_ok()
             yield _lst_device_ok("dev")
             while True:
