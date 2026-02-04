@@ -274,6 +274,7 @@ class FanSyncClient:
                     websockets.connect(
                         "wss://fanimation.apps.exosite.io/api:1/phone",
                         ssl=self._ssl_context,
+                        compression=None,
                     ),
                     timeout=ws_timeout,
                 )
@@ -515,10 +516,9 @@ class FanSyncClient:
                     if _LOGGER.isEnabledFor(logging.DEBUG):
                         _LOGGER.debug("recv push status keys=%s", list(pushed_status.keys()))
                     if self._status_callback is not None:
-                        # Use call_soon_threadsafe even though we're in the event loop to ensure
-                        # the callback is invoked in a thread-safe manner. This is Home Assistant
-                        # best practice for callbacks that may interact with coordinator state.
-                        self.hass.loop.call_soon_threadsafe(self._status_callback, pushed_status)
+                        # Use call_soon since we are in the event loop.
+                        # This avoids the overhead of thread-safe locking.
+                        self.hass.loop.call_soon(self._status_callback, pushed_status)
 
             except TimeoutError:
                 if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -614,6 +614,7 @@ class FanSyncClient:
             websockets.connect(
                 "wss://fanimation.apps.exosite.io/api:1/phone",
                 ssl=self._ssl_context,
+                compression=None,
             ),
             timeout=ws_timeout,
         )
@@ -640,18 +641,13 @@ class FanSyncClient:
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug("_ensure_ws_connected: websocket reconnected successfully")
 
-    async def async_get_status(self, device_id: str | None = None) -> dict[str, Any]:
-        """Get current status of a device."""
-        t0 = time.monotonic()
-        did = device_id or self._device_id
-        if not did:
-            raise RuntimeError("No device ID available")
-
-        await self._ensure_ws_connected()
-        ws = self._ws
-        if ws is None:
-            raise RuntimeError("WebSocket not connected")
-
+    async def _send_request(
+        self,
+        request_type: str,
+        device_id: str,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Send a request with retry logic and wait for response."""
         ws_timeout = (
             float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
         )
@@ -665,23 +661,64 @@ class FanSyncClient:
         future: asyncio.Future[dict[str, Any]] = asyncio.Future()
         self._pending_requests[request_id] = future
 
+        payload = {
+            "id": request_id,
+            "request": request_type,
+            "device": device_id,
+        }
+        if data is not None:
+            payload["data"] = data
+
         try:
-            # Send get request
-            await asyncio.wait_for(
-                ws.send(
-                    json.dumps(
-                        {
-                            "id": request_id,
-                            "request": "get",
-                            "device": did,
-                        }
+            # Send request with retry for connection failures
+            for attempt in range(2):
+                try:
+                    await self._ensure_ws_connected()
+                    ws = self._ws
+                    if ws is None:
+                        raise RuntimeError("WebSocket not connected")
+
+                    await asyncio.wait_for(
+                        ws.send(json.dumps(payload)),
+                        timeout=ws_timeout,
                     )
-                ),
-                timeout=ws_timeout,
-            )
+                    break
+                except (OSError, RuntimeError, TimeoutError) as err:
+                    # If it's the first attempt, try to force reconnect and retry
+                    if attempt == 0:
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug("send failed (%s), retrying: %s", type(err).__name__, err)
+                        # Force close to trigger full reconnect in next _ensure_ws_connected call
+                        if self._ws:
+                            try:
+                                await self._ws.close()
+                            except Exception as close_err:
+                                if _LOGGER.isEnabledFor(logging.DEBUG):
+                                    _LOGGER.debug(
+                                        "WebSocket close failed during retry (%s): %s",
+                                        type(close_err).__name__,
+                                        close_err,
+                                    )
+                            self._ws = None
+                        continue
+                    raise
 
             # Wait for _recv_loop to fulfill the Future
-            payload = await asyncio.wait_for(future, timeout=ws_timeout)
+            return await asyncio.wait_for(future, timeout=ws_timeout)
+
+        finally:
+            # Clean up pending request if not already removed
+            self._pending_requests.pop(request_id, None)
+
+    async def async_get_status(self, device_id: str | None = None) -> dict[str, Any]:
+        """Get current status of a device."""
+        t0 = time.monotonic()
+        did = device_id or self._device_id
+        if not did:
+            raise RuntimeError("No device ID available")
+
+        try:
+            payload = await self._send_request("get", did)
 
             # Cache device profile if present
             try:
@@ -725,9 +762,6 @@ class FanSyncClient:
         except Exception:
             self.metrics.record_command(success=False)
             raise
-        finally:
-            # Clean up pending request if not already removed
-            self._pending_requests.pop(request_id, None)
 
     async def async_set(self, data: dict[str, int], *, device_id: str | None = None):
         """Set device parameters."""
@@ -736,45 +770,11 @@ class FanSyncClient:
         if not did:
             raise RuntimeError("No device ID available")
 
-        await self._ensure_ws_connected()
-        ws = self._ws
-        if ws is None:
-            raise RuntimeError("WebSocket not connected")
-
-        ws_timeout = (
-            float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
-        )
-
-        # Allocate a unique request ID
-        async with self._request_id_lock:
-            request_id = self._next_request_id
-            self._next_request_id += 1
-
-        # Register a Future for this request
-        future: asyncio.Future[dict[str, Any]] = asyncio.Future()
-        self._pending_requests[request_id] = future
-
         try:
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("set start d=%s keys=%s", did, list(data.keys()))
 
-            # Send set request
-            await asyncio.wait_for(
-                ws.send(
-                    json.dumps(
-                        {
-                            "id": request_id,
-                            "request": "set",
-                            "device": did,
-                            "data": data,
-                        }
-                    )
-                ),
-                timeout=ws_timeout,
-            )
-
-            # Wait for acknowledgment from _recv_loop
-            payload = await asyncio.wait_for(future, timeout=ws_timeout)
+            payload = await self._send_request("set", did, data)
 
             latency_ms = (time.monotonic() - t_total) * 1000
             self.metrics.record_command(success=True, latency_ms=latency_ms)
@@ -801,14 +801,11 @@ class FanSyncClient:
                     _LOGGER.debug("set ack with status keys=%s", list(ack_data["status"].keys()))
                 # Trigger status callback with the acknowledged status
                 if self._status_callback is not None:
-                    self.hass.loop.call_soon_threadsafe(self._status_callback, ack_data["status"])
+                    self.hass.loop.call_soon(self._status_callback, ack_data["status"])
 
         except Exception:
             self.metrics.record_command(success=False)
             raise
-        finally:
-            # Clean up pending request if not already removed
-            self._pending_requests.pop(request_id, None)
 
     def apply_timeouts(
         self,
