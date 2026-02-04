@@ -1,4 +1,18 @@
-# FanSync Home Assistant Integration 
+<!--
+SPDX-License-Identifier: Apache-2.0
+Copyright (c) 2025 Trevor Baker, all rights reserved.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+  http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+# FanSync Home Assistant Integration
 
 [![CI](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml/badge.svg)](https://github.com/tjbaker/homeassistant-fansync/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/tjbaker/homeassistant-fansync/branch/main/graph/badge.svg)](https://codecov.io/gh/tjbaker/homeassistant-fansync)
@@ -7,14 +21,14 @@
 
 Custom Home Assistant integration for Fanimation FanSync devices with cloud push updates, automatic reauthentication, and multi-language support.
 
-**🏆 Quality:** Bronze & Silver tier compliant | 167 tests | 85% coverage  
+**🏆 Quality:** Bronze & Silver tier compliant  
 **🌍 Languages:** English, French (Français), Spanish (Español)  
 **🔄 Updates:** Real-time cloud push with fallback polling
 
 ## Requirements
 
 - **Python:** 3.13+
-- **Home Assistant:** 2025.11.0 or newer
+- **Home Assistant:** 2026.1.0 or newer
 - **HACS:** Optional (only if installing via HACS)
 - **Account:** Valid Fanimation FanSync account with registered devices
 
@@ -327,9 +341,15 @@ This integration follows Home Assistant's Integration Quality Scale:
 
 - ✅ **Bronze Tier:** Complete (8/8 requirements)
 - ✅ **Silver Tier:** Complete (4/4 requirements)  
-- 🔄 **Gold Tier:** In progress (85% coverage, targeting 95%)
+- 🔄 **Gold Tier:** In progress (coverage target 95%)
 
-**Test Suite:** 167 tests covering:
+**Test Suite:** coverage and test counts are tracked in CI:
+- See the Codecov badge for current coverage
+- See the CI workflow for the latest test count
+
+Coverage and test counts are intentionally not hard-coded here to avoid drift.
+
+**Tests cover:**
 - Entity functionality (fan, light)
 - Push updates and optimistic updates
 - Connection handling and retries

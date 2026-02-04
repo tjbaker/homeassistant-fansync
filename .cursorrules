@@ -44,7 +44,7 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Document type: ignore comments with justification for why they're needed.
 
 # Home Assistant Specifics
-- Only support HA 2025.10 and newer, no need for backward compatibility to older versions
+- Only support HA 2026.1 and newer, no need for backward compatibility to older versions
 - Use HA async patterns (`async_*` methods); avoid blocking I/O in the event loop.
   - Use hass.async_add_executor_job for any blocking operations.
 - Prefer CoordinatorEntity for entities with push updates.
@@ -54,7 +54,7 @@ Any changes should be made there; this file syncs automatically via pre-commit h
   device; entity unique_id must use self._device_id consistently.
 - Optimistic overlays: apply per-key overlays immediately; guard ~8s; confirm then clear;
   revert only on explicit failure.
-- Runtime Data (Modern Pattern - HA 2025.10+):
+- Runtime Data (Modern Pattern - HA 2026.1+):
   - Use ConfigEntry.runtime_data with TypedDict (not hass.data)
   - Define type alias for better IDE support and type checking:
     ```python

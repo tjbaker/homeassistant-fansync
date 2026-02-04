@@ -123,7 +123,7 @@ async def test_options_flow_logging(hass: HomeAssistant, caplog: pytest.LogCaptu
     from custom_components.fansync.config_flow import FanSyncOptionsFlowHandler
     from homeassistant.data_entry_flow import FlowResult
 
-    # Use a proper MockConfigEntry (HA 2025.10+)
+    # Use a proper MockConfigEntry (HA 2026.1+)
     entry = MockConfigEntry(domain=DOMAIN, title="FanSync", data={})
     handler = FanSyncOptionsFlowHandler(entry)
 
@@ -139,7 +139,7 @@ async def test_options_flow_clamping_logged(hass: HomeAssistant, caplog: pytest.
     from custom_components.fansync.config_flow import FanSyncOptionsFlowHandler
     from homeassistant.data_entry_flow import FlowResult
 
-    # Use a proper MockConfigEntry (HA 2025.10+)
+    # Use a proper MockConfigEntry (HA 2026.1+)
     entry = MockConfigEntry(domain=DOMAIN, title="FanSync", data={})
     handler = FanSyncOptionsFlowHandler(entry)
 

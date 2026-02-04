@@ -39,7 +39,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
     architecture with WebSocket updates and fallback polling.
 
     Passing config_entry to DataUpdateCoordinator is the recommended pattern
-    for Home Assistant 2025.10+ integrations. This enables new features and
+    for Home Assistant 2026.1+ integrations. This enables new features and
     ensures compatibility with future HA releases.
     """
 
