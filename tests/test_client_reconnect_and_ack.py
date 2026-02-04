@@ -36,57 +36,6 @@ def _get_ok(status: dict[str, int]):
     return json.dumps({"status": "ok", "response": "get", "data": {"status": status}, "id": 3})
 
 
-@pytest.mark.skip(
-    reason="Complex reconnection mocking conflicts with background recv task. "
-    "TODO: Convert to integration test with real WebSocket server to properly "
-    "test reconnection behavior under network failures."
-)
-async def test_get_reconnects_on_closed(hass: HomeAssistant, mock_websocket) -> None:
-    """Test get_status completes successfully (simplified from reconnect test)."""
-    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
-
-    with (
-        patch("custom_components.fansync.client.httpx.Client") as http_cls,
-        patch(
-            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
-        ) as ws_connect,
-    ):
-        http = http_cls.return_value
-        http.post.return_value.json.return_value = {"token": "t"}
-        http.post.return_value.raise_for_status.return_value = None
-
-        def recv_generator():
-            yield _login_ok()
-            yield _lst_device_ok("dev")
-            # Wait for get request to be sent (login=1, lst=2, get=3)
-            while len(mock_websocket.sent_requests) < 3:
-                yield TimeoutError("waiting for get request")
-            get_request_id = mock_websocket.sent_requests[2]["id"]
-            yield json.dumps(
-                {
-                    "status": "ok",
-                    "response": "get",
-                    "data": {"status": {"H00": 1, "H02": 42, "H06": 0, "H01": 0}},
-                    "id": get_request_id,
-                }
-            )
-            # Keep recv loop alive
-            while True:
-                yield TimeoutError("timeout")
-                yield TimeoutError("timeout")
-                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
-
-        mock_websocket.recv.side_effect = recv_generator()
-        ws_connect.return_value = mock_websocket
-        await c.async_connect()
-
-        try:
-            s = await c.async_get_status()
-            assert s.get("H02") == 42
-        finally:
-            await c.async_disconnect()
-
-
 async def test_set_uses_ack_status_when_present(hass: HomeAssistant, mock_websocket) -> None:
     """Test that set commands complete without error when ack is present.
 

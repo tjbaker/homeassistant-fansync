@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import patch, AsyncMock
 
@@ -31,11 +32,6 @@ def _lst_device_ok(device_id: str = "id") -> str:
     )
 
 
-@pytest.mark.skip(
-    reason="Complex reconnection mocking conflicts with background recv task. "
-    "TODO: Convert to integration test with real WebSocket server to properly "
-    "test reconnection behavior under network failures."
-)
 async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websocket):
     """Test that async_get_status reconnects on closed socket error."""
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
@@ -81,7 +77,10 @@ async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
 
         async def _send(payload):
             send_calls["count"] += 1
-            if send_calls["count"] == 1:
+            # Track request so recv_generator knows when to proceed
+            mock_websocket.sent_requests.append(json.loads(payload))
+            # 1=login, 2=list, 3=get (the one we want to fail)
+            if send_calls["count"] == 3:
                 raise OSError("closed")
             return None
 
@@ -92,5 +91,80 @@ async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
         try:
             status = await c.async_get_status()
             assert status.get("H02") == 33
+        finally:
+            await c.async_disconnect()
+
+
+async def test_set_reconnects_on_closed_socket(hass: HomeAssistant, mock_websocket):
+    """Test that async_set reconnects on closed socket error."""
+    c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=False)
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
+    ):
+        http_inst = http_cls.return_value
+        http_inst.post.return_value = type(
+            "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
+        )()
+
+        def recv_generator():
+            """Generator for reconnect scenario."""
+            # Initial connect: login, list
+            yield _login_ok()
+            yield _lst_device_ok("id")
+            # Wait for set request to be sent (login=1, lst=2, set=3)
+            while len(mock_websocket.sent_requests) < 3:
+                yield TimeoutError("waiting for set request")
+            set_request_id = mock_websocket.sent_requests[2]["id"]
+            # Then set response with dynamic ID
+            yield json.dumps(
+                {
+                    "status": "ok",
+                    "response": "set",
+                    "data": {"status": {"H00": 1, "H02": 44}},
+                    "id": set_request_id,
+                }
+            )
+            # Keep recv loop alive
+            while True:
+                yield TimeoutError("timeout")
+                yield TimeoutError("timeout")
+                yield json.dumps({"status": "ok", "response": "evt", "data": {}})
+
+        mock_websocket.recv.side_effect = recv_generator()
+
+        # Only the first send (the set request) should fail; subsequent sends (login) should work
+        send_calls = {"count": 0}
+
+        async def _send(payload):
+            send_calls["count"] += 1
+            # Track request so recv_generator knows when to proceed
+            mock_websocket.sent_requests.append(json.loads(payload))
+            # 1=login, 2=list, 3=set (the one we want to fail)
+            if send_calls["count"] == 3:
+                raise OSError("closed")
+            return None
+
+        mock_websocket.send.side_effect = _send
+        ws_connect.return_value = mock_websocket
+
+        await c.async_connect()
+        try:
+            # We need to capture the callback to verify the status update from the set response
+            callback_status = {}
+
+            def on_status(s):
+                callback_status.update(s)
+
+            c.set_status_callback(on_status)
+
+            await c.async_set({"H02": 44})
+
+            # Allow time for callback processing (it's scheduled with call_soon)
+            await asyncio.sleep(0.1)
+
+            assert callback_status.get("H02") == 44
         finally:
             await c.async_disconnect()
