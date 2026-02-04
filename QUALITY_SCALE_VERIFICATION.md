@@ -53,7 +53,7 @@ entry.runtime_data = FanSyncRuntimeData(
     platforms=platforms,
 )
 ```
-**Compliance:** Full ✅ - Follows HA 2025.10+ modern pattern
+**Compliance:** Full ✅ - Follows HA 2026.1+ modern pattern
 
 ---
 

@@ -277,10 +277,10 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        # HA 2025.10 base OptionsFlow.__init__ may not accept config_entry yet.
-        # We support 2025.10+ by guarding the call and never assigning to
+        # HA 2026.1 base OptionsFlow.__init__ may not accept config_entry yet.
+        # We support 2026.1+ by guarding the call and never assigning to
         # the deprecated self.config_entry attribute; instead, we keep our own
-        # reference in self._entry. Newer HA (e.g., 2025.12+) will accept the
+        # reference in self._entry. Newer HA (e.g., 2026.2+) will accept the
         # config_entry parameter, so this remains forward-compatible.
         try:
             super().__init__(config_entry)  # type: ignore[call-arg]

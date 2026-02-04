@@ -51,7 +51,7 @@ body:
     attributes:
       label: Home Assistant Version
       description: What version of Home Assistant are you running?
-      placeholder: "2025.10.4"
+      placeholder: "2026.1.0"
     validations:
       required: true
 
