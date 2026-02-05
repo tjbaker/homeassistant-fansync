@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.7.3](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.2...0.7.3) (2026-02-05)
+
+
+### Bug Fixes
+
+* reduce confirm polling chatter ([#158](https://github.com/tjbaker/homeassistant-fansync/issues/158)) ([351d844](https://github.com/tjbaker/homeassistant-fansync/commit/351d844f16a515e726fea52805c0439b28c94c44))
+* tighten types and client call sites ([#153](https://github.com/tjbaker/homeassistant-fansync/issues/153)) ([198f4d1](https://github.com/tjbaker/homeassistant-fansync/commit/198f4d1556f3476196b696c681821fe94183bf22))
+
 ## [0.7.2](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.1...0.7.2) (2026-02-04)
 
 
