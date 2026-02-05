@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import timedelta
 from typing import Any
 
@@ -164,6 +165,16 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                         )
                 if self.logger.isEnabledFor(logging.DEBUG):
                     self.logger.debug("poll sync done devices=%d", len(statuses))
+                if self.update_interval and self.logger.isEnabledFor(logging.DEBUG):
+                    last_push = getattr(self.client, "_last_push_monotonic", None)
+                    if isinstance(last_push, float):
+                        idle_s = time.monotonic() - last_push
+                        if idle_s > self.update_interval.total_seconds():
+                            self.logger.debug(
+                                "poll sync after push idle_s=%.0f interval_s=%.0f",
+                                idle_s,
+                                self.update_interval.total_seconds(),
+                            )
                 # Update device registry with any new profile data
                 self._update_device_registry([did])
                 return statuses
@@ -201,6 +212,16 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                                 did,
                                 _changed_keys(prev, status),
                             )
+            if self.update_interval and self.logger.isEnabledFor(logging.DEBUG):
+                last_push = getattr(self.client, "_last_push_monotonic", None)
+                if isinstance(last_push, float):
+                    idle_s = time.monotonic() - last_push
+                    if idle_s > self.update_interval.total_seconds():
+                        self.logger.debug(
+                            "poll sync after push idle_s=%.0f interval_s=%.0f",
+                            idle_s,
+                            self.update_interval.total_seconds(),
+                        )
             if self.logger.isEnabledFor(logging.DEBUG):
                 self.logger.debug("poll sync done devices=%d", len(statuses))
             if not statuses:

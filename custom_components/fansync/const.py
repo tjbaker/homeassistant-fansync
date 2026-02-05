@@ -69,6 +69,9 @@ WS_RECV_BACKOFF_MAX_SEC = 5.0  # Maximum backoff delay
 WS_RECV_SLEEP_SEC = 0.1  # Sleep between recv attempts
 WS_RECV_LOCK_TIMEOUT_SEC = 0.5  # Timeout for recv_lock acquisition in background loop
 
+# Push update logging (tune higher for quieter logs)
+PUSH_LOG_EVERY = 50
+
 # WebSocket request IDs for connection bootstrap (keep stable for compatibility)
 # GET_STATUS and SET now use dynamic allocation via _next_request_id
 WS_REQUEST_ID_LOGIN = 1

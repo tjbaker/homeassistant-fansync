@@ -31,6 +31,7 @@ from websockets.protocol import State
 
 from .const import (
     DEFAULT_WS_TIMEOUT_SECS,
+    PUSH_LOG_EVERY,
     SLOW_CONNECTION_WARNING_MS,
     SLOW_RESPONSE_WARNING_MS,
     WS_FALLBACK_TIMEOUT_SEC,
@@ -90,6 +91,8 @@ class FanSyncClient:
         self._status_callback: Callable[[dict[str, Any]], None] | None = None
         self._running: bool = False
         self._recv_task: asyncio.Task | None = None
+        self._push_count: int = 0
+        self._last_push_monotonic: float | None = None
         # Message routing: map request ID to Future for async_get_status/async_set
         self._pending_requests: dict[int, asyncio.Future[dict[str, Any]]] = {}
         # Start at 3 to avoid collision with hardcoded LOGIN(1) and LIST_DEVICES(2).
@@ -266,6 +269,7 @@ class FanSyncClient:
         ws = None
         last_ws_error: Exception | None = None
         for attempt_idx in range(WS_LOGIN_RETRY_ATTEMPTS):
+            ws_phase = "connect"
             ws_attempt_start = time.monotonic()
             try:
                 # Track WebSocket handshake timing separately
@@ -287,6 +291,7 @@ class FanSyncClient:
 
                 # Login - track send + response wait time
                 ws_login_start = time.monotonic()
+                ws_phase = "login_send"
                 await asyncio.wait_for(
                     ws.send(
                         json.dumps(
@@ -299,6 +304,7 @@ class FanSyncClient:
                     ),
                     timeout=ws_timeout,
                 )
+                ws_phase = "login_recv"
                 raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
                 self._last_ws_login_wait_ms = (time.monotonic() - ws_login_start) * 1000
 
@@ -327,10 +333,13 @@ class FanSyncClient:
                 )
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug(
-                        "ws initial connect/login failed (%s), attempt %d/%d",
+                        "ws initial connect/login failed (%s), attempt %d/%d, phase=%s, "
+                        "elapsed_ms=%.0f",
                         type(exc).__name__,
                         attempt_idx + 1,
                         WS_LOGIN_RETRY_ATTEMPTS,
+                        ws_phase,
+                        elapsed,
                     )
                 if ws:
                     try:
@@ -399,6 +408,12 @@ class FanSyncClient:
         self._device_ids = _ids
         self._device_id = _ids[0] if _ids else None
         self._device_meta = meta
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "device discovery summary ids=%d meta=%d",
+                len(self._device_ids),
+                len(self._device_meta),
+            )
         self._running = True
         self.metrics.is_connected = True
 
@@ -504,6 +519,12 @@ class FanSyncClient:
                         # Future was cancelled or already completed before set_result().
                         # This can happen if request timed out just before response arrived.
                         pass
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug(
+                            "recv response id=%s keys=%s",
+                            request_id,
+                            list(payload.keys()) if isinstance(payload, dict) else [],
+                        )
                     # Skip push update processing for request/response pairs.
                     # Status callbacks for set acks are handled in async_set to avoid duplication.
                     continue
@@ -513,8 +534,17 @@ class FanSyncClient:
                 if isinstance(data, dict) and isinstance(data.get("status"), dict):
                     pushed_status = data["status"]
                     self.metrics.record_push_update()
+                    self._push_count += 1
+                    self._last_push_monotonic = time.monotonic()
                     if _LOGGER.isEnabledFor(logging.DEBUG):
                         _LOGGER.debug("recv push status keys=%s", list(pushed_status.keys()))
+                        if self._push_count % PUSH_LOG_EVERY == 0:
+                            _LOGGER.debug(
+                                "push heartbeat count=%d device=%s keys=%d",
+                                self._push_count,
+                                self._device_id or "unknown",
+                                len(pushed_status),
+                            )
                     if self._status_callback is not None:
                         # Use call_soon since we are in the event loop.
                         # This avoids the overhead of thread-safe locking.
@@ -522,14 +552,20 @@ class FanSyncClient:
 
             except TimeoutError:
                 if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug("recv error=TimeoutError")
+                    _LOGGER.debug(
+                        "recv error=TimeoutError timeouts=%d backoff=%.1fs timeout_s=%.0f",
+                        timeout_errors + 1,
+                        backoff_sec,
+                        ws_timeout,
+                    )
                 timeout_errors += 1
                 if timeout_errors >= 3:
                     # Reconnect after consecutive timeouts
                     if _LOGGER.isEnabledFor(logging.DEBUG):
                         _LOGGER.debug(
-                            "triggering reconnect after %d consecutive errors",
+                            "triggering reconnect after %d consecutive errors backoff=%.1fs",
                             timeout_errors,
+                            backoff_sec,
                         )
                     try:
                         await self._ensure_ws_connected()
@@ -541,9 +577,10 @@ class FanSyncClient:
                     except Exception as reconnect_err:
                         if _LOGGER.isEnabledFor(logging.DEBUG):
                             _LOGGER.debug(
-                                "reconnect failed: %s, backoff=%.1fs",
+                                "reconnect failed: %s, backoff=%.1fs err=%s",
                                 type(reconnect_err).__name__,
                                 backoff_sec,
+                                reconnect_err,
                             )
                         await asyncio.sleep(backoff_sec)
                         backoff_sec = min(max_backoff_sec, backoff_sec * 2)
@@ -553,14 +590,21 @@ class FanSyncClient:
 
             except Exception as err:
                 if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug("recv error=%s", type(err).__name__)
+                    _LOGGER.debug("recv error=%s err=%s", type(err).__name__, err)
                 # Connection closed, trigger reconnect
                 try:
                     await self._ensure_ws_connected()
                     timeout_errors = 0
                     backoff_sec = 0.5
                     self.metrics.record_reconnect()
-                except Exception:
+                except Exception as reconnect_err:
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug(
+                            "reconnect failed after recv error: %s backoff=%.1fs err=%s",
+                            type(reconnect_err).__name__,
+                            backoff_sec,
+                            reconnect_err,
+                        )
                     await asyncio.sleep(backoff_sec)
                     backoff_sec = min(max_backoff_sec, backoff_sec * 2)
 
@@ -570,6 +614,7 @@ class FanSyncClient:
 
     async def _ensure_ws_connected(self) -> None:
         """Ensure WebSocket is connected and authenticated."""
+        reconnect_start = time.monotonic()
         # If WebSocket is already connected and open, nothing to do
         if self._ws is not None and self._ws.state == State.OPEN:
             return
@@ -583,9 +628,6 @@ class FanSyncClient:
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug("Error closing old WebSocket: %s: %s", type(exc).__name__, exc)
 
-        if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug("_ensure_ws_connected: reconnecting websocket")
-
         # Refresh token if needed (run in executor to avoid blocking event loop)
         if not self._token and self._http:
             self._token_refresh_count += 1
@@ -594,17 +636,25 @@ class FanSyncClient:
                     "_ensure_ws_connected: refreshing auth token (attempt %d)",
                     self._token_refresh_count,
                 )
+            refresh_start = time.monotonic()
             url = "https://fanimation.apps.exosite.io/api:1/session"
             headers = {"Content-Type": "application/json", "charset": "utf-8"}
             json_data = {"email": self.email, "password": self.password}
             self._token = await self.hass.async_add_executor_job(
                 self._http_login, url, headers, json_data
             )
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "_ensure_ws_connected: token refresh ms=%.0f",
+                    (time.monotonic() - refresh_start) * 1000,
+                )
 
         # Reconnect WebSocket
         ws_timeout = (
             float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
         )
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("_ensure_ws_connected: reconnecting websocket timeout_s=%.0f", ws_timeout)
 
         # Create SSL context in executor to avoid blocking event loop (cached after first call)
         if self._ssl_context is None:
@@ -639,14 +689,17 @@ class FanSyncClient:
 
         self._ws = ws
         if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug("_ensure_ws_connected: websocket reconnected successfully")
+            _LOGGER.debug(
+                "_ensure_ws_connected: websocket reconnected successfully in %.0f ms",
+                (time.monotonic() - reconnect_start) * 1000,
+            )
 
     async def _send_request(
         self,
         request_type: str,
         device_id: str,
         data: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], int]:
         """Send a request with retry logic and wait for response."""
         ws_timeout = (
             float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
@@ -678,6 +731,13 @@ class FanSyncClient:
                     if ws is None:
                         raise RuntimeError("WebSocket not connected")
 
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug(
+                            "send request id=%d type=%s device=%s",
+                            request_id,
+                            request_type,
+                            device_id,
+                        )
                     await asyncio.wait_for(
                         ws.send(json.dumps(payload)),
                         timeout=ws_timeout,
@@ -701,10 +761,13 @@ class FanSyncClient:
                                     )
                             self._ws = None
                         continue
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug("send retry failed (%s): %s", type(err).__name__, err)
                     raise
 
             # Wait for _recv_loop to fulfill the Future
-            return await asyncio.wait_for(future, timeout=ws_timeout)
+            response = await asyncio.wait_for(future, timeout=ws_timeout)
+            return response, request_id
 
         finally:
             # Clean up pending request if not already removed
@@ -718,7 +781,7 @@ class FanSyncClient:
             raise RuntimeError("No device ID available")
 
         try:
-            payload = await self._send_request("get", did)
+            payload, request_id = await self._send_request("get", did)
 
             # Cache device profile if present
             try:
@@ -740,7 +803,12 @@ class FanSyncClient:
             latency_ms = (time.monotonic() - t0) * 1000
             self.metrics.record_command(success=True, latency_ms=latency_ms)
             if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("get rtt ms=%.0f device=%s", latency_ms, did)
+                _LOGGER.debug(
+                    "get rtt ms=%.0f device=%s id=%d",
+                    latency_ms,
+                    did,
+                    request_id,
+                )
 
             # Warn about slow responses
             if latency_ms > SLOW_RESPONSE_WARNING_MS:
@@ -774,13 +842,18 @@ class FanSyncClient:
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("set start d=%s keys=%s", did, list(data.keys()))
 
-            payload = await self._send_request("set", did, data)
+            payload, request_id = await self._send_request("set", did, data)
 
             latency_ms = (time.monotonic() - t_total) * 1000
             self.metrics.record_command(success=True, latency_ms=latency_ms)
 
             if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("set total rtt ms=%.0f device=%s", latency_ms, did)
+                _LOGGER.debug(
+                    "set total rtt ms=%.0f device=%s id=%d",
+                    latency_ms,
+                    did,
+                    request_id,
+                )
 
             # Warn about slow responses
             if latency_ms > SLOW_RESPONSE_WARNING_MS:
@@ -843,6 +916,12 @@ class FanSyncClient:
                 self._http = httpx.Client(verify=self.verify_ssl, timeout=timeout)
         if ws_timeout_s is not None:
             self._ws_timeout_s = ws_timeout_s
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "apply_timeouts http_s=%s ws_s=%s",
+                self._http_timeout_s,
+                self._ws_timeout_s,
+            )
 
     @property
     def device_id(self) -> str | None:

@@ -1,33 +1,39 @@
 ---
-description: Ignores humans. Fixes ONLY GitHub Copilot/Bot feedback and Workflow/CI failures using MCP + CLI.
+description: Fetches Copilot/Bot feedback, PEER REVIEWS it using the local model, and applies only valid fixes.
 globs: *
 ---
-# Automated PR Fixer (Bots Only)
+# PR Peer Reviewer (Model vs. Model)
 
 When the user triggers this rule with a PR number (e.g., "@fixpr 15"):
 
-1.  **GATHER CONTEXT (Hybrid)**:
-    * **Comments (via MCP):** Use `get_issue_comments` to fetch feedback.
-    * **Workflow Status (via Terminal):** Run `gh pr checks <PR_NUMBER>` in the terminal to see the status.
-    * **Workflow Logs (via Terminal):** If checks are failing, run `gh run view --log-failed` (select the relevant run if asked) to get the specific error output.
+1.  **PRE-FLIGHT**:
+    * Ensure the current local branch matches the branch for PR #<PR_NUMBER>.
+    * If not, ask the user: "Switch to branch [Branch Name]?"
 
-2.  **STRICT FILTERING**:
-    * **Discard Human Comments:** If `user.type` is "User", IGNORE it.
-    * **Keep Bot Comments:** Process comments where `user.type` is "Bot" or username contains "copilot", "code-scanning", "sonar", or "github-actions".
-    * **Keep Workflow Failures:** Process any failed checks identified by the `gh` command.
+2.  **GATHER CONTEXT**:
+    * **Comments (MCP):** Use `get_issue_comments` to fetch feedback.
+    * **Workflow Status (CLI):** Run `gh pr checks <PR_NUMBER> --json name,conclusion,databaseId`.
+    * **Logs (CLI):** For failed checks, run `gh run view <databaseId> --log-failed`.
 
-3.  **ANALYZE FAILURES**:
-    * **Bot Feedback:** Treat bot comments as absolute instructions.
-    * **Workflow Logs:** Analyze the `gh run view` output to pinpoint the exact line or dependency causing the crash.
+3.  **THE "SECOND OPINION" (Critical Step)**:
+    * **Role:** You are the Senior Engineer. The PR comments come from "Copilot" (a Junior bot).
+    * **Action:** For each Bot comment/suggestion:
+        1.  Read the code at the suggested location.
+        2.  **Evaluate:** Does Copilot's suggestion actually improve the code?
+            * *Reject if:* It introduces a bug, breaks types, or is unnecessary bike-shedding.
+            * *Reject if:* It contradicts the project's existing patterns.
+            * *Accept if:* It fixes a genuine bug, typo, or optimization.
 
 4.  **EXECUTE STRATEGY**:
-    * **Priority 1: Build/Compile Errors.** (Fix these first).
-    * **Priority 2: Lint/Style Bots.** (Run local auto-fixers like `npm run lint -- --fix` or `black .`).
-    * **Priority 3: Copilot Logic Suggestions.** (Implement specific code changes requested by the bot).
+    * **Priority 1: Workflow Failures.** (Always fix these first—crashes are not debatable).
+    * **Priority 2: Validated Bot Feedback.** Apply ONLY the suggestions you accepted in Step 3.
+    * **Priority 3: Human Comments.** (Ignore as per user preference, or flag for manual review).
 
 5.  **VERIFY**:
-    * Run the specific local test/lint command related to the fix.
+    * After applying fixes, run the relevant local test (discover command via `package.json` etc.).
 
 6.  **REPORT**:
-    * Explicitly state: "Ignored X comments from human reviewers."
-    * List the Bot/Workflow issues resolved.
+    * **✅ Agreed & Fixed:** List Copilot suggestions you implemented.
+    * **🚫 Rejected:** List Copilot suggestions you ignored.
+        * *Requirement:* Provide a 1-sentence technical reason for rejection (e.g., "Copilot suggested a deprecated function" or "Suggestion would cause a circular dependency").
+    * **🚨 CI Fixes:** List build/test errors resolved.

@@ -200,9 +200,10 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
                 self._overlay.pop(k, None)
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(
-                    "optimism revert d=%s keys=%s error=%s",
+                    "optimism revert d=%s keys=%s overlay_count=%d error=%s",
                     self._device_id,
                     list(optimistic.keys()),
+                    len(self._overlay),
                     type(exc).__name__,
                 )
             self.coordinator.async_set_updated_data(all_previous)
@@ -218,9 +219,10 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
                 self._overlay.pop(k, None)
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(
-                    "optimism confirm d=%s keys=%s",
+                    "optimism confirm d=%s keys=%s overlay_count=%d",
                     self._device_id,
                     list(optimistic.keys()),
+                    len(self._overlay),
                 )
 
     @property

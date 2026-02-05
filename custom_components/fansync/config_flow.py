@@ -136,6 +136,13 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "ws_handshake_ms": format_ms(ws_handshake_ms),
                         "login_wait_ms": format_ms(login_wait_ms),
                     }
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug(
+                            "ws timeout diagnostics http_ms=%s ws_handshake_ms=%s login_wait_ms=%s",
+                            self._ws_diag_placeholders["http_ms"],
+                            self._ws_diag_placeholders["ws_handshake_ms"],
+                            self._ws_diag_placeholders["login_wait_ms"],
+                        )
                 except Exception as diag_exc:
                     _LOGGER.debug(
                         "Failed to capture diagnostics: %s: %s",
