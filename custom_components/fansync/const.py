@@ -37,7 +37,9 @@ PRESET_MODES = {0: "normal", 1: "fresh_air"}
 OPTIMISTIC_GUARD_SEC = 3.0
 # Confirmation polling attempts and delay between polls
 # Push updates typically confirm changes within 1-2 seconds, terminating polling early.
-# These fallback polls (2 × 0.5s after a 0.5s delay) handle edge cases where push is delayed.
+# Initial 0.5s delay before first poll, then 2 poll attempts with 0.5s delays between
+# (total up to 1.5s). Push updates typically confirm within the initial delay, avoiding
+# polling entirely.
 CONFIRM_RETRY_ATTEMPTS = 2
 CONFIRM_RETRY_DELAY_SEC = 0.5
 CONFIRM_INITIAL_DELAY_SEC = 0.5

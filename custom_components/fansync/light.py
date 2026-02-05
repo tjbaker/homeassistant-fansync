@@ -37,7 +37,7 @@ from .const import (
     pct_to_ha_brightness,
 )
 from .coordinator import FanSyncCoordinator
-from .device_utils import create_device_info, module_attrs
+from .device_utils import confirm_after_initial_delay, create_device_info, module_attrs
 
 # Only overlay keys that directly affect HA UI state to prevent snap-back
 OVERLAY_KEYS = {KEY_LIGHT_POWER, KEY_LIGHT_BRIGHTNESS}
@@ -161,17 +161,16 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
             if attempt == 0 and CONFIRM_INITIAL_DELAY_SEC > 0:
                 await asyncio.sleep(CONFIRM_INITIAL_DELAY_SEC)
                 # Push may confirm during the initial delay; skip polling if so.
-                if self._confirmed_by_push:
-                    data = self.coordinator.data or {}
-                    status = data.get(self._device_id, {}) if isinstance(data, dict) else {}
-                    if predicate(status):
-                        if _LOGGER.isEnabledFor(logging.DEBUG):
-                            _LOGGER.debug(
-                                "optimism early confirm d=%s via push update",
-                                self._device_id,
-                            )
-                        return status, True
-                    self._confirmed_by_push = False
+                status, confirmed, ok = confirm_after_initial_delay(
+                    confirmed_by_push=self._confirmed_by_push,
+                    coordinator_data=self.coordinator.data,
+                    device_id=self._device_id,
+                    predicate=predicate,
+                    logger=_LOGGER,
+                )
+                self._confirmed_by_push = confirmed
+                if ok:
+                    return status, True
             status = await self.client.async_get_status(self._device_id)
             if predicate(status):
                 return status, True
