@@ -85,7 +85,7 @@ def confirm_after_initial_delay(
     confirmed_by_push: bool,
     coordinator_data: dict[str, dict[str, object]] | None,
     device_id: str,
-    predicate: Callable[[dict[str, object]], bool],
+    predicate: Callable[[dict], bool],
     logger: logging.Logger,
 ) -> tuple[dict[str, object], bool, bool]:
     """Check for push confirmation after the initial delay.
