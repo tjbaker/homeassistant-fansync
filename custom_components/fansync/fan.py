@@ -26,6 +26,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .client import FanSyncClient
 from .const import (
+    CONFIRM_INITIAL_DELAY_SEC,
     CONFIRM_RETRY_ATTEMPTS,
     CONFIRM_RETRY_DELAY_SEC,
     DOMAIN,
@@ -38,7 +39,7 @@ from .const import (
     clamp_percentage,
 )
 from .coordinator import FanSyncCoordinator
-from .device_utils import create_device_info, module_attrs
+from .device_utils import confirm_after_initial_delay, create_device_info, module_attrs
 
 # Only overlay keys that directly affect HA UI state to prevent snap-back
 OVERLAY_KEYS = {KEY_POWER, KEY_SPEED, KEY_DIRECTION, KEY_PRESET}
@@ -136,7 +137,7 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         Early terminates if push update confirms the change (via _confirmed_by_push flag).
         """
         status: dict = {}
-        for _ in range(self._retry_attempts):
+        for attempt in range(self._retry_attempts):
             # Check if push update already confirmed before polling
             if self._confirmed_by_push:
                 # Get final status from coordinator data
@@ -153,6 +154,19 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
                 # Predicate no longer satisfied, reset flag and continue polling
                 self._confirmed_by_push = False
 
+            if attempt == 0 and CONFIRM_INITIAL_DELAY_SEC > 0:
+                await asyncio.sleep(CONFIRM_INITIAL_DELAY_SEC)
+                # Push may confirm during the initial delay; skip polling if so.
+                status, confirmed, ok = confirm_after_initial_delay(
+                    confirmed_by_push=self._confirmed_by_push,
+                    coordinator_data=self.coordinator.data,
+                    device_id=self._device_id,
+                    predicate=predicate,
+                    logger=_LOGGER,
+                )
+                self._confirmed_by_push = confirmed
+                if ok:
+                    return status, True
             status = await self.client.async_get_status(self._device_id)
             if predicate(status):
                 return status, True

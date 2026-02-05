@@ -76,8 +76,9 @@ async def test_fan_snapback_after_guard_expiry(hass: HomeAssistant):
     fake_monotonic = make_fake_monotonic(base)
 
     # Initiate optimistic change to 55%
-    with patch(
-        "custom_components.fansync.fan.time.monotonic", side_effect=lambda: fake_monotonic()
+    with (
+        patch("custom_components.fansync.fan.CONFIRM_INITIAL_DELAY_SEC", 0),
+        patch("custom_components.fansync.fan.time.monotonic", side_effect=lambda: fake_monotonic()),
     ):
         await hass.services.async_call(
             "fan",
@@ -108,8 +109,11 @@ async def test_light_snapback_after_guard_expiry(hass: HomeAssistant):
     fake_monotonic = make_fake_monotonic(base)
 
     # Initiate optimistic light on with brightness ~50%
-    with patch(
-        "custom_components.fansync.light.time.monotonic", side_effect=lambda: fake_monotonic()
+    with (
+        patch("custom_components.fansync.light.CONFIRM_INITIAL_DELAY_SEC", 0),
+        patch(
+            "custom_components.fansync.light.time.monotonic", side_effect=lambda: fake_monotonic()
+        ),
     ):
         await hass.services.async_call(
             "light",

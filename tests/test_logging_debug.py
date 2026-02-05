@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.fansync.client import FanSyncClient
+from custom_components.fansync.fan import FanSyncFan
 
 
 class LogClient:
@@ -77,7 +78,14 @@ async def test_fan_emits_debug_logs(hass: HomeAssistant, caplog: pytest.LogCaptu
     base = time.monotonic()
     fake_monotonic = FakeMonotonic(base)
 
-    with patch("custom_components.fansync.fan.time.monotonic", side_effect=fake_monotonic):
+    with (
+        patch("custom_components.fansync.fan.time.monotonic", side_effect=fake_monotonic),
+        patch.object(
+            FanSyncFan,
+            "_retry_update_until",
+            new=AsyncMock(return_value=({"H00": 1, "H02": 55, "H01": 0}, True)),
+        ),
+    ):
         await hass.services.async_call(
             "fan",
             "set_percentage",
