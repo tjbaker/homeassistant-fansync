@@ -12,11 +12,16 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+import time
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.fansync.const import KEY_DIRECTION, KEY_POWER
+from custom_components.fansync.coordinator import FanSyncCoordinator
+from custom_components.fansync.fan import FanSyncFan
 
 
 class FailingClient:
@@ -99,3 +104,27 @@ async def test_set_direction_reverts_on_error(hass: HomeAssistant):
     # After failure, state should be reverted to previous (forward)
     state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("direction") == "forward"
+
+
+async def test_optimistic_guard_uses_device_status(hass: HomeAssistant, mock_config_entry) -> None:
+    mock_client = AsyncMock()
+    mock_client.device_ids = ["dev1", "dev2"]
+
+    coordinator = FanSyncCoordinator(hass, mock_client, mock_config_entry)
+    coordinator.data = {
+        "dev1": {KEY_POWER: 1, KEY_DIRECTION: 1},
+        "dev2": {KEY_POWER: 1, KEY_DIRECTION: 0},
+    }
+
+    fan = FanSyncFan(coordinator, mock_client, "dev1")
+    fan.hass = hass
+    fan.entity_id = "fan.test"
+    fan._optimistic_until = time.monotonic() + 1
+    fan._optimistic_predicate = lambda s: s.get(KEY_DIRECTION) == 1
+
+    with patch.object(FanSyncFan, "async_write_ha_state", return_value=None):
+        fan._handle_coordinator_update()
+
+    assert fan._confirmed_by_push is True
+    assert fan._optimistic_until is None
+    assert fan._optimistic_predicate is None

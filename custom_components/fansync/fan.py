@@ -95,6 +95,14 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         # Flag to signal early termination of confirmation polling when push confirms
         self._confirmed_by_push: bool = False
 
+    def _status_for(self, payload: dict) -> dict[str, object]:
+        """Return this device's status mapping from an aggregated payload."""
+        if isinstance(payload, dict):
+            inner = payload.get(self._device_id, payload)
+            if isinstance(inner, dict):
+                return inner
+        return {}
+
     def _get_with_overlay(self, key: str, default: int) -> int:
         now = time.monotonic()
         entry = self._overlay.get(key)
@@ -327,7 +335,8 @@ class FanSyncFan(CoordinatorEntity[FanSyncCoordinator], FanEntity):
         if self._optimistic_until is not None and time.monotonic() < self._optimistic_until:
             pred = self._optimistic_predicate
             data = self.coordinator.data or {}
-            if callable(pred) and not pred(data):
+            status = self._status_for(data)
+            if callable(pred) and not pred(status):
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     remaining = (
                         self._optimistic_until - time.monotonic() if self._optimistic_until else 0.0

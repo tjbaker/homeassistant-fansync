@@ -11,8 +11,9 @@ When the user triggers this rule with a PR number (e.g., "@fixpr 15"):
     * If not, ask the user: "Switch to branch [Branch Name]?"
 
 2.  **GATHER CONTEXT**:
-    * **Comments (MCP):** Use `get_issue_comments` to fetch feedback.
-    * **Workflow Status (CLI):** Run `gh pr checks <PR_NUMBER> --json name,conclusion,databaseId`.
+    * **PR Review Comments (MCP):** Use `pull_request_read` with `get_review_comments` to fetch Copilot review threads.
+    * **Issue Comments (MCP):** Use `get_issue_comments` to fetch non-review comments.
+    * **Workflow Status (CLI):** Run `gh pr checks <PR_NUMBER> --json name,state,workflow,link,completedAt,startedAt`.
     * **Logs (CLI):** For failed checks, run `gh run view <databaseId> --log-failed`.
 
 3.  **THE "SECOND OPINION" (Critical Step)**:
