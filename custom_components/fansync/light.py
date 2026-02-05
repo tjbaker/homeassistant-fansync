@@ -26,6 +26,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity, UpdateFa
 
 from .client import FanSyncClient
 from .const import (
+    CONFIRM_INITIAL_DELAY_SEC,
     CONFIRM_RETRY_ATTEMPTS,
     CONFIRM_RETRY_DELAY_SEC,
     DOMAIN,
@@ -140,7 +141,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         Early terminates if push update confirms the change (via _confirmed_by_push flag).
         """
         status: dict = {}
-        for _ in range(self._retry_attempts):
+        for attempt in range(self._retry_attempts):
             # Check if push update already confirmed before polling
             if self._confirmed_by_push:
                 # Get final status from coordinator data
@@ -157,6 +158,20 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
                 # Predicate no longer satisfied, reset flag and continue polling
                 self._confirmed_by_push = False
 
+            if attempt == 0 and CONFIRM_INITIAL_DELAY_SEC > 0:
+                await asyncio.sleep(CONFIRM_INITIAL_DELAY_SEC)
+                # Push may confirm during the initial delay; skip polling if so.
+                if self._confirmed_by_push:
+                    data = self.coordinator.data or {}
+                    status = data.get(self._device_id, {}) if isinstance(data, dict) else {}
+                    if predicate(status):
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug(
+                                "optimism early confirm d=%s via push update",
+                                self._device_id,
+                            )
+                        return status, True
+                    self._confirmed_by_push = False
             status = await self.client.async_get_status(self._device_id)
             if predicate(status):
                 return status, True
