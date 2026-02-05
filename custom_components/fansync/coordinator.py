@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import timedelta
 from typing import Any
 
@@ -125,6 +126,21 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             val = await val
         return int(val)
 
+    def _log_push_idle_if_needed(self) -> None:
+        """Log when polling occurs after a prolonged push idle period."""
+        if not self.update_interval or not self.logger.isEnabledFor(logging.DEBUG):
+            return
+        last_push = getattr(self.client, "_last_push_monotonic", None)
+        if isinstance(last_push, float):
+            idle_s = time.monotonic() - last_push
+            interval_s = self.update_interval.total_seconds()
+            if idle_s > interval_s:
+                self.logger.debug(
+                    "poll sync after push idle_s=%.0f interval_s=%.0f",
+                    idle_s,
+                    interval_s,
+                )
+
     async def _async_update_data(self):
         try:
             # Aggregate status for all devices into a mapping
@@ -164,6 +180,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                         )
                 if self.logger.isEnabledFor(logging.DEBUG):
                     self.logger.debug("poll sync done devices=%d", len(statuses))
+                self._log_push_idle_if_needed()
                 # Update device registry with any new profile data
                 self._update_device_registry([did])
                 return statuses
@@ -201,6 +218,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                                 did,
                                 _changed_keys(prev, status),
                             )
+            self._log_push_idle_if_needed()
             if self.logger.isEnabledFor(logging.DEBUG):
                 self.logger.debug("poll sync done devices=%d", len(statuses))
             if not statuses:

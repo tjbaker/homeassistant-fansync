@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import timedelta
 from typing import TypedDict
 
@@ -112,16 +113,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
             RuntimeError,
         ) as err:
             _LOGGER.warning("FanSync setup connect failed (%s); retrying", type(err).__name__)
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("FanSync setup connect failed details: %s", err)
             raise ConfigEntryNotReady from err
         coordinator = FanSyncCoordinator(hass, client, entry)
         # Apply options-driven fallback polling
         secs = entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
         coordinator.update_interval = None if secs == 0 else timedelta(seconds=int(secs))
+        if secs != 0:
+            _LOGGER.info("FanSync fallback polling enabled interval=%ss", int(secs))
         if _LOGGER.isEnabledFor(logging.DEBUG):
+            enable_push = getattr(client, "_enable_push", True)
             _LOGGER.debug(
-                "setup interval=%s verify_ssl=%s",
+                "setup interval=%s fallback_poll_s=%s verify_ssl=%s enable_push=%s",
                 coordinator.update_interval,
+                secs,
                 entry.data.get(CONF_VERIFY_SSL, True),
+                enable_push,
             )
 
         # Register a push callback if supported by the client
@@ -149,9 +157,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
                 first_refresh_timeout = int(_val)
             except Exception:
                 first_refresh_timeout = POLL_STATUS_TIMEOUT_SECS
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("initial refresh guard timeout_s=%d", first_refresh_timeout)
+            refresh_start = time.monotonic()
             await asyncio.wait_for(
                 coordinator.async_config_entry_first_refresh(), first_refresh_timeout
             )
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                data_now = coordinator.data
+                hydrated = len(data_now) if isinstance(data_now, dict) else 0
+                _LOGGER.debug(
+                    "initial refresh complete ms=%.0f devices=%d",
+                    (time.monotonic() - refresh_start) * 1000,
+                    hydrated,
+                )
         except Exception as exc:  # pragma: no cover
             # Log at INFO and let entities hydrate on next push/poll
             _LOGGER.info(
