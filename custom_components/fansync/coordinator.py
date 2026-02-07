@@ -15,7 +15,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import timedelta
+from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -27,7 +28,17 @@ from homeassistant.helpers.typing import UNDEFINED
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import FanSyncClient
-from .const import DEFAULT_FALLBACK_POLL_SECS, DOMAIN, POLL_STATUS_TIMEOUT_SECS
+from .const import (
+    DEFAULT_FALLBACK_POLL_SECS,
+    DOMAIN,
+    KEY_DIRECTION,
+    KEY_LIGHT_BRIGHTNESS,
+    KEY_LIGHT_POWER,
+    KEY_POWER,
+    KEY_PRESET,
+    KEY_SPEED,
+    POLL_STATUS_TIMEOUT_SECS,
+)
 from .device_utils import create_device_info
 
 SCAN_INTERVAL = timedelta(seconds=DEFAULT_FALLBACK_POLL_SECS)
@@ -59,6 +70,18 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         self._device_registry = dr.async_get(hass)
         # Track which devices have had registry updated to avoid redundant updates
         self._registry_updated: set[str] = set()
+        self._last_update_start_utc: str | None = None
+        self._last_update_end_utc: str | None = None
+        self._last_update_trigger: str | None = None
+        self._last_update_timeout_devices: list[str] = []
+        self._last_update_device_count: int | None = None
+        self._last_update_success_utc: str | None = None
+        self._last_update_duration_ms: float | None = None
+        self._last_poll_mismatch_keys: dict[str, list[str]] = {}
+        self._last_poll_mismatch_history: list[dict[str, object]] = []
+        self._last_poll_mismatch_history_max = 10
+        self._status_history: list[dict[str, object]] = []
+        self._status_history_max = 10
 
     def _update_device_registry(self, device_ids: list[str]) -> None:
         """Update device registry with latest profile data from client.
@@ -142,6 +165,9 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 )
 
     async def _async_update_data(self):
+        start_monotonic = time.monotonic()
+        self._last_update_start_utc = datetime.now(UTC).isoformat()
+        self._last_update_end_utc = None
         try:
             # Aggregate status for all devices into a mapping
             statuses: dict[str, dict[str, object]] = {}
@@ -155,6 +181,9 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     self.update_interval,
                     ids or [self.client.device_id],
                 )
+            self._last_update_trigger = "timer" if self.update_interval else "manual"
+            timeout_devices: list[str] = []
+            mismatch_keys: dict[str, list[str]] = {}
             if not ids:
                 # Fallback to single current device with timeout guard
                 timeout_s = await self._get_timeout_seconds()
@@ -169,11 +198,20 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                         "Commands still work; updates resume when connectivity improves",
                         timeout_s,
                     )
+                    did = self.client.device_id or "unknown"
+                    timeout_devices.append(did)
+                    self._finalize_update(
+                        statuses=statuses,
+                        timeout_devices=timeout_devices,
+                        mismatch_keys=mismatch_keys,
+                        success=False,
+                    )
                     return self.data or {}
                 # Debug: log mismatches vs current coordinator snapshot
                 current = self.data or {}
                 prev = current.get(did, {}) if isinstance(current, dict) else {}
                 if isinstance(prev, dict) and isinstance(s, dict) and prev != s:
+                    mismatch_keys[did] = _changed_keys(prev, s)
                     if self.logger.isEnabledFor(logging.DEBUG):
                         self.logger.debug(
                             "poll mismatch d=%s changed_keys=%s", did, _changed_keys(prev, s)
@@ -183,6 +221,14 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 self._log_push_idle_if_needed()
                 # Update device registry with any new profile data
                 self._update_device_registry([did])
+                self._append_status_history(statuses)
+                self._finalize_update(
+                    statuses=statuses,
+                    timeout_devices=timeout_devices,
+                    mismatch_keys=mismatch_keys,
+                    success=True,
+                )
+                self._append_mismatch_history(mismatch_keys)
                 return statuses
 
             # Run per-device status in parallel with timeouts; tolerate partial failures
@@ -200,6 +246,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                         did,
                         timeout_s,
                     )
+                    timeout_devices.append(did)
                     return did, None
 
             results = await asyncio.gather(*(_get(d) for d in ids))
@@ -212,6 +259,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 for did, status in statuses.items():
                     prev = current.get(did, {})
                     if isinstance(prev, dict) and isinstance(status, dict) and prev != status:
+                        mismatch_keys[did] = _changed_keys(prev, status)
                         if self.logger.isEnabledFor(logging.DEBUG):
                             self.logger.debug(
                                 "poll mismatch d=%s changed_keys=%s",
@@ -229,9 +277,24 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     len(ids),
                     ids,
                 )
+                self._finalize_update(
+                    statuses=statuses,
+                    timeout_devices=timeout_devices,
+                    mismatch_keys=mismatch_keys,
+                    success=False,
+                )
+                self._append_mismatch_history(mismatch_keys)
                 return self.data or {}
             # Update device registry with any new profile data for all devices
             self._update_device_registry(list(statuses.keys()))
+            self._append_status_history(statuses)
+            self._finalize_update(
+                statuses=statuses,
+                timeout_devices=timeout_devices,
+                mismatch_keys=mismatch_keys,
+                success=True,
+            )
+            self._append_mismatch_history(mismatch_keys)
             return statuses
         except httpx.HTTPStatusError as err:
             # Handle authentication failures by triggering reauth flow
@@ -248,6 +311,71 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             ) from err
         except UpdateFailed:
             raise
+        finally:
+            if self._last_update_end_utc is None:
+                self._last_update_end_utc = datetime.now(UTC).isoformat()
+            self._last_update_duration_ms = round((time.monotonic() - start_monotonic) * 1000, 2)
+
+    def _append_status_history(self, statuses: dict[str, dict[str, object]]) -> None:
+        """Store a bounded history of recent status snapshots."""
+        entry = {
+            "timestamp_utc": datetime.now(UTC).isoformat(),
+            "device_count": len(statuses),
+            "summary": _summarize_status_snapshot(statuses),
+        }
+        self._status_history.append(entry)
+        if len(self._status_history) > self._status_history_max:
+            self._status_history.pop(0)
+
+    def _append_mismatch_history(self, mismatch: dict[str, list[str]]) -> None:
+        entry = {
+            "timestamp_utc": datetime.now(UTC).isoformat(),
+            "device_count": len(mismatch),
+            "mismatch_keys": mismatch,
+        }
+        self._last_poll_mismatch_history.append(entry)
+        if len(self._last_poll_mismatch_history) > self._last_poll_mismatch_history_max:
+            self._last_poll_mismatch_history.pop(0)
+
+    def _finalize_update(
+        self,
+        *,
+        statuses: dict[str, dict[str, object]],
+        timeout_devices: list[str],
+        mismatch_keys: dict[str, list[str]],
+        success: bool,
+    ) -> None:
+        self._last_update_timeout_devices = timeout_devices
+        self._last_update_device_count = len(statuses)
+        self._last_poll_mismatch_keys = mismatch_keys
+        if success:
+            self._last_update_success_utc = datetime.now(UTC).isoformat()
+        self._last_update_end_utc = datetime.now(UTC).isoformat()
+
+
+def _summarize_status_snapshot(
+    data: Mapping[str, object] | None,
+) -> dict[str, dict[str, object]]:
+    summary: dict[str, dict[str, object]] = {}
+    if not isinstance(data, dict):
+        return summary
+    for device_id, status in data.items():
+        if not isinstance(status, dict):
+            continue
+        summary[device_id] = {
+            "keys": sorted(status.keys()),
+            "fan": {
+                "power": status.get(KEY_POWER),
+                "speed": status.get(KEY_SPEED),
+                "preset": status.get(KEY_PRESET),
+                "direction": status.get(KEY_DIRECTION),
+            },
+            "light": {
+                "power": status.get(KEY_LIGHT_POWER),
+                "brightness": status.get(KEY_LIGHT_BRIGHTNESS),
+            },
+        }
+    return summary
 
 
 def _changed_keys(prev: dict[str, object], new: dict[str, object]) -> list[str]:

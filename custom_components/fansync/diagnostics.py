@@ -14,10 +14,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+
+from .const import (
+    KEY_DIRECTION,
+    KEY_LIGHT_BRIGHTNESS,
+    KEY_LIGHT_POWER,
+    KEY_POWER,
+    KEY_PRESET,
+    KEY_SPEED,
+)
 
 
 async def async_get_config_entry_diagnostics(
@@ -33,10 +43,9 @@ async def async_get_config_entry_diagnostics(
             "entry_id": entry.entry_id,
             "title": entry.title,
             "version": entry.version,
+            "options": dict(entry.options),
         },
-        "home_assistant_version": getattr(hass.config, "version", "unknown"),
         "coordinator": {},
-        "client": {},
         "connection_analysis": {},
     }
 
@@ -47,7 +56,19 @@ async def async_get_config_entry_diagnostics(
                 str(coordinator.update_interval) if coordinator.update_interval else None
             ),
             "last_update_success": coordinator.last_update_success,
+            "last_exception": _format_exception(getattr(coordinator, "last_exception", None)),
+            "last_update_start_utc": getattr(coordinator, "_last_update_start_utc", None),
+            "last_update_end_utc": getattr(coordinator, "_last_update_end_utc", None),
+            "last_update_trigger": getattr(coordinator, "_last_update_trigger", None),
+            "last_update_timeout_devices": getattr(coordinator, "_last_update_timeout_devices", []),
+            "last_update_device_count": getattr(coordinator, "_last_update_device_count", None),
+            "last_update_success_utc": getattr(coordinator, "_last_update_success_utc", None),
+            "last_update_duration_ms": getattr(coordinator, "_last_update_duration_ms", None),
+            "last_poll_mismatch_keys": getattr(coordinator, "_last_poll_mismatch_keys", {}),
+            "last_poll_mismatch_history": getattr(coordinator, "_last_poll_mismatch_history", []),
+            "status_history": getattr(coordinator, "_status_history", []),
             "device_count": len(coordinator.data) if coordinator.data else 0,
+            "status_snapshot": _summarize_status(coordinator.data),
         }
 
     # Client diagnostics
@@ -95,10 +116,67 @@ async def async_get_config_entry_diagnostics(
                         profiles[device_id] = sanitized
                 diagnostics["device_profiles"] = profiles
 
+            # Device metadata (sanitized)
+            if hasattr(client, "device_metadata"):
+                meta = {}
+                for device_id in device_ids:
+                    meta[device_id] = _redact_data(client.device_metadata(device_id))
+                diagnostics["device_metadata"] = meta
+
         except Exception as err:
             diagnostics["client_error"] = str(err)
 
     return diagnostics
+
+
+def _summarize_status(
+    data: Mapping[str, object] | None,
+) -> dict[str, dict[str, object]]:
+    """Summarize per-device status for diagnostics."""
+    summary: dict[str, dict[str, object]] = {}
+    if not isinstance(data, dict):
+        return summary
+
+    for device_id, status in data.items():
+        if not isinstance(status, dict):
+            continue
+        summary[device_id] = {
+            "keys": sorted(status.keys()),
+            "fan": {
+                "power": status.get(KEY_POWER),
+                "speed": status.get(KEY_SPEED),
+                "preset": status.get(KEY_PRESET),
+                "direction": status.get(KEY_DIRECTION),
+            },
+            "light": {
+                "power": status.get(KEY_LIGHT_POWER),
+                "brightness": status.get(KEY_LIGHT_BRIGHTNESS),
+            },
+        }
+    return summary
+
+
+def _format_exception(exc: Exception | None) -> dict[str, str] | None:
+    """Format exception info for diagnostics."""
+    if exc is None:
+        return None
+    return {"type": type(exc).__name__, "message": str(exc)}
+
+
+def _redact_data(data: Any) -> Any:
+    """Redact sensitive fields from diagnostic data."""
+    if isinstance(data, dict):
+        redacted = {}
+        for key, value in data.items():
+            key_lower = str(key).lower()
+            if key_lower in {"password", "token", "owner", "email"}:
+                redacted[key] = "***"
+            else:
+                redacted[key] = _redact_data(value)
+        return redacted
+    if isinstance(data, list):
+        return [_redact_data(item) for item in data]
+    return data
 
 
 def _analyze_connection_quality(metrics: Any) -> dict[str, Any]:

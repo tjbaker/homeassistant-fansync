@@ -20,7 +20,7 @@ import ssl
 import sys
 import time
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -30,6 +30,7 @@ from homeassistant.core import HomeAssistant
 from websockets.protocol import State
 
 from .const import (
+    DEFAULT_HTTP_TIMEOUT_SECS,
     DEFAULT_WS_TIMEOUT_SECS,
     PUSH_LOG_EVERY,
     SLOW_CONNECTION_WARNING_MS,
@@ -93,6 +94,18 @@ class FanSyncClient:
         self._recv_task: asyncio.Task | None = None
         self._push_count: int = 0
         self._last_push_monotonic: float | None = None
+        self._last_push_utc: str | None = None
+        self._last_push_keys: list[str] | None = None
+        self._last_push_key_count: int | None = None
+        self._last_push_by_device: dict[str, dict[str, Any]] = {}
+        self._last_set_by_device: dict[str, dict[str, Any]] = {}
+        self._last_get_by_device: dict[str, dict[str, Any]] = {}
+        self._last_request_id: int | None = None
+        self._last_reconnect_utc: str | None = None
+        self._last_recv_error: str | None = None
+        self._last_recv_error_utc: str | None = None
+        self._command_history: list[dict[str, Any]] = []
+        self._command_history_max = 50
         # Message routing: map request ID to Future for async_get_status/async_set
         self._pending_requests: dict[int, asyncio.Future[dict[str, Any]]] = {}
         # Start at 3 to avoid collision with hardcoded LOGIN(1) and LIST_DEVICES(2).
@@ -121,7 +134,7 @@ class FanSyncClient:
     ) -> None:
         """Record a connection failure for diagnostics."""
         failure_record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
+            "timestamp": datetime.now(UTC).isoformat(),
             "stage": stage,  # "http_login", "ws_connect", "ws_login", etc.
             "error_type": error_type,
             "elapsed_ms": round(elapsed_ms, 2),
@@ -133,6 +146,97 @@ class FanSyncClient:
         # Keep only the most recent failures
         if len(self._connection_failures) > self._max_failure_history:
             self._connection_failures.pop(0)
+
+    def _record_command_history(
+        self,
+        *,
+        command: str,
+        device_id: str,
+        keys: list[str],
+        request_id: int | None,
+        success: bool,
+        latency_ms: float | None,
+        error_type: str | None = None,
+    ) -> None:
+        entry: dict[str, Any] = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "command": command,
+            "device_id": device_id,
+            "keys": keys,
+            "success": success,
+            "request_id": request_id,
+            "latency_ms": round(latency_ms, 2) if latency_ms is not None else None,
+        }
+        if error_type:
+            entry["error_type"] = error_type
+        self._command_history.append(entry)
+        if len(self._command_history) > self._command_history_max:
+            self._command_history.pop(0)
+
+    def _record_last_get(
+        self,
+        *,
+        device_id: str,
+        request_id: int | None,
+        success: bool,
+        latency_ms: float,
+        error_type: str | None = None,
+    ) -> None:
+        entry: dict[str, Any] = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "request_id": request_id,
+            "success": success,
+            "latency_ms": round(latency_ms, 2),
+        }
+        if error_type:
+            entry["error_type"] = error_type
+        self._last_get_by_device[device_id] = entry
+
+    def _record_last_set(
+        self,
+        *,
+        device_id: str,
+        keys: list[str],
+        request_id: int | None,
+        success: bool,
+        latency_ms: float,
+        error_type: str | None = None,
+    ) -> None:
+        entry: dict[str, Any] = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "keys": keys,
+            "request_id": request_id,
+            "success": success,
+            "latency_ms": round(latency_ms, 2),
+        }
+        if error_type:
+            entry["error_type"] = error_type
+        self._last_set_by_device[device_id] = entry
+
+    def _extract_push_status(
+        self, payload: dict[str, Any]
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            return None, None
+
+        push_device = payload.get("device")
+        if not isinstance(push_device, str):
+            push_device = data.get("device")
+        if not isinstance(push_device, str):
+            push_device = None
+
+        status = data.get("status")
+        if isinstance(status, dict):
+            return status, push_device
+
+        changes = data.get("changes")
+        if isinstance(changes, dict):
+            change_status = changes.get("status")
+            if isinstance(change_status, dict):
+                return change_status, push_device
+
+        return None, None
 
     def _parse_token_metadata(self) -> dict[str, Any]:
         """Extract JWT token metadata without exposing the token itself."""
@@ -314,7 +418,7 @@ class FanSyncClient:
                     "status": payload.get("status"),
                     "response": payload.get("response"),
                     "has_data": "data" in payload,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
+                    "timestamp": datetime.now(UTC).isoformat(),
                 }
 
                 if not (isinstance(payload, dict) and payload.get("status") == "ok"):
@@ -530,19 +634,28 @@ class FanSyncClient:
                     continue
 
                 # Process push updates (responses without request ID and with status data)
-                data = payload.get("data")
-                if isinstance(data, dict) and isinstance(data.get("status"), dict):
-                    pushed_status = data["status"]
+                pushed_status, push_device = self._extract_push_status(payload)
+                if pushed_status is not None:
+                    if not push_device:
+                        push_device = "unknown"
                     self.metrics.record_push_update()
                     self._push_count += 1
                     self._last_push_monotonic = time.monotonic()
+                    self._last_push_utc = datetime.now(UTC).isoformat()
+                    self._last_push_keys = sorted(list(pushed_status.keys()))
+                    self._last_push_key_count = len(pushed_status)
+                    self._last_push_by_device[push_device] = {
+                        "utc": self._last_push_utc,
+                        "key_count": self._last_push_key_count,
+                        "keys": self._last_push_keys,
+                    }
                     if _LOGGER.isEnabledFor(logging.DEBUG):
                         _LOGGER.debug("recv push status keys=%s", list(pushed_status.keys()))
                         if self._push_count % PUSH_LOG_EVERY == 0:
                             _LOGGER.debug(
                                 "push heartbeat count=%d device=%s keys=%d",
                                 self._push_count,
-                                self._device_id or "unknown",
+                                push_device or self._device_id or "unknown",
                                 len(pushed_status),
                             )
                     if self._status_callback is not None:
@@ -551,6 +664,8 @@ class FanSyncClient:
                         self.hass.loop.call_soon(self._status_callback, pushed_status)
 
             except TimeoutError:
+                self._last_recv_error = "TimeoutError"
+                self._last_recv_error_utc = datetime.now(UTC).isoformat()
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug(
                         "recv error=TimeoutError timeouts=%d backoff=%.1fs timeout_s=%.0f",
@@ -572,6 +687,7 @@ class FanSyncClient:
                         timeout_errors = 0
                         backoff_sec = 0.5
                         self.metrics.record_reconnect()
+                        self._last_reconnect_utc = datetime.now(UTC).isoformat()
                         if _LOGGER.isEnabledFor(logging.DEBUG):
                             _LOGGER.debug("reconnect successful, backoff reset")
                     except Exception as reconnect_err:
@@ -589,6 +705,8 @@ class FanSyncClient:
                     await asyncio.sleep(0.1)
 
             except Exception as err:
+                self._last_recv_error = type(err).__name__
+                self._last_recv_error_utc = datetime.now(UTC).isoformat()
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug("recv error=%s err=%s", type(err).__name__, err)
                 # Connection closed, trigger reconnect
@@ -597,6 +715,7 @@ class FanSyncClient:
                     timeout_errors = 0
                     backoff_sec = 0.5
                     self.metrics.record_reconnect()
+                    self._last_reconnect_utc = datetime.now(UTC).isoformat()
                 except Exception as reconnect_err:
                     if _LOGGER.isEnabledFor(logging.DEBUG):
                         _LOGGER.debug(
@@ -709,6 +828,7 @@ class FanSyncClient:
         async with self._request_id_lock:
             request_id = self._next_request_id
             self._next_request_id += 1
+        self._last_request_id = request_id
 
         # Register a Future for this request
         future: asyncio.Future[dict[str, Any]] = asyncio.Future()
@@ -780,6 +900,7 @@ class FanSyncClient:
         if not did:
             raise RuntimeError("No device ID available")
 
+        request_id: int | None = None
         try:
             payload, request_id = await self._send_request("get", did)
 
@@ -802,6 +923,20 @@ class FanSyncClient:
 
             latency_ms = (time.monotonic() - t0) * 1000
             self.metrics.record_command(success=True, latency_ms=latency_ms)
+            self._record_command_history(
+                command="get",
+                device_id=did,
+                keys=[],
+                request_id=request_id,
+                success=True,
+                latency_ms=latency_ms,
+            )
+            self._record_last_get(
+                device_id=did,
+                request_id=request_id,
+                success=True,
+                latency_ms=latency_ms,
+            )
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(
                     "get rtt ms=%.0f device=%s id=%d",
@@ -826,9 +961,41 @@ class FanSyncClient:
 
         except TimeoutError as exc:
             self.metrics.record_command(success=False)
+            self._record_command_history(
+                command="get",
+                device_id=did,
+                keys=[],
+                request_id=request_id,
+                success=False,
+                latency_ms=(time.monotonic() - t0) * 1000,
+                error_type="TimeoutError",
+            )
+            self._record_last_get(
+                device_id=did,
+                request_id=request_id,
+                success=False,
+                latency_ms=(time.monotonic() - t0) * 1000,
+                error_type="TimeoutError",
+            )
             raise TimeoutError(f"WebSocket recv timed out: {exc}") from exc
-        except Exception:
+        except Exception as exc:
             self.metrics.record_command(success=False)
+            self._record_command_history(
+                command="get",
+                device_id=did,
+                keys=[],
+                request_id=request_id,
+                success=False,
+                latency_ms=(time.monotonic() - t0) * 1000,
+                error_type=type(exc).__name__,
+            )
+            self._record_last_get(
+                device_id=did,
+                request_id=request_id,
+                success=False,
+                latency_ms=(time.monotonic() - t0) * 1000,
+                error_type=type(exc).__name__,
+            )
             raise
 
     async def async_set(self, data: dict[str, int], *, device_id: str | None = None) -> None:
@@ -838,6 +1005,7 @@ class FanSyncClient:
         if not did:
             raise RuntimeError("No device ID available")
 
+        request_id: int | None = None
         try:
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("set start d=%s keys=%s", did, list(data.keys()))
@@ -846,6 +1014,21 @@ class FanSyncClient:
 
             latency_ms = (time.monotonic() - t_total) * 1000
             self.metrics.record_command(success=True, latency_ms=latency_ms)
+            self._record_command_history(
+                command="set",
+                device_id=did,
+                keys=sorted(list(data.keys())),
+                request_id=request_id,
+                success=True,
+                latency_ms=latency_ms,
+            )
+            self._record_last_set(
+                device_id=did,
+                keys=sorted(list(data.keys())),
+                request_id=request_id,
+                success=True,
+                latency_ms=latency_ms,
+            )
 
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(
@@ -876,8 +1059,26 @@ class FanSyncClient:
                 if self._status_callback is not None:
                     self.hass.loop.call_soon(self._status_callback, ack_data["status"])
 
-        except Exception:
+        except Exception as exc:
             self.metrics.record_command(success=False)
+            self._record_command_history(
+                command="set",
+                device_id=did,
+                keys=sorted(list(data.keys())),
+                request_id=request_id,
+                success=False,
+                latency_ms=(time.monotonic() - t_total) * 1000,
+                error_type=type(exc).__name__,
+            )
+            latency_ms = (time.monotonic() - t_total) * 1000
+            self._record_last_set(
+                device_id=did,
+                keys=sorted(list(data.keys())),
+                request_id=request_id,
+                success=False,
+                latency_ms=latency_ms,
+                error_type=type(exc).__name__,
+            )
             raise
 
     def apply_timeouts(
@@ -953,6 +1154,27 @@ class FanSyncClient:
 
     def get_diagnostics_data(self) -> dict[str, Any]:
         """Get comprehensive diagnostics data for troubleshooting."""
+        last_push_age_s: float | None = None
+        if self._last_push_monotonic is not None:
+            last_push_age_s = round(time.monotonic() - self._last_push_monotonic, 2)
+
+        ws_state: str | None = None
+        if self._ws is not None:
+            try:
+                ws_state = self._ws.state.name
+            except AttributeError:
+                ws_state = str(self._ws.state)
+
+        recv_task_state = None
+        if self._recv_task is not None:
+            recv_task_state = {
+                "done": self._recv_task.done(),
+                "cancelled": self._recv_task.cancelled(),
+            }
+        pending_request_ids = sorted(self._pending_requests.keys())
+        if len(pending_request_ids) > 20:
+            pending_request_ids = pending_request_ids[-20:]
+
         return {
             # Environment info
             "environment": {
@@ -966,6 +1188,12 @@ class FanSyncClient:
                 "enable_push": self._enable_push,
                 "http_timeout_s": self._http_timeout_s,
                 "ws_timeout_s": self._ws_timeout_s,
+                "http_timeout_effective_s": (
+                    self._http_timeout_s
+                    if self._http_timeout_s is not None
+                    else DEFAULT_HTTP_TIMEOUT_SECS
+                ),
+                "ws_timeout_effective_s": self.ws_timeout_seconds(),
             },
             # Connection state
             "connection_state": {
@@ -973,7 +1201,27 @@ class FanSyncClient:
                 "has_websocket": self._ws is not None,
                 "has_http_client": self._http is not None,
                 "device_count": len(self._device_ids),
+                "ws_state": ws_state,
+                "recv_task": recv_task_state,
+                "pending_requests": len(self._pending_requests),
+                "pending_request_ids": pending_request_ids,
+                "last_request_id": self._last_request_id,
+                "last_reconnect_utc": self._last_reconnect_utc,
+                "last_recv_error": self._last_recv_error,
+                "last_recv_error_utc": self._last_recv_error_utc,
             },
+            "push": {
+                "enabled": self._enable_push,
+                "updates_received": self.metrics.push_updates_received,
+                "last_push_age_s": last_push_age_s,
+                "last_push_utc": self._last_push_utc,
+                "last_push_key_count": self._last_push_key_count,
+                "last_push_keys": self._last_push_keys,
+                "last_push_by_device": dict(self._last_push_by_device),
+            },
+            "last_set_by_device": dict(self._last_set_by_device),
+            "last_get_by_device": dict(self._last_get_by_device),
+            "command_history": list(self._command_history),
             # Connection timing (granular breakdown)
             "connection_timing": {
                 "last_http_login_ms": self._last_http_login_ms,
@@ -989,16 +1237,5 @@ class FanSyncClient:
             # Recent failures
             "connection_failures": self._connection_failures,
             # Metrics
-            "metrics": {
-                "total_commands": self.metrics.total_commands,
-                "failed_commands": self.metrics.failed_commands,
-                "timed_out_commands": self.metrics.timed_out_commands,
-                "websocket_reconnects": self.metrics.websocket_reconnects,
-                "websocket_errors": self.metrics.websocket_errors,
-                "push_updates_received": self.metrics.push_updates_received,
-                "avg_latency_ms": round(self.metrics.avg_latency_ms, 2),
-                "max_latency_ms": round(self.metrics.max_latency_ms, 2),
-                "failure_rate": round(self.metrics.failure_rate, 3),
-                "timeout_rate": round(self.metrics.timeout_rate, 3),
-            },
+            "metrics": self.metrics.to_dict(),
         }

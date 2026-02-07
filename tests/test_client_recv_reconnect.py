@@ -35,7 +35,13 @@ def _push_status(status: dict[str, int]) -> str:
     return json.dumps({"status": "ok", "response": "evt", "data": {"status": status}, "id": 999})
 
 
-async def test_recv_loop_reconnects_after_timeouts(hass: HomeAssistant, mock_websocket):
+def _push_device_change(status: dict[str, int]) -> str:
+    return json.dumps(
+        {"data": {"event": "device_change", "changes": {"status": status}}, "response": "evt"}
+    )
+
+
+async def test_recv_loop_reconnects_after_timeouts(hass: HomeAssistant, mock_websocket) -> None:
     """Test that recv loop reconnects after 3 consecutive timeouts."""
     c = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
 
@@ -87,3 +93,41 @@ async def test_recv_loop_reconnects_after_timeouts(hass: HomeAssistant, mock_web
             assert any(s.get("H02") == 33 for s in seen), f"Expected H02=33 in {seen}"
 
         await c.async_disconnect()
+
+
+async def test_recv_loop_handles_device_change_push(hass: HomeAssistant, mock_websocket) -> None:
+    """Test that device_change push updates are tracked and forwarded."""
+    client = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
+
+    def recv_generator():
+        yield _login_ok()
+        yield _lst_device_ok("dev")
+        yield _push_device_change({"H06": 1, "H02": 33})
+        while True:
+            yield TimeoutError("timeout")
+
+    with (
+        patch("custom_components.fansync.client.httpx.Client") as http_cls,
+        patch(
+            "custom_components.fansync.client.websockets.connect", new_callable=AsyncMock
+        ) as ws_connect,
+    ):
+        http = http_cls.return_value
+        http.post.return_value.json.return_value = {"token": "t"}
+        http.post.return_value.raise_for_status.return_value = None
+
+        mock_websocket.recv.side_effect = recv_generator()
+        ws_connect.return_value = mock_websocket
+
+        seen: list[dict[str, int]] = []
+        client.set_status_callback(lambda s: seen.append(s))
+
+        await client.async_connect()
+
+        await asyncio.sleep(0.1)
+        await hass.async_block_till_done()
+
+        assert client.metrics.push_updates_received == 1
+        assert any(s.get("H02") == 33 and s.get("H06") == 1 for s in seen), seen
+
+        await client.async_disconnect()

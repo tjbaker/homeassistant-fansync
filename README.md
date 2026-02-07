@@ -28,7 +28,7 @@ Custom Home Assistant integration for Fanimation FanSync devices with cloud push
 ## Requirements
 
 - **Python:** 3.13+
-- **Home Assistant:** 2026.1.0 or newer
+- **Home Assistant:** 2026.2.0 or newer
 - **HACS:** Optional (only if installing via HACS)
 - **Account:** Valid Fanimation FanSync account with registered devices
 
@@ -97,12 +97,12 @@ Push-first updates are used by default. A low-frequency fallback poll can be con
 
 | Option                 | Description                                                       | Default |
 |------------------------|-------------------------------------------------------------------|---------|
-| fallback_poll_seconds  | Poll interval in seconds when push is unavailable (0 disables).  | 60      |
+| fallback_poll_seconds  | Poll interval in seconds when push is unavailable (0 disables polling). | 60      |
 | http_timeout_seconds   | HTTP connect/read timeout (seconds)                               | 20      |
 | ws_timeout_seconds     | WebSocket connect/recv timeout (seconds)                          | 30      |
 
 Set via: Settings → Devices & Services → FanSync → Configure → Options.
-- Poll interval allowed range: 15–600 seconds (0 disables)
+- Poll interval allowed range: 15–600 seconds (0 disables polling and relies on push)
 - Timeout ranges: 5–120 seconds (HTTP and WebSocket)
 
 ## Reauthentication
