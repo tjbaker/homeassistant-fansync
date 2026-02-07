@@ -28,7 +28,7 @@ class _ClientStub:
         return {"H00": 1}
 
 
-async def test_parallel_status_allows_partial_results(
+async def test_parallel_status_keeps_last_known_for_timeouts(
     hass: HomeAssistant, mock_config_entry
 ) -> None:
     client = _ClientStub(["d1", "d2"])  # two devices
@@ -41,12 +41,13 @@ async def test_parallel_status_allows_partial_results(
 
     client.async_get_status = _get_status  # type: ignore[assignment]
     coord = FanSyncCoordinator(hass, client, mock_config_entry)
+    coord.data = {"d1": {"H00": 0}, "d2": {"H00": 1, "H02": 10}}
 
     data = await coord._async_update_data()
     assert isinstance(data, dict)
     assert "d1" in data and isinstance(data["d1"], dict)
-    # d2 failed; ensure it's omitted, not causing an UpdateFailed
-    assert "d2" not in data
+    # d2 timed out; ensure we keep last known data
+    assert data["d2"] == {"H00": 1, "H02": 10}
 
 
 async def test_single_device_timeout_keeps_last_known_state(
