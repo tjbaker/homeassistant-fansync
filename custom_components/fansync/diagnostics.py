@@ -130,7 +130,7 @@ async def async_get_config_entry_diagnostics(
 
 
 def _summarize_status(
-    data: Mapping[str, object] | None,
+    data: object | None,
 ) -> dict[str, dict[str, object]]:
     """Summarize per-device status for diagnostics."""
     summary: dict[str, dict[str, object]] = {}

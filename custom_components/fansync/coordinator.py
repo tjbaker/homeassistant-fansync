@@ -355,7 +355,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
 
 
 def _summarize_status_snapshot(
-    data: Mapping[str, object] | None,
+    data: object | None,
 ) -> dict[str, dict[str, object]]:
     summary: dict[str, dict[str, object]] = {}
     if data is None:
