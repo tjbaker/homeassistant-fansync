@@ -256,8 +256,16 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             for did, status in results:
                 if isinstance(status, dict):
                     statuses[did] = status
-            # Debug: log mismatches for multi-device
+            # Keep last known state for timed-out devices to avoid entity dropouts.
             current = self.data or {}
+            if isinstance(current, dict):
+                for did in ids:
+                    if did in statuses:
+                        continue
+                    prev_data = current.get(did)
+                    if isinstance(prev_data, dict):
+                        statuses[did] = prev_data
+            # Debug: log mismatches for multi-device
             if isinstance(current, dict):
                 for did, status in statuses.items():
                     prev = current.get(did, {})
