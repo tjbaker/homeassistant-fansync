@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.7.4](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.3...0.7.4) (2026-02-07)
+
+
+### Bug Fixes
+
+* handle device_change push updates ([#159](https://github.com/tjbaker/homeassistant-fansync/issues/159)) ([c566a00](https://github.com/tjbaker/homeassistant-fansync/commit/c566a000147fb384edf08a5aef50f5f20b588e5a))
+
 ## [0.7.3](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.2...0.7.3) (2026-02-05)
 
 
