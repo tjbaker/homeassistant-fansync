@@ -615,8 +615,8 @@ async def test_diagnostics_redacts_device_metadata(hass: HomeAssistant) -> None:
 
     diagnostics = await async_get_config_entry_diagnostics(hass, entry)
     meta = diagnostics["device_metadata"]["test_device_123"]
-    assert meta["owner"] == "***"
-    assert meta["token"] == "***"
+    assert meta["owner"] == "**REDACTED**"
+    assert meta["token"] == "**REDACTED**"
     assert meta["device"] == "x"
 
 

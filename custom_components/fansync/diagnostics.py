@@ -14,20 +14,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.redact import async_redact_data
 
-from .const import (
-    KEY_DIRECTION,
-    KEY_LIGHT_BRIGHTNESS,
-    KEY_LIGHT_POWER,
-    KEY_POWER,
-    KEY_PRESET,
-    KEY_SPEED,
-)
+from .diagnostics_utils import summarize_status_snapshot
 
 
 async def async_get_config_entry_diagnostics(
@@ -68,7 +61,7 @@ async def async_get_config_entry_diagnostics(
             "last_poll_mismatch_history": getattr(coordinator, "_last_poll_mismatch_history", []),
             "status_history": getattr(coordinator, "_status_history", []),
             "device_count": len(coordinator.data) if coordinator.data else 0,
-            "status_snapshot": _summarize_status(coordinator.data),
+            "status_snapshot": summarize_status_snapshot(coordinator.data),
         }
 
     # Client diagnostics
@@ -120,7 +113,19 @@ async def async_get_config_entry_diagnostics(
             if hasattr(client, "device_metadata"):
                 meta = {}
                 for device_id in device_ids:
-                    meta[device_id] = _redact_data(client.device_metadata(device_id))
+                    meta[device_id] = async_redact_data(
+                        client.device_metadata(device_id),
+                        {
+                            "access_token",
+                            "api_key",
+                            "email",
+                            "owner",
+                            "password",
+                            "refresh_token",
+                            "secret",
+                            "token",
+                        },
+                    )
                 diagnostics["device_metadata"] = meta
 
         except Exception as err:
@@ -129,57 +134,11 @@ async def async_get_config_entry_diagnostics(
     return diagnostics
 
 
-def _summarize_status(
-    data: object | None,
-) -> dict[str, dict[str, object]]:
-    """Summarize per-device status for diagnostics."""
-    summary: dict[str, dict[str, object]] = {}
-    if data is None:
-        return summary
-    if not isinstance(data, Mapping):
-        return summary
-
-    for device_id, status in data.items():
-        if not isinstance(status, Mapping):
-            continue
-        status_map = dict(status)
-        summary[device_id] = {
-            "keys": sorted(status_map.keys()),
-            "fan": {
-                "power": status_map.get(KEY_POWER),
-                "speed": status_map.get(KEY_SPEED),
-                "preset": status_map.get(KEY_PRESET),
-                "direction": status_map.get(KEY_DIRECTION),
-            },
-            "light": {
-                "power": status_map.get(KEY_LIGHT_POWER),
-                "brightness": status_map.get(KEY_LIGHT_BRIGHTNESS),
-            },
-        }
-    return summary
-
-
 def _format_exception(exc: Exception | None) -> dict[str, str] | None:
     """Format exception info for diagnostics."""
     if exc is None:
         return None
     return {"type": type(exc).__name__, "message": str(exc)}
-
-
-def _redact_data(data: Any) -> Any:
-    """Redact sensitive fields from diagnostic data."""
-    if isinstance(data, dict):
-        redacted = {}
-        for key, value in data.items():
-            key_lower = str(key).lower()
-            if key_lower in {"password", "token", "owner", "email"}:
-                redacted[key] = "***"
-            else:
-                redacted[key] = _redact_data(value)
-        return redacted
-    if isinstance(data, list):
-        return [_redact_data(item) for item in data]
-    return data
 
 
 def _analyze_connection_quality(metrics: Any) -> dict[str, Any]:

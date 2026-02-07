@@ -15,7 +15,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -31,17 +30,12 @@ from .client import FanSyncClient
 from .const import (
     DEFAULT_FALLBACK_POLL_SECS,
     DOMAIN,
-    KEY_DIRECTION,
-    KEY_LIGHT_BRIGHTNESS,
-    KEY_LIGHT_POWER,
-    KEY_POWER,
-    KEY_PRESET,
-    KEY_SPEED,
     MISMATCH_HISTORY_MAX,
     POLL_STATUS_TIMEOUT_SECS,
     STATUS_HISTORY_MAX,
 )
 from .device_utils import create_device_info
+from .diagnostics_utils import summarize_status_snapshot
 
 SCAN_INTERVAL = timedelta(seconds=DEFAULT_FALLBACK_POLL_SECS)
 
@@ -284,6 +278,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     timeout_devices=timeout_devices,
                     mismatch_keys=mismatch_keys,
                     success=False,
+                    device_count=len(ids),
                 )
                 self._append_mismatch_history(mismatch_keys, len(ids))
                 return self.data or {}
@@ -323,7 +318,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         entry = {
             "timestamp_utc": datetime.now(UTC).isoformat(),
             "device_count": len(statuses),
-            "summary": _summarize_status_snapshot(statuses),
+            "summary": summarize_status_snapshot(statuses),
         }
         self._status_history.append(entry)
         if len(self._status_history) > self._status_history_max:
@@ -347,41 +342,14 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         timeout_devices: list[str],
         mismatch_keys: dict[str, list[str]],
         success: bool,
+        device_count: int | None = None,
     ) -> None:
         self._last_update_timeout_devices = timeout_devices
-        self._last_update_device_count = len(statuses)
+        self._last_update_device_count = device_count if device_count is not None else len(statuses)
         self._last_poll_mismatch_keys = mismatch_keys
         if success:
             self._last_update_success_utc = datetime.now(UTC).isoformat()
         self._last_update_end_utc = datetime.now(UTC).isoformat()
-
-
-def _summarize_status_snapshot(
-    data: object | None,
-) -> dict[str, dict[str, object]]:
-    summary: dict[str, dict[str, object]] = {}
-    if data is None:
-        return summary
-    if not isinstance(data, Mapping):
-        return summary
-    for device_id, status in data.items():
-        if not isinstance(status, Mapping):
-            continue
-        status_map = dict(status)
-        summary[device_id] = {
-            "keys": sorted(status_map.keys()),
-            "fan": {
-                "power": status_map.get(KEY_POWER),
-                "speed": status_map.get(KEY_SPEED),
-                "preset": status_map.get(KEY_PRESET),
-                "direction": status_map.get(KEY_DIRECTION),
-            },
-            "light": {
-                "power": status_map.get(KEY_LIGHT_POWER),
-                "brightness": status_map.get(KEY_LIGHT_BRIGHTNESS),
-            },
-        }
-    return summary
 
 
 def _changed_keys(prev: dict[str, object], new: dict[str, object]) -> list[str]:
