@@ -37,7 +37,9 @@ from .const import (
     KEY_POWER,
     KEY_PRESET,
     KEY_SPEED,
+    MISMATCH_HISTORY_MAX,
     POLL_STATUS_TIMEOUT_SECS,
+    STATUS_HISTORY_MAX,
 )
 from .device_utils import create_device_info
 
@@ -79,9 +81,9 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         self._last_update_duration_ms: float | None = None
         self._last_poll_mismatch_keys: dict[str, list[str]] = {}
         self._last_poll_mismatch_history: list[dict[str, object]] = []
-        self._last_poll_mismatch_history_max = 10
+        self._last_poll_mismatch_history_max = MISMATCH_HISTORY_MAX
         self._status_history: list[dict[str, object]] = []
-        self._status_history_max = 10
+        self._status_history_max = STATUS_HISTORY_MAX
 
     def _update_device_registry(self, device_ids: list[str]) -> None:
         """Update device registry with latest profile data from client.
@@ -211,11 +213,10 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 current = self.data or {}
                 prev = current.get(did, {}) if isinstance(current, dict) else {}
                 if isinstance(prev, dict) and isinstance(s, dict) and prev != s:
-                    mismatch_keys[did] = _changed_keys(prev, s)
+                    changed = _changed_keys(prev, s)
+                    mismatch_keys[did] = changed
                     if self.logger.isEnabledFor(logging.DEBUG):
-                        self.logger.debug(
-                            "poll mismatch d=%s changed_keys=%s", did, _changed_keys(prev, s)
-                        )
+                        self.logger.debug("poll mismatch d=%s changed_keys=%s", did, changed)
                 if self.logger.isEnabledFor(logging.DEBUG):
                     self.logger.debug("poll sync done devices=%d", len(statuses))
                 self._log_push_idle_if_needed()
@@ -259,12 +260,13 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 for did, status in statuses.items():
                     prev = current.get(did, {})
                     if isinstance(prev, dict) and isinstance(status, dict) and prev != status:
-                        mismatch_keys[did] = _changed_keys(prev, status)
+                        changed = _changed_keys(prev, status)
+                        mismatch_keys[did] = changed
                         if self.logger.isEnabledFor(logging.DEBUG):
                             self.logger.debug(
                                 "poll mismatch d=%s changed_keys=%s",
                                 did,
-                                _changed_keys(prev, status),
+                                changed,
                             )
             self._log_push_idle_if_needed()
             if self.logger.isEnabledFor(logging.DEBUG):

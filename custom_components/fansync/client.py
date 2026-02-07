@@ -30,6 +30,7 @@ from homeassistant.core import HomeAssistant
 from websockets.protocol import State
 
 from .const import (
+    COMMAND_HISTORY_MAX,
     DEFAULT_HTTP_TIMEOUT_SECS,
     DEFAULT_WS_TIMEOUT_SECS,
     PUSH_LOG_EVERY,
@@ -105,7 +106,7 @@ class FanSyncClient:
         self._last_recv_error: str | None = None
         self._last_recv_error_utc: str | None = None
         self._command_history: list[dict[str, Any]] = []
-        self._command_history_max = 50
+        self._command_history_max = COMMAND_HISTORY_MAX
         # Message routing: map request ID to Future for async_get_status/async_set
         self._pending_requests: dict[int, asyncio.Future[dict[str, Any]]] = {}
         # Start at 3 to avoid collision with hardcoded LOGIN(1) and LIST_DEVICES(2).
