@@ -634,7 +634,7 @@ class FanSyncClient:
                     # Status callbacks for set acks are handled in async_set to avoid duplication.
                     continue
 
-                # Process push updates (responses without request ID and with status data)
+                # Process push updates not matched to pending requests (with status data)
                 pushed_status, push_device = self._extract_push_status(payload)
                 if pushed_status is not None:
                     if not push_device:

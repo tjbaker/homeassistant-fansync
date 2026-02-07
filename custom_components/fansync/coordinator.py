@@ -166,7 +166,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     interval_s,
                 )
 
-    async def _async_update_data(self):
+    async def _async_update_data(self) -> dict[str, dict[str, object]]:
         start_monotonic = time.monotonic()
         self._last_update_start_utc = datetime.now(UTC).isoformat()
         self._last_update_end_utc = None

@@ -642,3 +642,6 @@ async def test_client_diagnostics_extended_fields(hass: HomeAssistant) -> None:
     assert diag["push"]["last_push_by_device"]["dev1"]["utc"] == "2026-02-05T00:00:02+00:00"
     assert diag["last_get_by_device"]["dev1"]["timestamp"] == "2026-02-05T00:00:03+00:00"
     assert diag["last_set_by_device"]["dev1"]["timestamp"] == "2026-02-05T00:00:04+00:00"
+
+    for future in client._pending_requests.values():
+        future.cancel()
