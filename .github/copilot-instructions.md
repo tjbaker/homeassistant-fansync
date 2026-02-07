@@ -248,20 +248,14 @@ and reduce review cycles. Items below capture common issues found in code review
 - [ ] Comments explain non-obvious trade-offs and design decisions
 
 ## Testing
-- [ ] All tests pass (make check in the venv)
-- [ ] Code coverage ≥ 75% (make check in the venv)
+- [ ] All tests pass (use `make check` in the venv)
+- [ ] Code coverage ≥ 75% (use `make check` in the venv)
 - [ ] New functionality has corresponding tests
 - [ ] Debug logging tested with caplog
 - [ ] Test helper functions have type annotations
 
 ## Linting & Formatting
-- [ ] No type errors (mypy custom_components/fansync --check-untyped-defs)
-- [ ] No linting errors (ruff check)
-- [ ] Code formatted (black --check --line-length 100 --include '\.py$' custom_components/ tests/)
-  - IMPORTANT: Black in Cursor sandbox requires explicit --include pattern and directories
-  - Do NOT run "black --check ." or "black --check" without paths - it will report no files
-  - Always use: black --check --line-length 100 --include '\.py$' custom_components/ tests/
-  - Or check specific files: black --check --line-length 100 file1.py file2.py
+- [ ] Linting/formatting/type checks pass (use `make check` in the venv)
 - [ ] Required headers present in Python/YAML files (SPDX + Apache-2.0)
 
 ## Git & Documentation
