@@ -208,6 +208,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                         timeout_devices=timeout_devices,
                         mismatch_keys=mismatch_keys,
                         success=False,
+                        device_count=1,
                     )
                     return self.data or {}
                 # Debug: log mismatches vs current coordinator snapshot
@@ -297,8 +298,9 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 timeout_devices=timeout_devices,
                 mismatch_keys=mismatch_keys,
                 success=True,
+                device_count=len(ids),
             )
-            self._append_mismatch_history(mismatch_keys, len(statuses))
+            self._append_mismatch_history(mismatch_keys, len(ids))
             return statuses
         except httpx.HTTPStatusError as err:
             # Handle authentication failures by triggering reauth flow
