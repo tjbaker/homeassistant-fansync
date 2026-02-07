@@ -228,7 +228,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     mismatch_keys=mismatch_keys,
                     success=True,
                 )
-                self._append_mismatch_history(mismatch_keys)
+                self._append_mismatch_history(mismatch_keys, len(statuses))
                 return statuses
 
             # Run per-device status in parallel with timeouts; tolerate partial failures
@@ -283,7 +283,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     mismatch_keys=mismatch_keys,
                     success=False,
                 )
-                self._append_mismatch_history(mismatch_keys)
+                self._append_mismatch_history(mismatch_keys, len(ids))
                 return self.data or {}
             # Update device registry with any new profile data for all devices
             self._update_device_registry(list(statuses.keys()))
@@ -294,7 +294,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 mismatch_keys=mismatch_keys,
                 success=True,
             )
-            self._append_mismatch_history(mismatch_keys)
+            self._append_mismatch_history(mismatch_keys, len(statuses))
             return statuses
         except httpx.HTTPStatusError as err:
             # Handle authentication failures by triggering reauth flow
@@ -327,10 +327,11 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         if len(self._status_history) > self._status_history_max:
             self._status_history.pop(0)
 
-    def _append_mismatch_history(self, mismatch: dict[str, list[str]]) -> None:
+    def _append_mismatch_history(self, mismatch: dict[str, list[str]], device_count: int) -> None:
         entry = {
             "timestamp_utc": datetime.now(UTC).isoformat(),
-            "device_count": len(mismatch),
+            "device_count": device_count,
+            "mismatch_device_count": len(mismatch),
             "mismatch_keys": mismatch,
         }
         self._last_poll_mismatch_history.append(entry)
@@ -357,22 +358,25 @@ def _summarize_status_snapshot(
     data: Mapping[str, object] | None,
 ) -> dict[str, dict[str, object]]:
     summary: dict[str, dict[str, object]] = {}
-    if not isinstance(data, dict):
+    if data is None:
+        return summary
+    if not isinstance(data, Mapping):
         return summary
     for device_id, status in data.items():
-        if not isinstance(status, dict):
+        if not isinstance(status, Mapping):
             continue
+        status_map = dict(status)
         summary[device_id] = {
-            "keys": sorted(status.keys()),
+            "keys": sorted(status_map.keys()),
             "fan": {
-                "power": status.get(KEY_POWER),
-                "speed": status.get(KEY_SPEED),
-                "preset": status.get(KEY_PRESET),
-                "direction": status.get(KEY_DIRECTION),
+                "power": status_map.get(KEY_POWER),
+                "speed": status_map.get(KEY_SPEED),
+                "preset": status_map.get(KEY_PRESET),
+                "direction": status_map.get(KEY_DIRECTION),
             },
             "light": {
-                "power": status.get(KEY_LIGHT_POWER),
-                "brightness": status.get(KEY_LIGHT_BRIGHTNESS),
+                "power": status_map.get(KEY_LIGHT_POWER),
+                "brightness": status_map.get(KEY_LIGHT_BRIGHTNESS),
             },
         }
     return summary

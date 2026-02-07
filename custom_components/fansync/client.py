@@ -637,7 +637,7 @@ class FanSyncClient:
                 pushed_status, push_device = self._extract_push_status(payload)
                 if pushed_status is not None:
                     if not push_device:
-                        push_device = "unknown"
+                        push_device = self._device_id or "unknown"
                     self.metrics.record_push_update()
                     self._push_count += 1
                     self._last_push_monotonic = time.monotonic()

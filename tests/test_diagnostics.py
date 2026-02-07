@@ -32,7 +32,6 @@ async def test_diagnostics_returns_metrics(hass: HomeAssistant) -> None:
     entry.entry_id = "test_entry"
     entry.title = "Test FanSync"
     entry.version = 1
-    entry.options = {}
     entry.options = {"fallback_poll_seconds": 30}
 
     # Create mock client with metrics

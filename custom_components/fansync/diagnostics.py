@@ -134,23 +134,26 @@ def _summarize_status(
 ) -> dict[str, dict[str, object]]:
     """Summarize per-device status for diagnostics."""
     summary: dict[str, dict[str, object]] = {}
-    if not isinstance(data, dict):
+    if data is None:
+        return summary
+    if not isinstance(data, Mapping):
         return summary
 
     for device_id, status in data.items():
-        if not isinstance(status, dict):
+        if not isinstance(status, Mapping):
             continue
+        status_map = dict(status)
         summary[device_id] = {
-            "keys": sorted(status.keys()),
+            "keys": sorted(status_map.keys()),
             "fan": {
-                "power": status.get(KEY_POWER),
-                "speed": status.get(KEY_SPEED),
-                "preset": status.get(KEY_PRESET),
-                "direction": status.get(KEY_DIRECTION),
+                "power": status_map.get(KEY_POWER),
+                "speed": status_map.get(KEY_SPEED),
+                "preset": status_map.get(KEY_PRESET),
+                "direction": status_map.get(KEY_DIRECTION),
             },
             "light": {
-                "power": status.get(KEY_LIGHT_POWER),
-                "brightness": status.get(KEY_LIGHT_BRIGHTNESS),
+                "power": status_map.get(KEY_LIGHT_POWER),
+                "brightness": status_map.get(KEY_LIGHT_BRIGHTNESS),
             },
         }
     return summary
