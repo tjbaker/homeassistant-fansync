@@ -78,6 +78,12 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         self._last_poll_mismatch_history_max = MISMATCH_HISTORY_MAX
         self._status_history: list[dict[str, object]] = []
         self._status_history_max = STATUS_HISTORY_MAX
+        self._next_update_trigger: str | None = "startup"
+
+    async def async_request_refresh(self) -> None:
+        """Request a manual refresh and track the trigger for diagnostics."""
+        self._next_update_trigger = "manual"
+        await super().async_request_refresh()
 
     def _update_device_registry(self, device_ids: list[str]) -> None:
         """Update device registry with latest profile data from client.
@@ -169,15 +175,16 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             statuses: dict[str, dict[str, object]] = {}
             ids = getattr(self.client, "device_ids", [])
             # Debug: mark start of polling sync
+            trigger = self._next_update_trigger or ("timer" if self.update_interval else "manual")
+            self._next_update_trigger = None
             if self.logger.isEnabledFor(logging.DEBUG):
-                trigger = "timer" if self.update_interval else "manual"
                 self.logger.debug(
                     "poll sync start trigger=%s interval=%s ids=%s",
                     trigger,
                     self.update_interval,
                     ids or [self.client.device_id],
                 )
-            self._last_update_trigger = "timer" if self.update_interval else "manual"
+            self._last_update_trigger = trigger
             timeout_devices: list[str] = []
             mismatch_keys: dict[str, list[str]] = {}
             if not ids:
