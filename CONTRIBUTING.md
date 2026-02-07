@@ -29,6 +29,8 @@ This guide covers everything you need to contribute: Docker development setup, w
 
 ### Open an Issue (with logs)
   - Use GitHub Issues to report bugs, propose features, or ask questions.
+  - Prefer attaching the integration diagnostics JSON (Settings → Devices & Services → FanSync → Download Diagnostics).
+    It captures connection timing, push counters/last push timestamps, and device info without secrets.
   - Include clear steps to reproduce, expected behavior, and a concise log slice.
   - During initial login (config flow), enable HTTP stack logging so auth errors/timeouts are visible.
     - Developer Tools → Services → `logger.set_level` → Data:
@@ -132,6 +134,7 @@ docker compose logs -f | grep -i "fansync\|httpcore\|httpx\|websockets"
 ```
 
 To disable debug logging, edit `dev-config/configuration.yaml` and remove the `logs:` section, then `docker compose restart`.
+If you removed the default logging, re-enable it by adding those loggers back to the `logs:` map.
 
 ### Alternative: Virtual Environment
 
@@ -163,6 +166,7 @@ Then manually install Home Assistant Core in development mode (see Home Assistan
 - **Formatter**: Black (line length 100) + Ruff
 - **Type checking**: mypy with strict settings  
 - **Python version**: 3.13
+- **Home Assistant**: 2026.2+
 - **Typing**: Modern syntax (`X | None` instead of `Optional[X]`)
 - **Async patterns**: Always use `async/await`, never block the event loop
 - **HA patterns**: CoordinatorEntity, push-first updates, optimistic UI
@@ -237,19 +241,19 @@ See **[tests/README.md](tests/README.md)** for comprehensive test patterns and s
 
 ```bash
 # Run tests with coverage
-pytest -q --cov=custom_components/fansync
+python -m pytest -q --cov=custom_components/fansync
 
 # Type checking
-mypy custom_components/fansync --check-untyped-defs
+python -m mypy custom_components/fansync --check-untyped-defs
 
 # Linting
-ruff check .
+python -m ruff check .
 
 # Formatting check
-black --check --line-length 100 --include '\.py$' custom_components/ tests/
+python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/
 
 # Run all checks
-pytest -q && ruff check . && black --check --line-length 100 --include '\.py$' custom_components/ tests/ && mypy custom_components/fansync
+make check
 ```
 
 ## Pull Request Workflow
@@ -288,12 +292,12 @@ Ensure all quality checks pass:
 
 ```bash
 # Run full test suite with coverage
-pytest --cov=custom_components/fansync --cov-report=term-missing
+python -m pytest --cov=custom_components/fansync --cov-report=term-missing
 
 # Check code style and types
-ruff check .
-black --check --line-length 100 --include '\.py$' custom_components/ tests/
-mypy custom_components/fansync --check-untyped-defs
+python -m ruff check .
+python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/
+python -m mypy custom_components/fansync --check-untyped-defs
 ```
 
 ### 4. Submit PR

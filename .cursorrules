@@ -44,7 +44,7 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Document type: ignore comments with justification for why they're needed.
 
 # Home Assistant Specifics
-- Only support HA 2026.1 and newer, no need for backward compatibility to older versions
+- Only support HA 2026.2 and newer, no need for backward compatibility to older versions
 - Use HA async patterns (`async_*` methods); avoid blocking I/O in the event loop.
   - Use hass.async_add_executor_job for any blocking operations.
 - Prefer CoordinatorEntity for entities with push updates.
@@ -54,7 +54,7 @@ Any changes should be made there; this file syncs automatically via pre-commit h
   device; entity unique_id must use self._device_id consistently.
 - Optimistic overlays: apply per-key overlays immediately; guard ~8s; confirm then clear;
   revert only on explicit failure.
-- Runtime Data (Modern Pattern - HA 2026.1+):
+- Runtime Data (Modern Pattern - HA 2026.2+):
   - Use ConfigEntry.runtime_data with TypedDict (not hass.data)
   - Define type alias for better IDE support and type checking:
     ```python
@@ -248,20 +248,14 @@ and reduce review cycles. Items below capture common issues found in code review
 - [ ] Comments explain non-obvious trade-offs and design decisions
 
 ## Testing
-- [ ] All tests pass (pytest)
-- [ ] Code coverage ≥ 75% (pytest --cov)
+- [ ] All tests pass (use `make check` in the venv)
+- [ ] Code coverage ≥ 75% (use `make check` in the venv)
 - [ ] New functionality has corresponding tests
 - [ ] Debug logging tested with caplog
 - [ ] Test helper functions have type annotations
 
 ## Linting & Formatting
-- [ ] No type errors (mypy custom_components/fansync --check-untyped-defs)
-- [ ] No linting errors (ruff check)
-- [ ] Code formatted (black --check --line-length 100 --include '\.py$' custom_components/ tests/)
-  - IMPORTANT: Black in Cursor sandbox requires explicit --include pattern and directories
-  - Do NOT run "black --check ." or "black --check" without paths - it will report no files
-  - Always use: black --check --line-length 100 --include '\.py$' custom_components/ tests/
-  - Or check specific files: black --check --line-length 100 file1.py file2.py
+- [ ] Linting/formatting/type checks pass (use `make check` in the venv)
 - [ ] Required headers present in Python/YAML files (SPDX + Apache-2.0)
 
 ## Git & Documentation
@@ -270,44 +264,9 @@ and reduce review cycles. Items below capture common issues found in code review
 - [ ] Docstrings added for complex logic or trade-offs
 
 # Cursor Sandbox Quality Checks
-When running quality checks in the Cursor sandbox environment, use these exact commands:
+When running quality checks in the Cursor sandbox environment, use the venv and run:
 
-**Tests**:
 ```bash
-python -m pytest tests/ -v --tb=short
-```
-
-**Coverage** (87% target, minimum 75%):
-```bash
-python -m pytest tests/ --cov=custom_components/fansync --cov-report=term-missing
-```
-
-**Ruff** (linting):
-```bash
-python -m ruff check .
-```
-
-**Black** (formatting) - CRITICAL FOR CURSOR SANDBOX:
-```bash
-# CORRECT - Black will see all 65 Python files:
-python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/
-
-# WRONG - Black will report "No Python files" in sandbox:
-# black --check .
-# black --check custom_components/ tests/
-
-# The --include pattern is required for Black to work in the Cursor sandbox
-```
-
-**Mypy** (type checking):
-```bash
-python -m mypy custom_components/fansync --check-untyped-defs
-```
-
-**Comprehensive check** (run all at once):
-```bash
-python -m pytest tests/ -q --tb=no && \
-python -m ruff check . && \
-python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/ && \
-python -m mypy custom_components/fansync --check-untyped-defs
+source venv/bin/activate
+make check
 ```

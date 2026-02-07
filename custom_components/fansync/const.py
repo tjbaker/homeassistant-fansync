@@ -75,6 +75,11 @@ WS_RECV_LOCK_TIMEOUT_SEC = 0.5  # Timeout for recv_lock acquisition in backgroun
 # Push update logging (tune higher for quieter logs)
 PUSH_LOG_EVERY = 50
 
+# Diagnostics history retention
+COMMAND_HISTORY_MAX = 50
+STATUS_HISTORY_MAX = 10
+MISMATCH_HISTORY_MAX = 10
+
 # WebSocket request IDs for connection bootstrap (keep stable for compatibility)
 # GET_STATUS and SET now use dynamic allocation via _next_request_id
 WS_REQUEST_ID_LOGIN = 1

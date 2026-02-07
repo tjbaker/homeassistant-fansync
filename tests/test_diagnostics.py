@@ -12,6 +12,7 @@
 
 """Tests for FanSync diagnostics."""
 
+import asyncio
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -31,6 +32,7 @@ async def test_diagnostics_returns_metrics(hass: HomeAssistant) -> None:
     entry.entry_id = "test_entry"
     entry.title = "Test FanSync"
     entry.version = 1
+    entry.options = {"fallback_poll_seconds": 30}
 
     # Create mock client with metrics
     client = MagicMock()
@@ -107,6 +109,29 @@ async def test_diagnostics_returns_metrics(hass: HomeAssistant) -> None:
     coordinator = MagicMock()
     coordinator.update_interval = None
     coordinator.last_update_success = True
+    coordinator.last_exception = None
+    coordinator._last_update_start_utc = "2026-02-05T00:00:00+00:00"
+    coordinator._last_update_end_utc = "2026-02-05T00:00:01+00:00"
+    coordinator._last_update_trigger = "manual"
+    coordinator._last_update_timeout_devices = []
+    coordinator._last_update_device_count = 1
+    coordinator._last_update_success_utc = "2026-02-05T00:00:01+00:00"
+    coordinator._last_update_duration_ms = 123.4
+    coordinator._last_poll_mismatch_keys = {"test_device_123": ["H00"]}
+    coordinator._last_poll_mismatch_history = [
+        {
+            "timestamp_utc": "2026-02-05T00:00:01+00:00",
+            "device_count": 1,
+            "mismatch_keys": {"test_device_123": ["H00"]},
+        }
+    ]
+    coordinator._status_history = [
+        {
+            "timestamp_utc": "2026-02-05T00:00:01+00:00",
+            "device_count": 1,
+            "summary": {"test_device_123": {"fan": {"power": 1}, "light": {"power": 0}}},
+        }
+    ]
     coordinator.data = {"test_device_123": {"H00": 1, "H02": 50}}
 
     # Set up entry.runtime_data
@@ -133,10 +158,14 @@ async def test_diagnostics_returns_metrics(hass: HomeAssistant) -> None:
     # Verify config entry data
     assert diagnostics["config_entry"]["entry_id"] == "test_entry"
     assert diagnostics["config_entry"]["title"] == "Test FanSync"
+    assert diagnostics["config_entry"]["options"]["fallback_poll_seconds"] == 30
 
     # Verify coordinator data
     assert diagnostics["coordinator"]["last_update_success"] is True
     assert diagnostics["coordinator"]["device_count"] == 1
+    assert diagnostics["coordinator"]["last_update_trigger"] == "manual"
+    assert diagnostics["coordinator"]["last_poll_mismatch_keys"]["test_device_123"] == ["H00"]
+    assert diagnostics["coordinator"]["status_history"][0]["device_count"] == 1
 
     # Verify device IDs
     assert "test_device_123" in diagnostics["device_ids"]
@@ -175,6 +204,7 @@ async def test_diagnostics_warns_on_poor_connection(hass: HomeAssistant) -> None
     entry.entry_id = "test_entry"
     entry.title = "Test FanSync"
     entry.version = 1
+    entry.options = {}
 
     # Create mock client with poor metrics
     client = MagicMock()
@@ -289,6 +319,7 @@ async def test_diagnostics_handles_disconnected_state(hass: HomeAssistant) -> No
     entry.entry_id = "test_entry"
     entry.title = "Test FanSync"
     entry.version = 1
+    entry.options = {}
 
     # Create mock client that's disconnected
     client = MagicMock()
@@ -372,6 +403,7 @@ async def test_diagnostics_handles_no_data(hass: HomeAssistant) -> None:
     entry.entry_id = "test_entry"
     entry.title = "Test FanSync"
     entry.version = 1
+    entry.options = {}
 
     # Create mock client with no commands yet
     client = MagicMock()
@@ -555,3 +587,61 @@ async def test_diagnostics_includes_granular_timing(hass: HomeAssistant) -> None
 
         # Cleanup
         await client.async_disconnect()
+
+
+async def test_diagnostics_redacts_device_metadata(hass: HomeAssistant) -> None:
+    """Ensure device metadata redacts sensitive fields."""
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.title = "Test FanSync"
+    entry.version = 1
+    entry.options = {}
+
+    client = MagicMock()
+    client.device_ids = ["test_device_123"]
+    client.metrics = ConnectionMetrics()
+    client.get_diagnostics_data = MagicMock(return_value={})
+    client.device_profile = MagicMock(return_value={})
+    client.device_metadata = MagicMock(
+        return_value={"owner": "user@example.com", "token": "secret", "device": "x"}
+    )
+
+    coordinator = MagicMock()
+    coordinator.update_interval = None
+    coordinator.last_update_success = True
+    coordinator.data = {}
+
+    entry.runtime_data = {"client": client, "coordinator": coordinator, "platforms": ["fan"]}
+
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+    meta = diagnostics["device_metadata"]["test_device_123"]
+    assert meta["owner"] == "**REDACTED**"
+    assert meta["token"] == "**REDACTED**"
+    assert meta["device"] == "x"
+
+
+async def test_client_diagnostics_extended_fields(hass: HomeAssistant) -> None:
+    """Ensure extended client diagnostics are populated."""
+    client = FanSyncClient(hass, "user@example.com", "pass", verify_ssl=False)
+    loop = asyncio.get_running_loop()
+    client._pending_requests = {1: loop.create_future(), 2: loop.create_future()}
+    client._last_request_id = 42
+    client._last_reconnect_utc = "2026-02-05T00:00:00+00:00"
+    client._last_recv_error = "TimeoutError"
+    client._last_recv_error_utc = "2026-02-05T00:00:01+00:00"
+    client._last_push_by_device = {"dev1": {"utc": "2026-02-05T00:00:02+00:00"}}
+    client._last_get_by_device = {"dev1": {"timestamp": "2026-02-05T00:00:03+00:00"}}
+    client._last_set_by_device = {"dev1": {"timestamp": "2026-02-05T00:00:04+00:00"}}
+    client.metrics.is_connected = True
+
+    diag = client.get_diagnostics_data()
+    assert diag["connection_state"]["pending_requests"] == 2
+    assert diag["connection_state"]["last_request_id"] == 42
+    assert diag["connection_state"]["last_reconnect_utc"] == "2026-02-05T00:00:00+00:00"
+    assert diag["connection_state"]["last_recv_error"] == "TimeoutError"
+    assert diag["push"]["last_push_by_device"]["dev1"]["utc"] == "2026-02-05T00:00:02+00:00"
+    assert diag["last_get_by_device"]["dev1"]["timestamp"] == "2026-02-05T00:00:03+00:00"
+    assert diag["last_set_by_device"]["dev1"]["timestamp"] == "2026-02-05T00:00:04+00:00"
+
+    for future in client._pending_requests.values():
+        future.cancel()
