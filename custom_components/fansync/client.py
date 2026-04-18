@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Trevor Baker, all rights reserved.
+# client.py version: 2.0.0 (aiohttp transport + server-greeting protocol fix)
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -23,11 +24,9 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+import aiohttp
 import httpx
-import websockets
-import websockets.asyncio.client
 from homeassistant.core import HomeAssistant
-from websockets.protocol import State
 
 from .const import (
     COMMAND_HISTORY_MAX,
@@ -46,6 +45,8 @@ from .metrics import ConnectionMetrics
 
 _LOGGER = logging.getLogger(__name__)
 
+_WS_URL = "wss://fanimation.apps.exosite.io/api:1/phone"
+
 
 class FanSyncConfigError(Exception):
     """Non-retryable configuration error."""
@@ -56,7 +57,8 @@ class FanSyncConfigError(Exception):
 class FanSyncClient:
     """Async WebSocket client for FanSync API.
 
-    Uses websockets library for native async WebSocket support.
+    Uses aiohttp for WebSocket transport, which is already a Home Assistant
+    core dependency and is tested against the HA Python runtime.
     All operations run in the Home Assistant event loop without threading.
     RuntimeError indicates transient remote failures; use FanSyncConfigError
     for deterministic misconfiguration.
@@ -82,9 +84,8 @@ class FanSyncClient:
         self._ws_timeout_s = ws_timeout_s
         self._ssl_context: ssl.SSLContext | None = None
         self._http: httpx.Client | None = None
-        # Using ClientConnection (concrete type) instead of ClientProtocol (abstract).
-        # websockets.connect() returns ClientConnection, and mypy needs the concrete type.
-        self._ws: websockets.asyncio.client.ClientConnection | None = None
+        self._ws_session: aiohttp.ClientSession | None = None
+        self._ws: aiohttp.ClientWebSocketResponse | None = None
         self._token: str | None = None
         self._device_id: str | None = None
         self._device_ids: list[str] = []
@@ -123,6 +124,7 @@ class FanSyncClient:
         self._last_ws_login_wait_ms: float | None = None  # Time waiting for login response
         self._token_refresh_count: int = 0
         self._last_login_response: dict[str, Any] | None = None  # Last login response (sanitized)
+        self._last_server_greeting: str | None = None  # Initial server frame before login
         self._connection_failures: list[dict[str, Any]] = []
         self._max_failure_history = 10
 
@@ -319,6 +321,86 @@ class FanSyncClient:
         resp.raise_for_status()
         return resp.json()["token"]
 
+    def _ssl_arg(self) -> ssl.SSLContext | bool:
+        """Return the SSL argument for aiohttp ws_connect."""
+        if not self.verify_ssl:
+            return False
+        if self._ssl_context is not None:
+            return self._ssl_context
+        return True  # aiohttp uses its default context
+
+    async def _ws_connect(self, ws_timeout: float) -> aiohttp.ClientWebSocketResponse:
+        """Open a WebSocket connection via aiohttp.
+
+        Uses aiohttp.ClientSession which is already a core HA dependency and
+        is tested against the HA Python runtime. The session is created lazily
+        and reused across reconnects; it is closed in async_disconnect().
+        """
+        if self._ws_session is None or self._ws_session.closed:
+            self._ws_session = aiohttp.ClientSession()
+        return await asyncio.wait_for(
+            self._ws_session.ws_connect(
+                _WS_URL,
+                ssl=self._ssl_arg(),
+                compress=False,
+                heartbeat=None,  # no client-initiated keepalive pings
+                autoping=True,   # auto-respond to server pings
+            ),
+            timeout=ws_timeout,
+        )
+
+    async def _ws_recv(
+        self, ws: aiohttp.ClientWebSocketResponse, timeout: float
+    ) -> str:
+        """Receive the next data message, skipping control frames.
+
+        aiohttp's receive() returns a WSMessage with a type field rather than
+        raising on connection close, so we discriminate here and raise
+        ConnectionError for closed/error states to match the original behaviour.
+        """
+        while True:
+            msg = await ws.receive(timeout=timeout)
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "ws frame: type=%s data=%.120s",
+                    msg.type.name,
+                    msg.data if isinstance(msg.data, (str, bytes)) else repr(msg.data),
+                )
+            if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
+                return msg.data if isinstance(msg.data, str) else msg.data.decode()
+            if msg.type in (
+                aiohttp.WSMsgType.CLOSED,
+                aiohttp.WSMsgType.CLOSING,
+                aiohttp.WSMsgType.ERROR,
+            ):
+                exc = ws.exception()
+                raise ConnectionError(
+                    f"WebSocket {msg.type.name.lower()}"
+                    + (f": {exc}" if exc else "")
+                )
+            # PING/PONG or other control frame — loop to get next message
+
+    async def _ws_recv_optional(
+        self, ws: aiohttp.ClientWebSocketResponse, timeout: float
+    ) -> str | None:
+        """Try to receive a data message; return None on timeout (no error).
+
+        Used to consume a server-initiated greeting frame that some API versions
+        send immediately after the WebSocket upgrade, before they will respond
+        to a login request.
+        """
+        try:
+            return await self._ws_recv(ws, timeout)
+        except TimeoutError:
+            return None
+
+    async def _ws_send(
+        self, ws: aiohttp.ClientWebSocketResponse, message: str, timeout: float
+    ) -> None:
+        """Send a text message with a timeout."""
+        async with asyncio.timeout(timeout):
+            await ws.send_str(message)
+
     async def async_connect(self) -> None:
         """Connect to FanSync cloud API and authenticate."""
         t0 = time.monotonic()
@@ -361,15 +443,15 @@ class FanSyncClient:
                 self.verify_ssl,
             )
 
+        # Create SSL context in executor to avoid blocking event loop (cached after first call)
+        if self._ssl_context is None:
+            self._ssl_context = await self.hass.async_add_executor_job(self._create_ssl_context)
+
         # WebSocket connection with retries
         ws_start = time.monotonic()
         ws_timeout = (
             float(self._ws_timeout_s) if self._ws_timeout_s is not None else WS_FALLBACK_TIMEOUT_SEC
         )
-
-        # Create SSL context in executor to avoid blocking event loop (cached after first call)
-        if self._ssl_context is None:
-            self._ssl_context = await self.hass.async_add_executor_job(self._create_ssl_context)
 
         ws = None
         last_ws_error: Exception | None = None
@@ -379,38 +461,41 @@ class FanSyncClient:
             try:
                 # Track WebSocket handshake timing separately
                 ws_connect_start = time.monotonic()
-                ws = await asyncio.wait_for(
-                    websockets.connect(
-                        "wss://fanimation.apps.exosite.io/api:1/phone",
-                        ssl=self._ssl_context,
-                        compression=None,
-                    ),
-                    timeout=ws_timeout,
-                )
+                ws = await self._ws_connect(ws_timeout)
                 self._last_ws_connect_ms = (time.monotonic() - ws_connect_start) * 1000
 
-                # Type narrowing for mypy: websockets.connect() never returns None,
-                # it raises an exception on failure. This assert is purely for type checking
-                # and cannot fail at runtime (if it does, there's a bug in websockets library).
-                assert ws is not None
+                # The Fanimation server sends an initial greeting frame immediately
+                # after the WebSocket upgrade on some connections. This frame must be
+                # consumed before the server will respond to a login request. The
+                # server either sends the greeting promptly or not at all, so a short
+                # timeout is sufficient even on slow connections.
+                ws_phase = "greeting_recv"
+                greeting_raw = await self._ws_recv_optional(ws, timeout=2.0)
+                if greeting_raw is not None:
+                    _LOGGER.info(
+                        "FanSync server sent greeting before login: %.200s", greeting_raw
+                    )
+                    self._last_server_greeting = greeting_raw
+                else:
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug("no server greeting within 2s — proceeding with login")
 
                 # Login - track send + response wait time
                 ws_login_start = time.monotonic()
                 ws_phase = "login_send"
-                await asyncio.wait_for(
-                    ws.send(
-                        json.dumps(
-                            {
-                                "id": WS_REQUEST_ID_LOGIN,
-                                "request": "login",
-                                "data": {"token": token},
-                            }
-                        )
+                await self._ws_send(
+                    ws,
+                    json.dumps(
+                        {
+                            "id": WS_REQUEST_ID_LOGIN,
+                            "request": "login",
+                            "data": {"token": token},
+                        }
                     ),
-                    timeout=ws_timeout,
+                    ws_timeout,
                 )
                 ws_phase = "login_recv"
-                raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
+                raw = await self._ws_recv(ws, ws_timeout)
                 self._last_ws_login_wait_ms = (time.monotonic() - ws_login_start) * 1000
 
                 payload = json.loads(raw)
@@ -446,7 +531,7 @@ class FanSyncClient:
                         ws_phase,
                         elapsed,
                     )
-                if ws:
+                if ws is not None:
                     try:
                         await ws.close()
                     except Exception as cleanup_exc:
@@ -459,7 +544,7 @@ class FanSyncClient:
                             )
                     ws = None
                 # Retry for transient errors
-                transient = isinstance(exc, TimeoutError | OSError)
+                transient = isinstance(exc, (TimeoutError, OSError, ConnectionError))
                 if transient and (attempt_idx + 1 < WS_LOGIN_RETRY_ATTEMPTS):
                     await asyncio.sleep(WS_LOGIN_RETRY_BACKOFF_SEC)
                 else:
@@ -481,11 +566,12 @@ class FanSyncClient:
 
         # List devices
         try:
-            await asyncio.wait_for(
-                ws.send(json.dumps({"id": WS_REQUEST_ID_LIST_DEVICES, "request": "lst_device"})),
-                timeout=ws_timeout,
+            await self._ws_send(
+                ws,
+                json.dumps({"id": WS_REQUEST_ID_LIST_DEVICES, "request": "lst_device"}),
+                ws_timeout,
             )
-            raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
+            raw = await self._ws_recv(ws, ws_timeout)
             payload = json.loads(raw)
             devices = payload.get("data") or []
         except Exception as exc:
@@ -567,6 +653,17 @@ class FanSyncClient:
                     _LOGGER.debug("WebSocket close failed: %s: %s", type(exc).__name__, exc)
             self._ws = None
 
+        # Close aiohttp session
+        if self._ws_session and not self._ws_session.closed:
+            try:
+                await self._ws_session.close()
+            except Exception as exc:
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(
+                        "aiohttp session close failed: %s: %s", type(exc).__name__, exc
+                    )
+            self._ws_session = None
+
         # Close HTTP client
         if self._http:
             try:
@@ -585,7 +682,7 @@ class FanSyncClient:
 
         while self._running:
             ws = self._ws
-            if ws is None:
+            if ws is None or ws.closed:
                 await asyncio.sleep(0.1)
                 continue
 
@@ -595,7 +692,7 @@ class FanSyncClient:
                     if self._ws_timeout_s is not None
                     else WS_FALLBACK_TIMEOUT_SEC
                 )
-                raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
+                raw = await self._ws_recv(ws, ws_timeout)
                 timeout_errors = 0
                 backoff_sec = 0.5
 
@@ -736,7 +833,7 @@ class FanSyncClient:
         """Ensure WebSocket is connected and authenticated."""
         reconnect_start = time.monotonic()
         # If WebSocket is already connected and open, nothing to do
-        if self._ws is not None and self._ws.state == State.OPEN:
+        if self._ws is not None and not self._ws.closed:
             return
 
         # Close old WebSocket if it exists
@@ -780,29 +877,28 @@ class FanSyncClient:
         if self._ssl_context is None:
             self._ssl_context = await self.hass.async_add_executor_job(self._create_ssl_context)
 
-        ws = await asyncio.wait_for(
-            websockets.connect(
-                "wss://fanimation.apps.exosite.io/api:1/phone",
-                ssl=self._ssl_context,
-                compression=None,
-            ),
-            timeout=ws_timeout,
-        )
+        ws = await self._ws_connect(ws_timeout)
+
+        # Consume any server greeting before sending login (see async_connect for details)
+        greeting_raw = await self._ws_recv_optional(ws, timeout=2.0)
+        if greeting_raw is not None:
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("server greeting on reconnect: %.200s", greeting_raw)
+            self._last_server_greeting = greeting_raw
 
         # Login
-        await asyncio.wait_for(
-            ws.send(
-                json.dumps(
-                    {
-                        "id": WS_REQUEST_ID_LOGIN,
-                        "request": "login",
-                        "data": {"token": self._token},
-                    }
-                )
+        await self._ws_send(
+            ws,
+            json.dumps(
+                {
+                    "id": WS_REQUEST_ID_LOGIN,
+                    "request": "login",
+                    "data": {"token": self._token},
+                }
             ),
-            timeout=ws_timeout,
+            ws_timeout,
         )
-        raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
+        raw = await self._ws_recv(ws, ws_timeout)
         payload = json.loads(raw)
         if not (isinstance(payload, dict) and payload.get("status") == "ok"):
             raise RuntimeError("WebSocket login failed")
@@ -849,7 +945,7 @@ class FanSyncClient:
                 try:
                     await self._ensure_ws_connected()
                     ws = self._ws
-                    if ws is None:
+                    if ws is None or ws.closed:
                         raise RuntimeError("WebSocket not connected")
 
                     if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -859,12 +955,9 @@ class FanSyncClient:
                             request_type,
                             device_id,
                         )
-                    await asyncio.wait_for(
-                        ws.send(json.dumps(payload)),
-                        timeout=ws_timeout,
-                    )
+                    await self._ws_send(ws, json.dumps(payload), ws_timeout)
                     break
-                except (OSError, RuntimeError, TimeoutError) as err:
+                except (OSError, RuntimeError, TimeoutError, ConnectionError) as err:
                     # If it's the first attempt, try to force reconnect and retry
                     if attempt == 0:
                         if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -1161,10 +1254,7 @@ class FanSyncClient:
 
         ws_state: str | None = None
         if self._ws is not None:
-            try:
-                ws_state = self._ws.state.name
-            except AttributeError:
-                ws_state = str(self._ws.state)
+            ws_state = "CLOSED" if self._ws.closed else "OPEN"
 
         recv_task_state = None
         if self._recv_task is not None:
@@ -1180,7 +1270,7 @@ class FanSyncClient:
             # Environment info
             "environment": {
                 "python_version": sys.version.split()[0],
-                "websockets_version": websockets.__version__,
+                "aiohttp_version": aiohttp.__version__,
                 "httpx_version": httpx.__version__,
             },
             # Configuration
@@ -1235,6 +1325,8 @@ class FanSyncClient:
             "token_metadata": self._parse_token_metadata(),
             # Last login response (sanitized)
             "last_login_response": self._last_login_response,
+            # Server greeting received before login (if any)
+            "last_server_greeting": self._last_server_greeting,
             # Recent failures
             "connection_failures": self._connection_failures,
             # Metrics
