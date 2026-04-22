@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.7.5](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.4...0.7.5) (2026-04-22)
+
+
+### Bug Fixes
+
+* upgrade to HA 2026.4.3 and Python 3.14 ([#177](https://github.com/tjbaker/homeassistant-fansync/issues/177)) ([feaa24d](https://github.com/tjbaker/homeassistant-fansync/commit/feaa24df3a61e166dceea29dbeb699af14538393))
+
 ## [0.7.4](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.3...0.7.4) (2026-02-07)
 
 
