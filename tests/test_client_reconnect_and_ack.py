@@ -58,6 +58,7 @@ async def test_set_uses_ack_status_when_present(hass: HomeAssistant, mock_websoc
 
         def recv_generator() -> Any:
             """Generator that simulates WebSocket recv with set ack."""
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("dev")
             # Set ack with status (ID 3, no reconnect with state=OPEN)
@@ -107,6 +108,7 @@ async def test_verify_ssl_false_sets_no_cert_check(hass: HomeAssistant, mock_web
         http.post.return_value.raise_for_status.return_value = None
 
         def recv_generator() -> Any:
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("dev")
             while True:

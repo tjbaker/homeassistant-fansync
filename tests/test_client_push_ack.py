@@ -48,6 +48,7 @@ async def test_set_ack_status_immediate_push(hass: HomeAssistant, mock_websocket
         def recv_generator():
             """Generator for push ack scenario."""
             # Initial connection
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             # Set ACK with status data (ID 3, no reconnect with state=OPEN)

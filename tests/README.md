@@ -22,7 +22,7 @@ For development setup, style, and commit conventions, see `CONTRIBUTING.md`.
 
 ```bash
 # Create a virtualenv (first time)
-python3.13 -m venv venv
+python3.14 -m venv venv
 
 # Activate the repo's virtualenv (macOS/Linux)
 source venv/bin/activate

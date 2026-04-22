@@ -52,22 +52,26 @@ async def test_reauth_flow_success(hass: HomeAssistant) -> None:
     assert result["step_id"] == "reauth_confirm"
 
     # Mock successful connection with new password
-    with (patch("custom_components.fansync.config_flow.FanSyncClient") as mock_client_class,):
+    with (
+        patch("custom_components.fansync.config_flow.FanSyncClient") as mock_client_class,
+        patch("custom_components.fansync.FanSyncClient") as mock_setup,
+    ):
         mock_client = mock_client_class.return_value
         mock_client.async_connect = AsyncMock()
         mock_client.async_disconnect = AsyncMock()
         mock_client.device_ids = ["test-device"]
+        mock_setup.return_value.async_connect = AsyncMock(side_effect=RuntimeError("no setup"))
 
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"],
             user_input={CONF_PASSWORD: "new_password"},
         )
 
-    assert result2["type"] == FlowResultType.ABORT
-    assert result2["reason"] == "reauth_successful"
+        assert result2["type"] == FlowResultType.ABORT
+        assert result2["reason"] == "reauth_successful"
 
-    # Verify password was updated
-    await hass.async_block_till_done()
+        # Verify password was updated
+        await hass.async_block_till_done()
     assert entry.data[CONF_PASSWORD] == "new_password"
 
 

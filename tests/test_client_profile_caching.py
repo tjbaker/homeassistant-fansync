@@ -34,6 +34,7 @@ async def test_profile_caching_success(
     def recv_generator():
         """Generator that provides responses in order."""
         # Initial connection: login (id=1), lst_device (id=2)
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         yield json.dumps(
             {"response": "lst_device", "data": [{"device": "test_device_123"}], "id": 2}
@@ -112,6 +113,7 @@ async def test_profile_caching_no_profile_in_response(
 
     def recv_generator():
         """Generator that provides responses in order."""
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         yield json.dumps(
             {"response": "lst_device", "data": [{"device": "test_device_456"}], "id": 2}
@@ -174,6 +176,7 @@ async def test_profile_caching_empty_profile(
 
     def recv_generator():
         """Generator that provides responses in order."""
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         yield json.dumps(
             {"response": "lst_device", "data": [{"device": "test_device_789"}], "id": 2}
@@ -236,6 +239,7 @@ async def test_profile_caching_with_keyerror(
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
     def recv_generator():
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         yield json.dumps(
             {"response": "lst_device", "data": [{"device": "test_device_error"}], "id": 2}
@@ -292,6 +296,7 @@ async def test_profile_caching_with_wrong_type(
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
     def recv_generator():
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         yield json.dumps(
             {"response": "lst_device", "data": [{"device": "test_device_type_error"}], "id": 2}
@@ -354,6 +359,7 @@ async def test_profile_caching_multiple_devices(hass: HomeAssistant, mock_websoc
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
     def recv_generator():
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         yield json.dumps({"response": "lst_device", "data": [{"device": "device_1"}], "id": 2})
         # First get request for device_1
@@ -425,6 +431,7 @@ async def test_profile_caching_updates_existing(hass: HomeAssistant, mock_websoc
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
     def recv_generator():
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         yield json.dumps({"response": "lst_device", "data": [{"device": "test_device"}], "id": 2})
         # First get request
@@ -495,6 +502,7 @@ async def test_profile_retrieval_returns_shallow_copy(hass: HomeAssistant, mock_
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
     def recv_generator():
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         yield json.dumps({"response": "lst_device", "data": [{"device": "test_device"}], "id": 2})
         # Wait for get request to be sent (login=1, lst=2, get=3)
@@ -555,6 +563,7 @@ async def test_profile_caching_exception_in_try_block(
     client = FanSyncClient(hass, "e", "p", enable_push=False)
 
     def recv_generator():
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         yield json.dumps(
             {"response": "lst_device", "data": [{"device": "test_device_exception"}], "id": 2}

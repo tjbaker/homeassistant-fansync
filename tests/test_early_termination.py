@@ -51,6 +51,7 @@ async def test_fan_early_termination_via_push(
     # Simulate connection with one device
     def recv_generator():
         # Login
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         # Device list
         yield json.dumps(
@@ -142,6 +143,7 @@ async def test_light_early_termination_via_push(
     # Simulate connection with one device
     def recv_generator():
         # Login
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         # Device list
         yield json.dumps(
@@ -225,6 +227,7 @@ async def test_fan_fallback_polling_without_push(
     # Simulate connection with one device
     def recv_generator():
         # Login
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         # Device list
         yield json.dumps(
@@ -323,6 +326,7 @@ async def test_confirmed_by_push_flag_reset(
     # Simulate connection with one device
     def recv_generator():
         # Login
+        yield TimeoutError()  # no server greeting
         yield json.dumps({"response": "login", "status": "ok", "id": 1})
         # Device list
         yield json.dumps(

@@ -75,6 +75,7 @@ async def test_websocket_timeout_converts_to_timeout_error(
 
         # Setup WebSocket mock
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("test_device")
             # Simulate timeout on subsequent recv
@@ -129,6 +130,7 @@ async def test_websocket_timeout_during_recv_in_get_status(
 
         # Setup WebSocket mock
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("test_device")
             # First get_status times out - keep yielding timeouts

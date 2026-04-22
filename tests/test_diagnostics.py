@@ -509,6 +509,7 @@ async def test_diagnostics_includes_granular_timing(hass: HomeAssistant) -> None
 
     # Generator for recv responses
     def recv_generator():
+        yield TimeoutError()  # no server greeting
         yield _login_ok()
         yield _lst_device_ok()
         while True:

@@ -142,8 +142,8 @@ If you prefer not to use Docker:
 
 ```bash
 # Create and activate a virtualenv
-# Tip: .python-version sets the recommended Python version (3.13.x) for pyenv/mise/uv
-python3.13 -m venv venv
+# Tip: .python-version sets the recommended Python version (3.14.x) for pyenv/mise/uv
+python3.14 -m venv venv
 source venv/bin/activate
 
 # Install development tools
@@ -165,8 +165,8 @@ Then manually install Home Assistant Core in development mode (see Home Assistan
 
 - **Formatter**: Black (line length 100) + Ruff
 - **Type checking**: mypy with strict settings  
-- **Python version**: 3.13
-- **Home Assistant**: 2026.2+
+- **Python version**: 3.14
+- **Home Assistant**: 2026.3+
 - **Typing**: Modern syntax (`X | None` instead of `Optional[X]`)
 - **Async patterns**: Always use `async/await`, never block the event loop
 - **HA patterns**: CoordinatorEntity, push-first updates, optimistic UI

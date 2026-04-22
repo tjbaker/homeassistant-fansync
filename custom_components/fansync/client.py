@@ -37,6 +37,7 @@ from .const import (
     SLOW_CONNECTION_WARNING_MS,
     SLOW_RESPONSE_WARNING_MS,
     WS_FALLBACK_TIMEOUT_SEC,
+    WS_GREETING_TIMEOUT_SEC,
     WS_LOGIN_RETRY_ATTEMPTS,
     WS_LOGIN_RETRY_BACKOFF_SEC,
     WS_REQUEST_ID_LIST_DEVICES,
@@ -123,6 +124,7 @@ class FanSyncClient:
         self._last_ws_login_wait_ms: float | None = None  # Time waiting for login response
         self._token_refresh_count: int = 0
         self._last_login_response: dict[str, Any] | None = None  # Last login response (sanitized)
+        self._last_server_greeting: str | bytes | None = None  # Initial server frame before login
         self._connection_failures: list[dict[str, Any]] = []
         self._max_failure_history = 10
 
@@ -319,6 +321,20 @@ class FanSyncClient:
         resp.raise_for_status()
         return resp.json()["token"]
 
+    async def _ws_recv_greeting(
+        self, ws: websockets.asyncio.client.ClientConnection
+    ) -> str | bytes | None:
+        """Attempt to receive a server-initiated greeting frame after WebSocket upgrade.
+
+        Some API versions send a greeting immediately after upgrade and will not
+        respond to the login request until it is consumed. Returns None on timeout
+        (no greeting sent), which is also valid — login proceeds normally.
+        """
+        try:
+            return await asyncio.wait_for(ws.recv(), timeout=WS_GREETING_TIMEOUT_SEC)
+        except TimeoutError:
+            return None
+
     async def async_connect(self) -> None:
         """Connect to FanSync cloud API and authenticate."""
         t0 = time.monotonic()
@@ -393,6 +409,20 @@ class FanSyncClient:
                 # it raises an exception on failure. This assert is purely for type checking
                 # and cannot fail at runtime (if it does, there's a bug in websockets library).
                 assert ws is not None
+
+                # Consume any server-initiated greeting before sending login.
+                # Some API versions send a greeting immediately after upgrade and
+                # will not respond to login until it is consumed.
+                ws_phase = "greeting_recv"
+                greeting = await self._ws_recv_greeting(ws)
+                if greeting is not None:
+                    _LOGGER.info("FanSync server sent greeting before login: %.200s", greeting)
+                    self._last_server_greeting = greeting
+                elif _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(
+                        "no server greeting within %.0fs — proceeding with login",
+                        WS_GREETING_TIMEOUT_SEC,
+                    )
 
                 # Login - track send + response wait time
                 ws_login_start = time.monotonic()
@@ -789,6 +819,13 @@ class FanSyncClient:
             timeout=ws_timeout,
         )
 
+        # Consume any server-initiated greeting before sending login (see async_connect)
+        greeting = await self._ws_recv_greeting(ws)
+        if greeting is not None:
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("server greeting on reconnect: %.200s", greeting)
+            self._last_server_greeting = greeting
+
         # Login
         await asyncio.wait_for(
             ws.send(
@@ -1149,7 +1186,7 @@ class FanSyncClient:
         try:
             if self._ws_timeout_s is not None:
                 return int(self._ws_timeout_s)
-        except (TypeError, ValueError, AttributeError):
+        except TypeError, ValueError, AttributeError:
             pass
         return int(DEFAULT_WS_TIMEOUT_SECS)
 
@@ -1235,6 +1272,7 @@ class FanSyncClient:
             "token_metadata": self._parse_token_metadata(),
             # Last login response (sanitized)
             "last_login_response": self._last_login_response,
+            "last_server_greeting": self._last_server_greeting,
             # Recent failures
             "connection_failures": self._connection_failures,
             # Metrics

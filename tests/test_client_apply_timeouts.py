@@ -50,6 +50,7 @@ async def test_apply_timeouts_http_only(hass: HomeAssistant, mock_websocket) -> 
         )()
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             while True:
@@ -88,6 +89,7 @@ async def test_apply_timeouts_ws_only(hass: HomeAssistant, mock_websocket) -> No
         )()
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             while True:
@@ -127,6 +129,7 @@ async def test_apply_timeouts_both(hass: HomeAssistant, mock_websocket) -> None:
         http_inst.close.return_value = None
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             while True:
@@ -170,6 +173,7 @@ async def test_apply_timeouts_http_close_exception(hass: HomeAssistant, mock_web
         http_inst.close.side_effect = RuntimeError("Close failed")
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             while True:

@@ -40,10 +40,15 @@ async def test_show_form(hass: HomeAssistant):
 async def test_create_entry(hass: HomeAssistant):
     """Create a config entry from user-provided credentials."""
     user_input = {"email": "user@example.com", "password": "pw", "verify_ssl": False}
-    with patch("custom_components.fansync.config_flow.FanSyncClient") as mock_client:
+    with (
+        patch("custom_components.fansync.config_flow.FanSyncClient") as mock_client,
+        patch("custom_components.fansync.FanSyncClient") as mock_setup,
+    ):
         mock_client.return_value.async_connect = AsyncMock(return_value=None)
+        mock_setup.return_value.async_connect = AsyncMock(side_effect=RuntimeError("no setup"))
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}, data=user_input
         )
+        await hass.async_block_till_done()
     assert result["type"] == "create_entry"
     assert result["data"] == user_input

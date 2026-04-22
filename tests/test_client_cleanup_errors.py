@@ -59,6 +59,7 @@ async def test_disconnect_ws_close_exception(hass: HomeAssistant, mock_websocket
         )()
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             while True:
@@ -101,6 +102,7 @@ async def test_disconnect_http_close_exception(hass: HomeAssistant, mock_websock
         http_inst.close.side_effect = RuntimeError("HTTP close failed")
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             while True:
@@ -139,6 +141,7 @@ async def test_disconnect_both_close_exceptions(hass: HomeAssistant, mock_websoc
         http_inst.close.side_effect = RuntimeError("HTTP close failed")
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             while True:
@@ -179,6 +182,7 @@ async def test_disconnect_recv_task_cancel(hass: HomeAssistant, mock_websocket) 
         )()
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             while True:

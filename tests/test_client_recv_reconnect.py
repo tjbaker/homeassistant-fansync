@@ -58,6 +58,7 @@ async def test_recv_loop_reconnects_after_timeouts(hass: HomeAssistant, mock_web
         def recv_generator():
             """Generator for reconnect scenario."""
             # Initial connection
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("dev")
             # Trigger reconnect (3 consecutive timeouts)
@@ -65,6 +66,7 @@ async def test_recv_loop_reconnects_after_timeouts(hass: HomeAssistant, mock_web
             yield TimeoutError("timeout")
             yield TimeoutError("timeout")
             # Reconnect login
+            yield TimeoutError()  # no server greeting on reconnect
             yield _login_ok()
             # Push event after reconnect
             yield _push_status({"H02": 33})
@@ -100,6 +102,7 @@ async def test_recv_loop_handles_device_change_push(hass: HomeAssistant, mock_we
     client = FanSyncClient(hass, "e", "p", verify_ssl=True, enable_push=True)
 
     def recv_generator():
+        yield TimeoutError()  # no server greeting
         yield _login_ok()
         yield _lst_device_ok("dev")
         yield _push_device_change({"H06": 1, "H02": 33})

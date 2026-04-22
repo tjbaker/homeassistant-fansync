@@ -66,7 +66,7 @@ async def async_setup_entry(
             # Use a short timeout to avoid blocking setup indefinitely
             await asyncio.wait_for(coordinator.async_request_refresh(), timeout=5.0)
             data = coordinator.data or {}
-        except (TimeoutError, UpdateFailed):
+        except TimeoutError, UpdateFailed:
             # If refresh times out or fails, fall back to empty dict
             data = {}
 
@@ -131,7 +131,7 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         if isinstance(raw, int | str):
             try:
                 return int(raw)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
         return int(default)
 

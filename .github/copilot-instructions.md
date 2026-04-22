@@ -4,7 +4,7 @@ NOTE: The canonical source for these instructions is .cursorrules in the repo ro
 Any changes should be made there; this file syncs automatically via pre-commit hook.
 
 # Style & Formatting
-- Use Black/Ruff exactly as configured in pyproject.toml (line length 100, Python 3.13).
+- Use Black/Ruff exactly as configured in pyproject.toml (line length 100, Python 3.14).
 - Follow PEP 8 principles; Black/Ruff are authoritative for enforcement.
 - Optimize for clarity and readability; prefer explicit types where helpful.
 - Prefer `X | None` in type annotations; prefer union syntax in `isinstance()` checks (e.g., `int | str`) over tuples.
@@ -44,7 +44,7 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Document type: ignore comments with justification for why they're needed.
 
 # Home Assistant Specifics
-- Only support HA 2026.2 and newer, no need for backward compatibility to older versions
+- Only support HA 2026.3 and newer, no need for backward compatibility to older versions
 - Use HA async patterns (`async_*` methods); avoid blocking I/O in the event loop.
   - Use hass.async_add_executor_job for any blocking operations.
 - Prefer CoordinatorEntity for entities with push updates.
@@ -137,6 +137,7 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Use builtin `TimeoutError` (not `asyncio.TimeoutError`) per Python 3.11+ and Ruff UP041
   - `asyncio.TimeoutError` is an alias to builtin `TimeoutError` in Python 3.11+
   - Always use `except TimeoutError:` to catch timeouts from `asyncio.wait_for()`
+- PEP 758 (Python 3.14): bare-comma `except` is valid — `except TypeError, ValueError:` is preferred by Black over `except (TypeError, ValueError):`
 - Log exceptions with type and message at appropriate level before re-raising or returning error state
 - Use RuntimeError for integration-specific errors (connection failures, invalid state)
 - Use `ConfigEntryNotReady` for transient setup failures so HA retries with backoff
