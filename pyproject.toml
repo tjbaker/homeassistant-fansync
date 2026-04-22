@@ -1,11 +1,11 @@
 [tool.black]
 line-length = 100
-target-version = ["py313"]
+target-version = ["py314"]
 include = '\\.pyi?$'
 
 [tool.ruff]
 line-length = 100
-target-version = "py313"
+target-version = "py314"
 exclude = [
   "venv",
   ".venv",
@@ -26,7 +26,7 @@ known-first-party = ["custom_components"]
 force-single-line = false
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.14"
 warn_unused_ignores = true
 warn_redundant_casts = true
 warn_unreachable = true

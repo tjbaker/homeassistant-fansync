@@ -1,6 +1,6 @@
 .PHONY: venv install test coverage lint format-check type-check check
 
-PYTHON ?= python3.13
+PYTHON ?= python3.14
 VENV ?= venv
 BIN := $(VENV)/bin
 PIP := $(BIN)/pip

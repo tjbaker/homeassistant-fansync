@@ -48,6 +48,7 @@ async def test_set_ack_with_status_triggers_callback_exactly_once(
     def recv_generator():
         """Generator that provides responses including set ack with status."""
         # Connection bootstrap
+        yield TimeoutError()  # no server greeting
         yield _login_ok()
         yield _lst_device_ok("test_device")
         # Set acknowledgment with status data (request ID 3)
@@ -129,6 +130,7 @@ async def test_set_ack_without_status_does_not_trigger_callback(
 
     def recv_generator():
         """Generator that provides set ack without status data."""
+        yield TimeoutError()  # no server greeting
         yield _login_ok()
         yield _lst_device_ok("test_device")
         # Set acknowledgment without status data (request ID 3)

@@ -91,6 +91,11 @@ WS_GET_RETRY_LIMIT = 5  # Max recv attempts to find get response
 # WebSocket fallback timeout (used when _ws_timeout_s is None)
 WS_FALLBACK_TIMEOUT_SEC = 10.0
 
+# Greeting timeout: how long to wait for a server-initiated frame after WebSocket upgrade.
+# Some API versions send a greeting that must be consumed before they respond to login.
+# The server either sends the greeting promptly or not at all, so a short window suffices.
+WS_GREETING_TIMEOUT_SEC = 2.0
+
 # Coordinator timeouts
 # Align with default WS timeout to avoid cancelling in-progress recv operations
 POLL_STATUS_TIMEOUT_SECS = 30

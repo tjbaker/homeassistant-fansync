@@ -66,6 +66,7 @@ async def test_connect_sets_device_id(hass: HomeAssistant, mock_websocket) -> No
         )()
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("dev-123")
             # Keep recv loop alive
@@ -103,6 +104,7 @@ async def test_get_status_returns_mapping(hass: HomeAssistant, mock_websocket) -
         def recv_generator():
             """Generator that provides responses based on sent requests."""
             # Initial connection: login (id=1), lst_device (id=2)
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             # Get response with dynamic ID
@@ -152,6 +154,7 @@ async def test_async_set_triggers_callback(hass: HomeAssistant, mock_websocket) 
         def recv_generator():
             """Generator that simulates WebSocket recv with proper message ordering."""
             # Initial connection
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             # Wait for set request (login=1, lst=2, set=3)
@@ -212,6 +215,7 @@ async def test_async_set_uses_ack_status_when_present(hass: HomeAssistant, mock_
         def recv_generator():
             """Generator that simulates WebSocket recv with proper message ordering."""
             # Initial connection
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             # The set ack with status (ID 3, no reconnect with state=OPEN)
@@ -266,7 +270,8 @@ async def test_connect_ws_login_failure_raises(hass: HomeAssistant, mock_websock
             "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"token": "t"}}
         )()
         mock_websocket.recv.side_effect = [
-            json.dumps({"status": "fail", "response": "login", "id": 1})
+            TimeoutError(),  # no server greeting
+            json.dumps({"status": "fail", "response": "login", "id": 1}),
         ]
         ws_connect.return_value = mock_websocket
 
@@ -298,6 +303,7 @@ async def test_connect_ws_timeout_then_success_retries(hass: HomeAssistant):
         ws2.send = AsyncMock()
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("dev-retry")
             # Keep recv loop alive

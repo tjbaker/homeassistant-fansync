@@ -41,6 +41,7 @@ async def test_get_matches_by_request_id(hass: HomeAssistant, mock_websocket) ->
     def recv_generator():
         """Generator that provides responses with matching and mismatched IDs."""
         # Initial connection
+        yield TimeoutError()  # no server greeting
         yield _login_ok()
         yield _lst_device_ok("dev")
         # Wait for get request

@@ -96,6 +96,7 @@ async def test_connect_retry_success_on_second_attempt(hass: HomeAssistant, mock
 
         # First attempt fails, second succeeds
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield json.dumps({"status": "ok", "response": "login", "id": 1})
             yield json.dumps(
                 {
@@ -145,6 +146,7 @@ async def test_connect_retry_with_backoff(hass: HomeAssistant, mock_websocket) -
 
         # First attempt fails, second succeeds
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield json.dumps({"status": "ok", "response": "login", "id": 1})
             yield json.dumps(
                 {

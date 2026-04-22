@@ -59,6 +59,7 @@ async def test_recv_task_created_even_without_push(hass: HomeAssistant, mock_web
         http.post.return_value.raise_for_status.return_value = None
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("dev")
             while True:
@@ -93,6 +94,7 @@ async def test_get_timeout_raises(hass: HomeAssistant, mock_websocket):
 
         # Generator that provides non-get frames then times out
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("dev")
             # Provide non-get frames, then timeout (no get response ever comes)
@@ -134,6 +136,7 @@ async def test_push_ignores_irrelevant_frames(hass: HomeAssistant, mock_websocke
 
         def recv_generator():
             """Generator for recv loop with irrelevant frames."""
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("dev")
             # These should be ignored by recv loop

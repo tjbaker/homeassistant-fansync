@@ -50,6 +50,7 @@ async def test_get_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
         def recv_generator() -> Any:
             """Generator for reconnect scenario."""
             # Initial connect: login, list
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             # Wait for get request to be sent (login=1, lst=2, get=3)
@@ -126,6 +127,7 @@ async def test_set_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
         def recv_generator() -> Any:
             """Generator for reconnect scenario."""
             # Initial connect: login, list
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             # Wait for set request to be sent (login=1, lst=2, set=3)

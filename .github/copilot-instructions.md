@@ -4,7 +4,7 @@ NOTE: The canonical source for these instructions is .cursorrules in the repo ro
 Any changes should be made there; this file syncs automatically via pre-commit hook.
 
 # Style & Formatting
-- Use Black/Ruff exactly as configured in pyproject.toml (line length 100, Python 3.13).
+- Use Black/Ruff exactly as configured in pyproject.toml (line length 100, Python 3.14).
 - Follow PEP 8 principles; Black/Ruff are authoritative for enforcement.
 - Optimize for clarity and readability; prefer explicit types where helpful.
 - Prefer `X | None` in type annotations; prefer union syntax in `isinstance()` checks (e.g., `int | str`) over tuples.

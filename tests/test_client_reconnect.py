@@ -51,6 +51,7 @@ async def test_disconnect_on_unload(hass: HomeAssistant):
         ws.connect.return_value = None
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("id")
             while True:
@@ -82,12 +83,15 @@ async def test_set_retries_on_closed_socket(hass: HomeAssistant, mock_websocket)
 
         def recv_generator():
             """Generator for reconnect scenario."""
-            # Initial connection
+            # async_connect attempt 0: login send raises OSError, no recv consumed
+            yield TimeoutError()  # attempt 0 greeting
+            # async_connect attempt 1 (retry): login send succeeds
+            yield TimeoutError()  # attempt 1 greeting
             yield _login_ok()
             yield _lst_device_ok("id")
-            # Reconnect login after OSError
+            # recv_loop harmless message (consumed before set ack)
             yield _login_ok()
-            # Set ack after reconnect (ID 3, allocated before OSError)
+            # Set ack (ID 3, allocated before connect)
             yield json.dumps({"status": "ok", "response": "set", "id": 3})
             # Keep recv loop alive
             while True:

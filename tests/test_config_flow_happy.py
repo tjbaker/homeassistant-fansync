@@ -19,17 +19,22 @@ from homeassistant import data_entry_flow
 
 async def test_config_flow_creates_entry(hass, ensure_fansync_importable):
     # Use HA flow helpers directly with data to mirror typical happy path
-    with patch("custom_components.fansync.config_flow.FanSyncClient") as client_cls:
+    with (
+        patch("custom_components.fansync.config_flow.FanSyncClient") as client_cls,
+        patch("custom_components.fansync.FanSyncClient") as mock_setup,
+    ):
         instance = client_cls.return_value
         instance.async_connect = AsyncMock(return_value=None)
         instance.async_disconnect = AsyncMock(return_value=None)
         instance.device_ids = ["dev"]
+        mock_setup.return_value.async_connect = AsyncMock(side_effect=RuntimeError("no setup"))
 
         result = await hass.config_entries.flow.async_init(
             "fansync",
             context={"source": "user"},
             data={"email": "ux@example.com", "password": "p", "verify_ssl": True},
         )
+        await hass.async_block_till_done()
 
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     assert result["title"] == "FanSync"

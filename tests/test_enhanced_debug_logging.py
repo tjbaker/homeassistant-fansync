@@ -66,6 +66,7 @@ def mock_websocket():
 
         def recv_generator():
             """Generator providing default responses."""
+            yield TimeoutError()  # no server greeting
             yield json.dumps({"status": "ok", "response": "login", "id": 1})
             yield json.dumps(
                 {

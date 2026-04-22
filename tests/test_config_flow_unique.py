@@ -27,15 +27,20 @@ DOMAIN = "fansync"
 async def test_unique_id_and_duplicate(hass: HomeAssistant):
     """First submission creates entry; second with same data aborts."""
     data = {"email": "unique@example.com", "password": "pw", "verify_ssl": True}
-    with patch("custom_components.fansync.config_flow.FanSyncClient") as mock_client:
+    with (
+        patch("custom_components.fansync.config_flow.FanSyncClient") as mock_client,
+        patch("custom_components.fansync.FanSyncClient") as mock_setup,
+    ):
         mock_client.return_value.async_connect = AsyncMock(return_value=None)
+        mock_setup.return_value.async_connect = AsyncMock(side_effect=RuntimeError("no setup"))
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}, data=data
         )
-    assert result["type"] == "create_entry"
+        await hass.async_block_till_done()
 
-    # Second attempt with same email should abort
-    result2 = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}, data=data
-    )
+        # Second attempt with same email should abort
+        result2 = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}, data=data
+        )
+    assert result["type"] == "create_entry"
     assert result2["type"] == "abort"

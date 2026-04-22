@@ -50,6 +50,7 @@ async def test_reconnect_on_timeout_and_logging(hass: HomeAssistant, caplog, moc
 
         def recv_generator():
             """Generator that triggers reconnect after 3 consecutive timeouts."""
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("dev")
             # Trigger reconnect cycle (3 consecutive timeouts)
@@ -57,6 +58,7 @@ async def test_reconnect_on_timeout_and_logging(hass: HomeAssistant, caplog, moc
             yield TimeoutError("t")
             yield TimeoutError("t")
             # Reconnect login response
+            yield TimeoutError()  # no server greeting on reconnect
             yield _login_ok()
             # Keep loop alive
             while True:

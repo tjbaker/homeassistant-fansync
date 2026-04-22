@@ -31,6 +31,16 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Pre-import custom_components as a namespace package anchored to the local
+# custom_components/ directory.  HA 2026.4's loader._async_mount_config_dir
+# temporarily adds testing_config (which has a custom_components/__init__.py)
+# to sys.path and calls `import custom_components`.  Because a regular package
+# beats a namespace package candidate regardless of sys.path order, the local
+# integration would be invisible to HA's component scanner.  Importing here
+# first — while only ROOT is on sys.path — caches the namespace package so the
+# later HA import is a no-op.
+import custom_components  # noqa: E402
+
 
 @pytest.fixture
 def mock_config_entry() -> MockConfigEntry:

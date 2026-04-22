@@ -89,6 +89,7 @@ async def test_device_list_failure_logs_error(
 
         # Login succeeds but device list times out
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             raise TimeoutError("Device list timeout")
 
@@ -124,6 +125,7 @@ async def test_json_parse_failure_logs_debug(
 
         # Login succeeds, then send invalid JSON
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("dev")
             yield "not valid json {{"  # Invalid JSON
@@ -166,6 +168,7 @@ async def test_device_list_timeout_logging(
 
         # Login succeeds but device list times out
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             raise TimeoutError("Device list timeout")
 

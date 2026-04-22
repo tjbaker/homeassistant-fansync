@@ -52,6 +52,7 @@ async def test_client_push_loop_invokes_callback(hass: HomeAssistant):
 
         # Return login, device list, then a push event
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield _login_ok()
             yield _lst_device_ok("dev")
             yield _push_status({"H00": 1, "H02": 44, "H06": 0, "H01": 0})

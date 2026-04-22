@@ -24,17 +24,22 @@ from custom_components.fansync.const import (
 
 
 async def test_config_flow_passes_default_timeouts(hass, ensure_fansync_importable):
-    with patch("custom_components.fansync.config_flow.FanSyncClient") as client_cls:
+    with (
+        patch("custom_components.fansync.config_flow.FanSyncClient") as client_cls,
+        patch("custom_components.fansync.FanSyncClient") as mock_setup,
+    ):
         instance = client_cls.return_value
         instance.async_connect = AsyncMock(return_value=None)
         instance.async_disconnect = AsyncMock(return_value=None)
         instance.device_ids = ["dev"]
+        mock_setup.return_value.async_connect = AsyncMock(side_effect=RuntimeError("no setup"))
 
         result = await hass.config_entries.flow.async_init(
             "fansync",
             context={"source": "user"},
             data={"email": "u@example.com", "password": "p", "verify_ssl": True},
         )
+        await hass.async_block_till_done()
 
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     # Ensure the constructor was given default timeout values
@@ -44,11 +49,15 @@ async def test_config_flow_passes_default_timeouts(hass, ensure_fansync_importab
 
 
 async def test_config_flow_passes_custom_timeouts(hass, ensure_fansync_importable):
-    with patch("custom_components.fansync.config_flow.FanSyncClient") as client_cls:
+    with (
+        patch("custom_components.fansync.config_flow.FanSyncClient") as client_cls,
+        patch("custom_components.fansync.FanSyncClient") as mock_setup,
+    ):
         instance = client_cls.return_value
         instance.async_connect = AsyncMock(return_value=None)
         instance.async_disconnect = AsyncMock(return_value=None)
         instance.device_ids = ["dev"]
+        mock_setup.return_value.async_connect = AsyncMock(side_effect=RuntimeError("no setup"))
 
         result = await hass.config_entries.flow.async_init(
             "fansync",
@@ -61,6 +70,7 @@ async def test_config_flow_passes_custom_timeouts(hass, ensure_fansync_importabl
                 "ws_timeout_seconds": 20,
             },
         )
+        await hass.async_block_till_done()
 
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     _, kwargs = client_cls.call_args

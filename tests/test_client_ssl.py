@@ -39,6 +39,7 @@ async def test_client_ssl_flag(hass: HomeAssistant, mock_websocket):
         )()
 
         def recv_generator():
+            yield TimeoutError()  # no server greeting
             yield '{"status":"ok","response":"login","id":1}'
             yield '{"status":"ok","response":"lst_device","data":[{"device":"id"}],"id":2}'
             while True:
