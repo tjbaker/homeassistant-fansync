@@ -1186,7 +1186,7 @@ class FanSyncClient:
         try:
             if self._ws_timeout_s is not None:
                 return int(self._ws_timeout_s)
-        except (TypeError, ValueError, AttributeError):
+        except TypeError, ValueError, AttributeError:
             pass
         return int(DEFAULT_WS_TIMEOUT_SECS)
 
