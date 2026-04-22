@@ -44,7 +44,7 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Document type: ignore comments with justification for why they're needed.
 
 # Home Assistant Specifics
-- Only support HA 2026.2 and newer, no need for backward compatibility to older versions
+- Only support HA 2026.3 and newer, no need for backward compatibility to older versions
 - Use HA async patterns (`async_*` methods); avoid blocking I/O in the event loop.
   - Use hass.async_add_executor_job for any blocking operations.
 - Prefer CoordinatorEntity for entities with push updates.

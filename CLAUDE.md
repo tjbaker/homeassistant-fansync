@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Custom Home Assistant integration for Fanimation FanSync smart fans and lights. Uses WebSocket-based cloud push updates as the primary update mechanism with configurable fallback polling.
 
 - **Integration domain**: `fansync`
-- **HA minimum version**: 2026.2.0, Python 3.14+
+- **HA minimum version**: 2026.3.0, Python 3.14+
 - **IoT class**: `cloud_push`
 
 ## Commands

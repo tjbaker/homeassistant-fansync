@@ -166,7 +166,7 @@ Then manually install Home Assistant Core in development mode (see Home Assistan
 - **Formatter**: Black (line length 100) + Ruff
 - **Type checking**: mypy with strict settings  
 - **Python version**: 3.14
-- **Home Assistant**: 2026.2+
+- **Home Assistant**: 2026.3+
 - **Typing**: Modern syntax (`X | None` instead of `Optional[X]`)
 - **Async patterns**: Always use `async/await`, never block the event loop
 - **HA patterns**: CoordinatorEntity, push-first updates, optimistic UI
