@@ -137,6 +137,7 @@ Any changes should be made there; this file syncs automatically via pre-commit h
 - Use builtin `TimeoutError` (not `asyncio.TimeoutError`) per Python 3.11+ and Ruff UP041
   - `asyncio.TimeoutError` is an alias to builtin `TimeoutError` in Python 3.11+
   - Always use `except TimeoutError:` to catch timeouts from `asyncio.wait_for()`
+- PEP 758 (Python 3.14): bare-comma `except` is valid — `except TypeError, ValueError:` is preferred by Black over `except (TypeError, ValueError):`
 - Log exceptions with type and message at appropriate level before re-raising or returning error state
 - Use RuntimeError for integration-specific errors (connection failures, invalid state)
 - Use `ConfigEntryNotReady` for transient setup failures so HA retries with backoff
