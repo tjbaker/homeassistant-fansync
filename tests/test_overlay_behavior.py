@@ -40,7 +40,7 @@ class OverlayClient:
         # Simulate delayed confirmation by invoking callback after a small delay
         self.status.update(data)
         if self._cb:
-            self._cb(dict(self.status))
+            self._cb(self.device_id, dict(self.status))
 
     def set_status_callback(self, cb):
         self._cb = cb

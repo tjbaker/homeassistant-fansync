@@ -80,7 +80,7 @@ async def test_recv_loop_reconnects_after_timeouts(hass: HomeAssistant, mock_web
         ws_connect.return_value = mock_websocket
 
         seen: list[dict[str, int]] = []
-        c.set_status_callback(lambda s: seen.append(s))
+        c.set_status_callback(lambda d, s: seen.append(s))
 
         # Wrap ensure_ws to observe reconnect calls
         with patch.object(c, "_ensure_ws_connected", wraps=c._ensure_ws_connected) as ensure_wrap:
@@ -123,7 +123,7 @@ async def test_recv_loop_handles_device_change_push(hass: HomeAssistant, mock_we
         ws_connect.return_value = mock_websocket
 
         seen: list[dict[str, int]] = []
-        client.set_status_callback(lambda s: seen.append(s))
+        client.set_status_callback(lambda d, s: seen.append(s))
 
         await client.async_connect()
 

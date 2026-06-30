@@ -63,7 +63,7 @@ async def test_client_push_loop_invokes_callback(hass: HomeAssistant):
 
         ws.recv.side_effect = recv_generator()
 
-        c.set_status_callback(lambda s: seen.append(s))
+        c.set_status_callback(lambda d, s: seen.append(s))
         await c.async_connect()
 
         try:

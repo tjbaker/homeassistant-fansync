@@ -93,7 +93,7 @@ async def test_fan_snapback_after_guard_expiry(hass: HomeAssistant):
         # Advance time beyond guard window, then push old backend state (20%)
         fake_monotonic.t = base + OPTIMISTIC_GUARD_SEC + 1.0  # type: ignore[attr-defined]
         if client._cb:
-            client._cb({"H00": 1, "H02": 20, "H06": 0, "H01": 0})
+            client._cb(client.device_id, {"H00": 1, "H02": 20, "H06": 0, "H01": 0})
         await hass.async_block_till_done()
 
         # After guard expiry and a non-confirming update, UI should reflect backend (snap-back)
@@ -127,7 +127,7 @@ async def test_light_snapback_after_guard_expiry(hass: HomeAssistant):
         # Advance beyond guard window and push old brightness (20%)
         fake_monotonic.t = base + OPTIMISTIC_GUARD_SEC + 1.0  # type: ignore[attr-defined]
         if client._cb:
-            client._cb({"H0B": 1, "H0C": 20})
+            client._cb(client.device_id, {"H0B": 1, "H0C": 20})
         await hass.async_block_till_done()
 
         state = hass.states.get("light.fansync_light")
