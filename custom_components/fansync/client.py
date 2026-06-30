@@ -676,6 +676,15 @@ class FanSyncClient:
                 if pushed_status is not None:
                     if not push_device:
                         push_device = self._device_id or "unknown"
+                    # push_device is server-controlled. Ignore pushes for devices we
+                    # don't know about: without this, a misbehaving or compromised
+                    # cloud endpoint could grow coordinator.data and the diagnostics
+                    # dicts unboundedly with junk device ids. Unknown ids are inert
+                    # (no entity reads them) so dropping them is safe.
+                    if self._device_ids and push_device not in self._device_ids:
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug("recv push for unknown device=%s; ignoring", push_device)
+                        continue
                     self.metrics.record_push_update()
                     self._push_count += 1
                     self._last_push_monotonic = time.monotonic()
