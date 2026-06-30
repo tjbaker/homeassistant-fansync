@@ -45,7 +45,7 @@ class ClientWithCallback:
     async def async_set(self, data: dict[str, int], *, device_id: str | None = None) -> None:
         self.status.update(data)
 
-    def set_status_callback(self, cb: Callable[[dict[str, object]], None]) -> None:
+    def set_status_callback(self, cb: Callable[[str, dict[str, object]], None]) -> None:
         self._cb = cb
 
 
@@ -117,7 +117,7 @@ async def test_setup_registers_callback_and_unload_disconnects(hass: HomeAssista
     assert client._cb is not None
 
     # Trigger push status
-    client._cb({"H00": 1, "H02": 55, "H06": 0, "H01": 0})  # type: ignore[misc]
+    client._cb(client.device_id, {"H00": 1, "H02": 55, "H06": 0, "H01": 0})  # type: ignore[misc]
     await hass.async_block_till_done()
     state = hass.states.get("fan.fansync_fan")
     assert state.attributes.get("percentage") == 55

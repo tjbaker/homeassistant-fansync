@@ -13,12 +13,12 @@
 # Development requirements for CI and local checks
 black==26.3.1
 homeassistant==2026.4.3
-mypy==1.20.2
+mypy==2.1.0
 pycares==5.0.1
 pytest-cov==7.0.0
 pytest-homeassistant-custom-component==0.13.324
 pytest==9.0.0
-pre-commit==4.5.1
+pre-commit==4.6.0
 ruff==0.15.12
 # Runtime deps required by integration (for local tests)
 httpx==0.28.1

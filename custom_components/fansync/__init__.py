@@ -135,9 +135,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
         # Register a push callback if supported by the client
         if hasattr(client, "set_status_callback"):
 
-            def _on_status(status: dict[str, object]) -> None:
-                # Merge pushed status for this device into the coordinator's mapping
-                did = getattr(client, "device_id", None) or "unknown"
+            def _on_status(device_id: str, status: dict[str, object]) -> None:
+                # Merge pushed status for this device into the coordinator's mapping.
+                # device_id identifies the originating device so multi-device setups
+                # do not cross-contaminate each other's state.
+                did = device_id or getattr(client, "device_id", None) or "unknown"
                 current = coordinator.data or {}
                 merged: dict[str, dict[str, object]] = dict(current)
                 merged[did] = status

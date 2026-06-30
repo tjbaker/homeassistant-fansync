@@ -91,7 +91,7 @@ class FanSyncClient:
         self._device_ids: list[str] = []
         self._device_meta: dict[str, dict[str, Any]] = {}
         self._device_profile: dict[str, dict[str, Any]] = {}
-        self._status_callback: Callable[[dict[str, Any]], None] | None = None
+        self._status_callback: Callable[[str, dict[str, Any]], None] | None = None
         self._running: bool = False
         self._recv_task: asyncio.Task | None = None
         self._push_count: int = 0
@@ -692,7 +692,9 @@ class FanSyncClient:
                     if self._status_callback is not None:
                         # Use call_soon since we are in the event loop.
                         # This avoids the overhead of thread-safe locking.
-                        self.hass.loop.call_soon(self._status_callback, pushed_status)
+                        # push_device identifies which device this status belongs to,
+                        # so multi-device setups route the update to the correct entity.
+                        self.hass.loop.call_soon(self._status_callback, push_device, pushed_status)
 
             except TimeoutError:
                 self._last_recv_error = "TimeoutError"
@@ -1093,9 +1095,10 @@ class FanSyncClient:
             if isinstance(ack_data, dict) and isinstance(ack_data.get("status"), dict):
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug("set ack with status keys=%s", list(ack_data["status"].keys()))
-                # Trigger status callback with the acknowledged status
+                # Trigger status callback with the acknowledged status, routed to the
+                # device that was actually set (not the connection's default device).
                 if self._status_callback is not None:
-                    self.hass.loop.call_soon(self._status_callback, ack_data["status"])
+                    self.hass.loop.call_soon(self._status_callback, did, ack_data["status"])
 
         except Exception as exc:
             self.metrics.record_command(success=False)
@@ -1178,7 +1181,7 @@ class FanSyncClient:
     def device_profile(self, device_id: str) -> dict[str, Any]:
         return dict(self._device_profile.get(device_id, {}))
 
-    def set_status_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
+    def set_status_callback(self, callback: Callable[[str, dict[str, Any]], None]) -> None:
         self._status_callback = callback
 
     def ws_timeout_seconds(self) -> int:

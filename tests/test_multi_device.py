@@ -129,6 +129,39 @@ async def test_multi_device_control_isolated(hass: HomeAssistant):
     assert hass.states.get(dev2_eid).attributes.get("percentage") == 30
 
 
+async def test_multi_device_push_routed_to_correct_device(hass: HomeAssistant):
+    """A push for one device must not overwrite another device's state.
+
+    Regression for GH #185 / #188: pushes (and set acks) were attributed to the
+    connection's default device (device_ids[0]), so controlling a non-first fan
+    updated the first fan's displayed state.
+    """
+    client = MultiDeviceClient()
+    await setup_entry_with_client(hass, client)
+
+    registry = er.async_get(hass)
+    by_device: dict[str, str] = {}
+    for e in registry.entities.values():
+        if e.platform == "fansync" and e.domain == "fan":
+            if e.unique_id and e.unique_id.startswith("fansync_") and e.unique_id.endswith("_fan"):
+                by_device[e.unique_id[len("fansync_") : -len("_fan")]] = e.entity_id
+
+    dev1_eid = by_device["dev1"]
+    dev2_eid = by_device["dev2"]
+
+    assert hass.states.get(dev1_eid).attributes.get("percentage") == 20
+    assert hass.states.get(dev2_eid).attributes.get("percentage") == 30
+
+    # Simulate a push update originating from dev2 (e.g. set ack or cloud push).
+    assert client._cb is not None
+    client._cb("dev2", {"H00": 1, "H02": 88, "H06": 0, "H01": 0})
+    await hass.async_block_till_done()
+
+    # dev2 reflects the push; dev1 must be untouched.
+    assert hass.states.get(dev2_eid).attributes.get("percentage") == 88
+    assert hass.states.get(dev1_eid).attributes.get("percentage") == 20
+
+
 class SingleDeviceListClient:
     """Client that exposes empty device_ids to exercise fallback single-device path."""
 

@@ -86,7 +86,7 @@ async def test_set_ack_with_status_triggers_callback_exactly_once(
         # Track callback invocations with detailed logging
         callback_invocations: list[dict[str, int]] = []
 
-        def track_callback(status: dict[str, int]) -> None:
+        def track_callback(device_id: str, status: dict[str, int]) -> None:
             """Track each callback invocation with the status data."""
             callback_invocations.append(status.copy())
 
@@ -156,7 +156,7 @@ async def test_set_ack_without_status_does_not_trigger_callback(
         ws_connect.return_value = mock_websocket
 
         callback_invocations: list[dict[str, int]] = []
-        client.set_status_callback(lambda s: callback_invocations.append(s))
+        client.set_status_callback(lambda d, s: callback_invocations.append(s))
 
         try:
             await client.async_connect()
