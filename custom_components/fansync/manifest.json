@@ -6,11 +6,11 @@
     ],
     "config_flow": true,
     "documentation": "https://github.com/tjbaker/homeassistant-fansync",
-    "integration_type": "service",
+    "integration_type": "hub",
     "iot_class": "cloud_push",
     "issue_tracker": "https://github.com/tjbaker/homeassistant-fansync/issues",
     "requirements": [
-        "httpx",
+        "httpx>=0.27",
         "websockets>=12.0"
     ],
     "version": "0.7.5"

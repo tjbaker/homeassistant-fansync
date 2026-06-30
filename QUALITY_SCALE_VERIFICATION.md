@@ -25,7 +25,7 @@ The FanSync integration demonstrates excellent compliance with Home Assistant's 
 - ✅ **Bronze tier achieved** - All 8 Bronze requirements satisfied (100%)
 - ✅ **Silver tier achieved** - All 4 Silver requirements satisfied (100%)
 - ⚠️ **Breaking change** - Entity IDs will change in v1.0.0
-- ✅ **All quality checks passing** - 167 tests, 85% coverage, linting clean
+- ✅ **All quality checks passing** - coverage gate enforced at ≥75% in CI, linting clean
 - ✅ **Perfect coverage modules** - `const.py` and `metrics.py` at 100%
 - ✅ **French and Spanish translations** - Multi-language support added
 
@@ -130,7 +130,6 @@ self._attr_unique_id = f"{DOMAIN}_{self._device_id}_light"
 **Modules:**
 - `const.py` - Constants and configuration
 - `device_utils.py` - Device info creation helpers
-- `circuit_breaker.py` - Circuit breaker pattern for reliability
 - `metrics.py` - Connection metrics tracking
 **Compliance:** Full ✅ - Well-organized code structure
 
@@ -207,11 +206,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 #### test-coverage
 **Status:** ✅ PASS  
-**Current Coverage:** 87% (exceeds 75% Silver minimum, approaching 95% Gold target)  
-**Test Files:** 60+ test files found  
-**Test Results:** 150+ tests passing  
-**Evidence:** `pytest tests/ --cov=custom_components/fansync --cov-report=term-missing`  
-**Compliance:** Full ✅ - Exceeds Silver tier 75% requirement, on track for Gold tier 95%
+**Current Coverage:** Coverage gate enforced at ≥75% in CI (exceeds Silver minimum)  
+**Evidence:** `pytest tests/ --cov=custom_components/fansync --cov-report=term-missing --cov-fail-under=75`  
+**Compliance:** Full ✅ - Meets Silver tier 75% requirement
 
 ---
 
@@ -300,7 +297,7 @@ except httpx.HTTPStatusError as err:
   - icon.png (95.3 KB) and icon@2x.png (364 KB)
   - Merged into home-assistant/brands: [Commit 5935b2f](https://github.com/home-assistant/brands/commit/5935b2f8f5acc44eab6d9eb0e4ad457df0419390)
   - Located at: `custom_integrations/fansync/`
-- [x] **GitHub releases created** (v0.7.0 latest)
+- [x] **GitHub releases created** (v0.7.5 latest)
 - [x] **HACS default list submission approved** ✅
 
 **Current Status:**
@@ -323,21 +320,21 @@ except httpx.HTTPStatusError as err:
 1. **~~HACS Default List Submission~~** ✅ COMPLETED
    - Status: **FanSync is now officially listed in HACS default repository**
    - Branding assets: Approved and merged ([Commit 5935b2f](https://github.com/home-assistant/brands/commit/5935b2f8f5acc44eab6d9eb0e4ad457df0419390))
-   - GitHub releases: v0.7.0 published
+   - GitHub releases: v0.7.5 published
    - Impact: **Integration now automatically discoverable by all HACS users**
 
 2. **~~Implement reauthentication flow~~** ✅ COMPLETED (2025-11-10)
    - Status: Implemented with full ConfigEntryAuthFailed handling
    - Implementation: Added exception handling in coordinator.py and reauth flow in config_flow.py
    - Tests: Added test_config_flow_reauth.py with 3 test scenarios
-   - Quality: All tests passing, 85% coverage maintained
+   - Quality: All tests passing, coverage gate (≥75%) maintained
    - Impact: **Silver tier now 100% complete**
 
 3. **~~Create has_entity_name migration~~** ✅ COMPLETED (2025-11-10)
    - Status: Implemented with breaking change for v1.0.0
    - Implementation: Set `_attr_has_entity_name = True` in fan.py and light.py
    - Tests: Updated all 14 test files to use new entity ID format
-   - Quality: All tests passing, linting clean, 85% coverage maintained
+   - Quality: All tests passing, linting clean, coverage gate (≥75%) maintained
    - Impact: **Bronze tier now 100% complete**
 
 ### Recommended (Gold Tier)
@@ -345,9 +342,8 @@ except httpx.HTTPStatusError as err:
    - Priority: MEDIUM
    - Effort: 10-20 hours (complex async/WebSocket error paths remaining)
    - Impact: Required for Gold tier
-   - Status: Currently at 85% (167 tests) - improved from 84% (149 tests)
-   - Recent Progress: +18 tests, +1% coverage, 100% coverage on const.py and metrics.py
-   - Gap: Need +10% more coverage for Gold tier (85% → 95%)
+   - Status: Coverage gate enforced at ≥75% in CI; Gold tier targets 95%
+   - Gap: Additional coverage needed to reach the Gold tier 95% target
 
 5. **Add automation examples to documentation** - Show common use cases
    - Priority: LOW
@@ -368,7 +364,7 @@ except httpx.HTTPStatusError as err:
 ### Current Tier Eligibility
 - **Bronze:** ✅ **100% COMPLETE** (8/8 passed) - **READY FOR DESIGNATION**
 - **Silver:** ✅ **100% COMPLETE** (4/4 passed) - **READY FOR DESIGNATION**
-- **Gold:** 3/3 spot checks passed - Needs 95% coverage (currently 85%, +10% needed)
+- **Gold:** 3/3 spot checks passed - Needs 95% coverage (gate currently enforced at ≥75%)
 
 ### Path to Official Tier Designation
 
@@ -381,16 +377,16 @@ except httpx.HTTPStatusError as err:
 #### Silver Tier ✅ READY:
 1. ✅ Bronze tier complete (all 8 requirements)
 2. ✅ Reauthentication flow implemented and tested
-3. ✅ Maintains 85% test coverage (exceeds 75% requirement by 10%)
+3. ✅ Maintains test coverage above the enforced ≥75% gate
 4. ⏭️ **Integration is now Silver-tier compliant**
 5. ⏭️ Submit PR to Home Assistant core requesting Silver designation
 
 #### To achieve Gold 🥇:
 1. ✅ Silver tier complete (all 4 requirements)
 2. ✅ 3/3 Gold spot checks passed (diagnostics, translations, devices)
-3. ⏭️ Increase test coverage from 85% to 95% (+10% needed)
-   - Current: 167 tests, 85% coverage
-   - Target: ~200+ tests, 95% coverage
+3. ⏭️ Increase test coverage to the Gold tier 95% target
+   - Current: coverage gate enforced at ≥75% in CI
+   - Target: 95% coverage
    - Perfect coverage modules: `const.py` (100%), `metrics.py` (100%)
 4. ⏭️ Add automation examples and device compatibility list to documentation
 5. Submit PR to Home Assistant core requesting Gold designation
@@ -424,8 +420,8 @@ This report was generated through manual code review against Home Assistant's In
 - 🎊 **OFFICIALLY LISTED IN HACS DEFAULT REPOSITORY!**
 
 **Recent Improvements:**
-- ✅ Test coverage increased from 84% to 85% (+18 tests)
+- ✅ Test coverage maintained above the enforced ≥75% gate
 - ✅ Perfect coverage achieved on `const.py` and `metrics.py` (100%)
 - ✅ French and Spanish translations added (3 languages total)
-- ✅ All quality checks passing: 167 tests, 85% coverage, linting clean
+- ✅ All quality checks passing: coverage gate (≥75%) enforced in CI, linting clean
 
