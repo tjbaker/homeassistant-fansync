@@ -212,26 +212,16 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     )
                     return self.data or {}
                 # Debug: log mismatches vs current coordinator snapshot
-                current = self.data or {}
-                prev = current.get(did, {}) if isinstance(current, dict) else {}
-                if isinstance(prev, dict) and isinstance(s, dict) and prev != s:
-                    changed = _changed_keys(prev, s)
-                    mismatch_keys[did] = changed
-                    if self.logger.isEnabledFor(logging.DEBUG):
-                        self.logger.debug("poll mismatch d=%s changed_keys=%s", did, changed)
+                mismatch_keys = self._compute_mismatch_keys(self.data or {}, statuses)
+                self._log_push_idle_if_needed()
                 if self.logger.isEnabledFor(logging.DEBUG):
                     self.logger.debug("poll sync done devices=%d", len(statuses))
-                self._log_push_idle_if_needed()
-                # Update device registry with any new profile data
-                self._update_device_registry([did])
-                self._append_status_history(statuses)
-                self._finalize_update(
+                self._commit_successful_update(
                     statuses=statuses,
                     timeout_devices=timeout_devices,
                     mismatch_keys=mismatch_keys,
-                    success=True,
+                    device_count=len(statuses),
                 )
-                self._append_mismatch_history(mismatch_keys, len(statuses))
                 return statuses
 
             # Run per-device status in parallel with timeouts; tolerate partial failures
@@ -282,18 +272,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     if isinstance(prev_data, dict):
                         statuses[did] = prev_data
             # Debug: log mismatches for multi-device
-            if isinstance(current, dict):
-                for did, status in statuses.items():
-                    prev = current.get(did, {})
-                    if isinstance(prev, dict) and isinstance(status, dict) and prev != status:
-                        changed = _changed_keys(prev, status)
-                        mismatch_keys[did] = changed
-                        if self.logger.isEnabledFor(logging.DEBUG):
-                            self.logger.debug(
-                                "poll mismatch d=%s changed_keys=%s",
-                                did,
-                                changed,
-                            )
+            mismatch_keys = self._compute_mismatch_keys(current, statuses)
             self._log_push_idle_if_needed()
             if self.logger.isEnabledFor(logging.DEBUG):
                 self.logger.debug("poll sync done devices=%d", len(statuses))
@@ -314,17 +293,12 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 )
                 self._append_mismatch_history(mismatch_keys, len(ids))
                 return self.data or {}
-            # Update device registry with any new profile data for all devices
-            self._update_device_registry(list(statuses.keys()))
-            self._append_status_history(statuses)
-            self._finalize_update(
+            self._commit_successful_update(
                 statuses=statuses,
                 timeout_devices=timeout_devices,
                 mismatch_keys=mismatch_keys,
-                success=True,
                 device_count=len(ids),
             )
-            self._append_mismatch_history(mismatch_keys, len(ids))
             return statuses
         except httpx.HTTPStatusError as err:
             # Handle authentication failures by triggering reauth flow
@@ -367,6 +341,41 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         self._last_poll_mismatch_history.append(entry)
         if len(self._last_poll_mismatch_history) > self._last_poll_mismatch_history_max:
             self._last_poll_mismatch_history.pop(0)
+
+    def _compute_mismatch_keys(
+        self, current: object, statuses: dict[str, dict[str, object]]
+    ) -> dict[str, list[str]]:
+        """Return per-device changed keys vs the current coordinator snapshot."""
+        mismatch: dict[str, list[str]] = {}
+        if isinstance(current, dict):
+            for did, status in statuses.items():
+                prev = current.get(did, {})
+                if isinstance(prev, dict) and isinstance(status, dict) and prev != status:
+                    changed = _changed_keys(prev, status)
+                    mismatch[did] = changed
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        self.logger.debug("poll mismatch d=%s changed_keys=%s", did, changed)
+        return mismatch
+
+    def _commit_successful_update(
+        self,
+        *,
+        statuses: dict[str, dict[str, object]],
+        timeout_devices: list[str],
+        mismatch_keys: dict[str, list[str]],
+        device_count: int,
+    ) -> None:
+        """Shared success path: registry refresh, status/mismatch history, finalize."""
+        self._update_device_registry(list(statuses.keys()))
+        self._append_status_history(statuses)
+        self._finalize_update(
+            statuses=statuses,
+            timeout_devices=timeout_devices,
+            mismatch_keys=mismatch_keys,
+            success=True,
+            device_count=device_count,
+        )
+        self._append_mismatch_history(mismatch_keys, device_count)
 
     def _finalize_update(
         self,
