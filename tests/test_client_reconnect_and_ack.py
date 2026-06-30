@@ -80,7 +80,7 @@ async def test_set_uses_ack_status_when_present(hass: HomeAssistant, mock_websoc
         ws_connect.return_value = mock_websocket
 
         seen: list[dict[str, int]] = []
-        c.set_status_callback(lambda s: seen.append(s))
+        c.set_status_callback(lambda d, s: seen.append(s))
 
         await c.async_connect()
         try:
