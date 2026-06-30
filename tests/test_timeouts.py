@@ -108,6 +108,7 @@ async def test_options_flow_sets_timeouts_and_setup_uses_them(hass):
     with patch("custom_components.fansync.FanSyncClient") as client_cls:
         client = client_cls.return_value
         client.async_connect = AsyncMock(return_value=None)
+        client.async_disconnect = AsyncMock(return_value=None)
         client.set_status_callback = lambda cb: None
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
