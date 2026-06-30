@@ -65,12 +65,11 @@ MAX_WS_TIMEOUT_SECS = 120
 WS_LOGIN_RETRY_ATTEMPTS = 2
 WS_LOGIN_RETRY_BACKOFF_SEC = 1.0
 
-# WebSocket receive loop retry settings
+# WebSocket receive loop retry settings (consumed by client._recv_loop)
 WS_RECV_TIMEOUT_ERROR_THRESHOLD = 3  # Consecutive errors before reconnect
 WS_RECV_BACKOFF_INITIAL_SEC = 0.5  # Initial backoff delay
 WS_RECV_BACKOFF_MAX_SEC = 5.0  # Maximum backoff delay
 WS_RECV_SLEEP_SEC = 0.1  # Sleep between recv attempts
-WS_RECV_LOCK_TIMEOUT_SEC = 0.5  # Timeout for recv_lock acquisition in background loop
 
 # Push update logging (tune higher for quieter logs)
 PUSH_LOG_EVERY = 50
@@ -84,9 +83,6 @@ MISMATCH_HISTORY_MAX = 10
 # GET_STATUS and SET now use dynamic allocation via _next_request_id
 WS_REQUEST_ID_LOGIN = 1
 WS_REQUEST_ID_LIST_DEVICES = 2
-
-# WebSocket bounded read settings
-WS_GET_RETRY_LIMIT = 5  # Max recv attempts to find get response
 
 # WebSocket fallback timeout (used when _ws_timeout_s is None)
 WS_FALLBACK_TIMEOUT_SEC = 10.0

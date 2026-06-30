@@ -251,6 +251,22 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                     )
                     timeout_devices.append(did)
                     return did, None
+                except httpx.HTTPStatusError:
+                    # Auth/HTTP failures (e.g. 401/403 during token refresh) must
+                    # reach the outer handler so it can trigger the reauth flow.
+                    raise
+                except Exception as err:
+                    # Tolerate a single device's failure (malformed/offline reply,
+                    # transient connection error) without failing the whole refresh
+                    # and dropping every entity — including healthy ones — to
+                    # unavailable. Keep this device's last known state.
+                    self.logger.warning(
+                        "Status fetch failed for device %s (%s); keeping last known state",
+                        did,
+                        type(err).__name__,
+                    )
+                    timeout_devices.append(did)
+                    return did, None
 
             results = await asyncio.gather(*(_get(d) for d in ids))
             for did, status in results:
