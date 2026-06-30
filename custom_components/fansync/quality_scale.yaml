@@ -34,7 +34,7 @@ rules:
   
   common-modules:
     status: done
-    comment: Common patterns in const.py, device_utils.py, circuit_breaker.py, metrics.py
+    comment: Common patterns in const.py, device_utils.py, metrics.py
   
   config-flow-test-coverage:
     status: done
@@ -73,8 +73,8 @@ rules:
     comment: All entities set _attr_unique_id using DOMAIN_deviceid_platform pattern
   
   has-entity-name:
-    status: in_progress
-    comment: Currently False to avoid breaking existing users; requires migration plan with entity ID transition strategy
+    status: done
+    comment: _attr_has_entity_name = True set in fan.py and light.py with translation keys
   
   runtime-data:
     status: done
@@ -129,8 +129,8 @@ rules:
     comment: PARALLEL_UPDATES = 0 set explicitly in fan.py and light.py (coordinator handles all API calls)
   
   reauthentication-flow:
-    status: in_progress
-    comment: Detects auth errors but needs to raise ConfigEntryAuthFailed and implement async_step_reauth
+    status: done
+    comment: Raises ConfigEntryAuthFailed on 401/403; async_step_reauth/reauth_confirm implemented in config_flow.py
   
   test-coverage:
     status: done
