@@ -40,6 +40,10 @@ from .const import (
     WS_GREETING_TIMEOUT_SEC,
     WS_LOGIN_RETRY_ATTEMPTS,
     WS_LOGIN_RETRY_BACKOFF_SEC,
+    WS_RECV_BACKOFF_INITIAL_SEC,
+    WS_RECV_BACKOFF_MAX_SEC,
+    WS_RECV_SLEEP_SEC,
+    WS_RECV_TIMEOUT_ERROR_THRESHOLD,
     WS_REQUEST_ID_LIST_DEVICES,
     WS_REQUEST_ID_LOGIN,
 )
@@ -116,6 +120,9 @@ class FanSyncClient:
         # async_get_status and async_set which rely on _pending_requests routing.
         self._next_request_id: int = 3
         self._request_id_lock = asyncio.Lock()
+        # Serializes reconnects so a background recv-loop reconnect and a
+        # command-path reconnect cannot race and orphan each other's socket.
+        self._reconnect_lock = asyncio.Lock()
         self.metrics = ConnectionMetrics()
         # Diagnostics tracking
         self._last_http_login_ms: float | None = None
@@ -610,13 +617,13 @@ class FanSyncClient:
     async def _recv_loop(self) -> None:
         """Background task to receive push updates from WebSocket."""
         timeout_errors = 0
-        backoff_sec = 0.5
-        max_backoff_sec = 5.0
+        backoff_sec = WS_RECV_BACKOFF_INITIAL_SEC
+        max_backoff_sec = WS_RECV_BACKOFF_MAX_SEC
 
         while self._running:
             ws = self._ws
             if ws is None:
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(WS_RECV_SLEEP_SEC)
                 continue
 
             try:
@@ -627,7 +634,7 @@ class FanSyncClient:
                 )
                 raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
                 timeout_errors = 0
-                backoff_sec = 0.5
+                backoff_sec = WS_RECV_BACKOFF_INITIAL_SEC
 
                 # Process message
                 try:
@@ -707,7 +714,7 @@ class FanSyncClient:
                         ws_timeout,
                     )
                 timeout_errors += 1
-                if timeout_errors >= 3:
+                if timeout_errors >= WS_RECV_TIMEOUT_ERROR_THRESHOLD:
                     # Reconnect after consecutive timeouts
                     if _LOGGER.isEnabledFor(logging.DEBUG):
                         _LOGGER.debug(
@@ -718,7 +725,7 @@ class FanSyncClient:
                     try:
                         await self._ensure_ws_connected()
                         timeout_errors = 0
-                        backoff_sec = 0.5
+                        backoff_sec = WS_RECV_BACKOFF_INITIAL_SEC
                         self.metrics.record_reconnect()
                         self._last_reconnect_utc = datetime.now(UTC).isoformat()
                         if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -735,18 +742,19 @@ class FanSyncClient:
                         backoff_sec = min(max_backoff_sec, backoff_sec * 2)
                 else:
                     # Brief sleep before retry
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(WS_RECV_SLEEP_SEC)
 
             except Exception as err:
                 self._last_recv_error = type(err).__name__
                 self._last_recv_error_utc = datetime.now(UTC).isoformat()
+                self.metrics.record_websocket_error()
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug("recv error=%s err=%s", type(err).__name__, err)
                 # Connection closed, trigger reconnect
                 try:
                     await self._ensure_ws_connected()
                     timeout_errors = 0
-                    backoff_sec = 0.5
+                    backoff_sec = WS_RECV_BACKOFF_INITIAL_SEC
                     self.metrics.record_reconnect()
                     self._last_reconnect_utc = datetime.now(UTC).isoformat()
                 except Exception as reconnect_err:
@@ -765,12 +773,25 @@ class FanSyncClient:
             _LOGGER.debug("_recv_loop exited (client disconnected)")
 
     async def _ensure_ws_connected(self) -> None:
-        """Ensure WebSocket is connected and authenticated."""
-        reconnect_start = time.monotonic()
-        # If WebSocket is already connected and open, nothing to do
+        """Ensure the WebSocket is connected, serializing concurrent reconnects.
+
+        The fast path (already OPEN) returns without taking the lock. Otherwise a
+        single reconnect runs under ``_reconnect_lock`` so that a background
+        recv-loop reconnect and a command-path reconnect cannot build two sockets
+        and orphan one of them.
+        """
         if self._ws is not None and self._ws.state == State.OPEN:
             return
+        async with self._reconnect_lock:
+            # Re-check under the lock: another caller may have completed the
+            # reconnect while we were waiting to acquire it.
+            if self._ws is not None and self._ws.state == State.OPEN:
+                return
+            await self._reconnect()
 
+    async def _reconnect(self) -> None:
+        """Reconnect and re-authenticate the WebSocket. Caller holds the lock."""
+        reconnect_start = time.monotonic()
         # Close old WebSocket if it exists
         if self._ws is not None:
             try:
@@ -844,6 +865,12 @@ class FanSyncClient:
         raw = await asyncio.wait_for(ws.recv(), timeout=ws_timeout)
         payload = json.loads(raw)
         if not (isinstance(payload, dict) and payload.get("status") == "ok"):
+            # The token is likely expired or invalid. Drop it so the next
+            # reconnect re-authenticates via HTTP login (which yields a fresh
+            # token, or surfaces a 401 that the coordinator maps to reauth).
+            # Without this, _token is never cleared and the refresh branch above
+            # is dead — a reconnect after token expiry would loop forever.
+            self._token = None
             raise RuntimeError("WebSocket login failed")
 
         self._ws = ws
@@ -997,10 +1024,21 @@ class FanSyncClient:
                     did,
                 )
 
-            return payload["data"]["status"]
+            # Validate the response shape instead of indexing blindly: a malformed
+            # or offline-device reply (no data.status dict) would otherwise raise
+            # KeyError and, in a multi-device poll, fail the whole coordinator
+            # refresh and drop every entity to unavailable.
+            result_data = payload.get("data")
+            status = result_data.get("status") if isinstance(result_data, dict) else None
+            if not isinstance(status, dict):
+                raise RuntimeError(
+                    f"Unexpected get response for {did}: missing status payload "
+                    f"(response status={payload.get('status')!r})"
+                )
+            return status
 
         except TimeoutError as exc:
-            self.metrics.record_command(success=False)
+            self.metrics.record_timeout()
             self._record_command_history(
                 command="get",
                 device_id=did,
@@ -1101,7 +1139,10 @@ class FanSyncClient:
                     self.hass.loop.call_soon(self._status_callback, did, ack_data["status"])
 
         except Exception as exc:
-            self.metrics.record_command(success=False)
+            if isinstance(exc, TimeoutError):
+                self.metrics.record_timeout()
+            else:
+                self.metrics.record_command(success=False)
             self._record_command_history(
                 command="set",
                 device_id=did,

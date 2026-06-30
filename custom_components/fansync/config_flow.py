@@ -66,8 +66,10 @@ class FanSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is None:
             return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA)
 
-        # Set unique ID early to avoid unnecessary network calls on duplicates
-        await self.async_set_unique_id(user_input[CONF_EMAIL])
+        # Set unique ID early to avoid unnecessary network calls on duplicates.
+        # Normalize the email so "User@x.com" and "user@x.com" collapse to one
+        # entry instead of slipping past the duplicate guard.
+        await self.async_set_unique_id(user_input[CONF_EMAIL].strip().lower())
         self._abort_if_unique_id_configured()
 
         errors = {}
