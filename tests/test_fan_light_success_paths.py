@@ -37,7 +37,7 @@ class SimpleClient:
     async def async_set(self, data: dict[str, int], *, device_id: str | None = None):
         self.status.update(data)
         if self._cb:
-            self._cb(dict(self.status))
+            self._cb(self.device_id, dict(self.status))
 
     def set_status_callback(self, cb):
         self._cb = cb

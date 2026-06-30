@@ -182,7 +182,7 @@ async def test_set_reconnects_on_closed_socket(hass: HomeAssistant, mock_websock
             # We need to capture the callback to verify the status update from the set response
             callback_status = {}
 
-            def on_status(s) -> None:
+            def on_status(device_id, s) -> None:
                 callback_status.update(s)
 
             c.set_status_callback(on_status)

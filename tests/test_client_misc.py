@@ -156,7 +156,7 @@ async def test_push_ignores_irrelevant_frames(hass: HomeAssistant, mock_websocke
         mock_websocket.recv.side_effect = recv_generator()
         ws_connect.return_value = mock_websocket
 
-        c.set_status_callback(lambda s: seen.append(s))
+        c.set_status_callback(lambda d, s: seen.append(s))
         await c.async_connect()
 
         try:
