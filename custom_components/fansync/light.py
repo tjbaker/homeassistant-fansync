@@ -14,30 +14,25 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
-from collections.abc import Callable
+import time  # noqa: F401  retained as a module-level patch seam for tests
 
 from homeassistant.components.light import ColorMode, LightEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity, UpdateFailed
+from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from .client import FanSyncClient
 from .const import (
-    CONFIRM_INITIAL_DELAY_SEC,
-    CONFIRM_RETRY_ATTEMPTS,
-    CONFIRM_RETRY_DELAY_SEC,
+    CONFIRM_INITIAL_DELAY_SEC,  # noqa: F401  retained as a patch seam for tests
     DOMAIN,
     KEY_LIGHT_BRIGHTNESS,
     KEY_LIGHT_POWER,
-    OPTIMISTIC_GUARD_SEC,
     ha_brightness_to_pct,
     pct_to_ha_brightness,
 )
 from .coordinator import FanSyncCoordinator
-from .device_utils import confirm_after_initial_delay, create_device_info, module_attrs
+from .entity import FanSyncOptimisticEntity
 
 # Only overlay keys that directly affect HA UI state to prevent snap-back
 OVERLAY_KEYS = {KEY_LIGHT_POWER, KEY_LIGHT_BRIGHTNESS}
@@ -81,168 +76,17 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
+class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "light"
     _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
     _attr_color_mode = ColorMode.BRIGHTNESS
 
+    OVERLAY_KEYS = OVERLAY_KEYS
+
     def __init__(self, coordinator: FanSyncCoordinator, client: FanSyncClient, device_id: str):
-        super().__init__(coordinator)
-        self.coordinator = coordinator
-        self.client = client
-        self._device_id = device_id or "unknown"
+        super().__init__(coordinator, client, device_id)
         self._attr_unique_id = f"{DOMAIN}_{self._device_id}_light"
-        self._retry_attempts = CONFIRM_RETRY_ATTEMPTS
-        self._retry_delay = CONFIRM_RETRY_DELAY_SEC
-        self._optimistic_until: float | None = None
-        self._optimistic_predicate: Callable[[dict], bool] | None = None
-        # Per-key optimistic overlay
-        self._overlay: dict[str, tuple[int, float]] = {}
-        # Flag to signal early termination of confirmation polling when push confirms
-        self._confirmed_by_push: bool = False
-
-    def _status_for(self, payload: dict) -> dict[str, object]:
-        """Return this device's status mapping from an aggregated payload."""
-        if isinstance(payload, dict):
-            inner = payload.get(self._device_id, payload)
-            if isinstance(inner, dict):
-                return inner
-        return {}
-
-    def _get_with_overlay(self, key: str, default: int) -> int:
-        now = time.monotonic()
-        entry = self._overlay.get(key)
-        if entry is not None:
-            value, expires = entry
-            if now <= expires:
-                return value
-            # Overlay expired without confirmation
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug(
-                    "overlay expired d=%s key=%s value=%s",
-                    self._device_id,
-                    key,
-                    value,
-                )
-            self._overlay.pop(key, None)
-        status = self._status_for(self.coordinator.data or {})
-        raw = status.get(key, default)
-        if isinstance(raw, int | str):
-            try:
-                return int(raw)
-            except ValueError, TypeError:
-                pass
-        return int(default)
-
-    async def _retry_update_until(self, predicate: Callable[[dict], bool]) -> tuple[dict, bool]:
-        """Fetch status until predicate passes or attempts exhausted.
-
-        Early terminates if push update confirms the change (via _confirmed_by_push flag).
-        """
-        status: dict = {}
-        for attempt in range(self._retry_attempts):
-            # Check if push update already confirmed before polling
-            if self._confirmed_by_push:
-                # Get final status from coordinator data
-                data = self.coordinator.data or {}
-                status = data.get(self._device_id, {}) if isinstance(data, dict) else {}
-                # Validate predicate in case coordinator data changed between flag set and now
-                if predicate(status):
-                    if _LOGGER.isEnabledFor(logging.DEBUG):
-                        _LOGGER.debug(
-                            "optimism early confirm d=%s via push update",
-                            self._device_id,
-                        )
-                    return status, True
-                # Predicate no longer satisfied, reset flag and continue polling
-                self._confirmed_by_push = False
-
-            if attempt == 0 and CONFIRM_INITIAL_DELAY_SEC > 0:
-                await asyncio.sleep(CONFIRM_INITIAL_DELAY_SEC)
-                # Push may confirm during the initial delay; skip polling if so.
-                status, confirmed, ok = confirm_after_initial_delay(
-                    confirmed_by_push=self._confirmed_by_push,
-                    coordinator_data=self.coordinator.data,
-                    device_id=self._device_id,
-                    predicate=predicate,
-                    logger=_LOGGER,
-                )
-                self._confirmed_by_push = confirmed
-                if ok:
-                    return status, True
-            status = await self.client.async_get_status(self._device_id)
-            if predicate(status):
-                return status, True
-            await asyncio.sleep(self._retry_delay)
-        return status, False
-
-    async def _apply_with_optimism(
-        self,
-        optimistic: dict,
-        payload: dict,
-        confirm_pred: Callable[[dict], bool],
-    ) -> None:
-        all_previous = self.coordinator.data or {}
-        prev_for_device = (
-            all_previous.get(self._device_id, {}) if isinstance(all_previous, dict) else {}
-        )
-        optimistic_state_for_device = {**prev_for_device, **optimistic}
-        optimistic_all = dict(all_previous) if isinstance(all_previous, dict) else {}
-        optimistic_all[self._device_id] = optimistic_state_for_device
-        if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug(
-                "optimism start d=%s optimistic=%s expires_in=%.2fs",
-                self._device_id,
-                optimistic,
-                OPTIMISTIC_GUARD_SEC,
-            )
-        expires = time.monotonic() + OPTIMISTIC_GUARD_SEC
-        for k, v in optimistic.items():
-            if k in OVERLAY_KEYS:
-                self._overlay[k] = (int(v), expires)
-        self.coordinator.async_set_updated_data(optimistic_all)
-        self._optimistic_until = expires
-        self._optimistic_predicate = confirm_pred
-        self._confirmed_by_push = False  # Reset flag for new optimistic update
-        try:
-            await self.client.async_set(payload, device_id=self._device_id)
-        except RuntimeError as exc:
-            self._optimistic_until = None
-            self._optimistic_predicate = None
-            for k in optimistic.keys():
-                self._overlay.pop(k, None)
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug(
-                    "optimism revert d=%s keys=%s overlay_count=%d error=%s",
-                    self._device_id,
-                    list(optimistic.keys()),
-                    len(self._overlay),
-                    type(exc).__name__,
-                )
-            self.coordinator.async_set_updated_data(all_previous)
-            raise
-        status, ok = await self._retry_update_until(confirm_pred)
-        if ok:
-            new_all = dict(self.coordinator.data or {})
-            new_all[self._device_id] = status
-            self.coordinator.async_set_updated_data(new_all)
-            self._optimistic_until = None
-            self._optimistic_predicate = None
-            for k in optimistic.keys():
-                self._overlay.pop(k, None)
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug(
-                    "optimism confirm d=%s keys=%s overlay_count=%d",
-                    self._device_id,
-                    list(optimistic.keys()),
-                    len(self._overlay),
-                )
-
-    @property
-    def available(self) -> bool:
-        """Return True if entity is available."""
-        return super().available and self._device_id in (self.coordinator.data or {})
 
     @property
     def is_on(self) -> bool:
@@ -263,11 +107,8 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         else:
             pct = None
 
-        def _confirm(s: dict, pb: int | None = pct) -> bool:
-            my = self._status_for(s)
-            return my.get(KEY_LIGHT_POWER) == 1 and (
-                pb is None or my.get(KEY_LIGHT_BRIGHTNESS) == pb
-            )
+        def _confirm(s: dict[str, object], pb: int | None = pct) -> bool:
+            return s.get(KEY_LIGHT_POWER) == 1 and (pb is None or s.get(KEY_LIGHT_BRIGHTNESS) == pb)
 
         await self._apply_with_optimism(optimistic, payload, _confirm)
 
@@ -277,56 +118,17 @@ class FanSyncLight(CoordinatorEntity[FanSyncCoordinator], LightEntity):
         await self._apply_with_optimism(
             optimistic,
             payload,
-            lambda s: self._status_for(s).get(KEY_LIGHT_POWER) == 0,
+            lambda s: s.get(KEY_LIGHT_POWER) == 0,
         )
 
-    async def async_update(self) -> None:
-        await self.coordinator.async_request_refresh()
-
-    def _handle_coordinator_update(self) -> None:
-        if self._optimistic_until is not None and time.monotonic() < self._optimistic_until:
-            pred = self._optimistic_predicate
-            data = self.coordinator.data or {}
-            if callable(pred) and not pred(data):
-                if _LOGGER.isEnabledFor(logging.DEBUG):
-                    remaining = (
-                        self._optimistic_until - time.monotonic() if self._optimistic_until else 0.0
-                    )
-                    _LOGGER.debug(
-                        "guard ignore d=%s overlays=%d remaining=%.2fs",
-                        self._device_id,
-                        len(self._overlay),
-                        max(0.0, remaining),
-                    )
-                return
-            # Predicate satisfied (by push or polling); signal early termination of polling.
-            # Note: Intended use case is confirmation via push, but this is set whenever
-            # the predicate is satisfied during the guard period, regardless of update source.
-            self._confirmed_by_push = True
-            # Clear the guard
-            self._optimistic_until = None
-            self._optimistic_predicate = None
-
-        # Log state transitions
+    def _log_state(self, status: dict[str, object]) -> None:
         if _LOGGER.isEnabledFor(logging.DEBUG):
-            status = self._status_for(self.coordinator.data or {})
-            if isinstance(status, dict):
-                _LOGGER.debug(
-                    "state update d=%s power=%s brightness=%s",
-                    self._device_id,
-                    status.get(KEY_LIGHT_POWER),
-                    status.get(KEY_LIGHT_BRIGHTNESS),
-                )
-
-        super()._handle_coordinator_update()
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return create_device_info(self.client, self._device_id)
-
-    @property
-    def extra_state_attributes(self) -> dict[str, object] | None:
-        return module_attrs(self.client, self._device_id)
+            _LOGGER.debug(
+                "state update d=%s power=%s brightness=%s",
+                self._device_id,
+                status.get(KEY_LIGHT_POWER),
+                status.get(KEY_LIGHT_BRIGHTNESS),
+            )
 
     @property
     def icon(self) -> str | None:
