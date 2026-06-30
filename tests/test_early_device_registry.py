@@ -146,6 +146,11 @@ async def test_early_registry_handles_exception_gracefully(hass: HomeAssistant) 
 
     mock_client.async_connect = mock_connect
 
+    async def mock_disconnect() -> None:
+        pass
+
+    mock_client.async_disconnect = mock_disconnect
+
     async def mock_get_status(device_id: str | None = None) -> dict[str, int]:
         return {"power": 1, "speed": 3}
 
