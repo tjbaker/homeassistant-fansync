@@ -23,6 +23,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 
 from .client import FanSyncClient, FanSyncConfigError
@@ -72,6 +73,23 @@ def _get_client_device_ids(client: FanSyncClient) -> list[str]:
     """
     ids = getattr(client, "device_ids", []) or [getattr(client, "device_id", None)]
     return [i for i in ids if i]
+
+
+def _remove_lightless_light_entities(hass: HomeAssistant, lightless: set[str]) -> None:
+    """Remove registered light entities for devices the user marked lightless.
+
+    Otherwise the previously-created light entity lingers in the registry and HA
+    shows a "no longer provided by the integration" orphan warning.
+    """
+    if not lightless:
+        return
+    ent_reg = er.async_get(hass)
+    for device_id in lightless:
+        entity_id = ent_reg.async_get_entity_id("light", DOMAIN, f"{DOMAIN}_{device_id}_light")
+        if entity_id:
+            ent_reg.async_remove(entity_id)
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("removed hidden light entity %s (device marked lightless)", entity_id)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -188,6 +206,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
         # light channel; this is per-device (see resolve_lightless_devices).
         known_ids = _get_client_device_ids(client)
         lightless = resolve_lightless_devices(entry.options, known_ids)
+        # Remove any previously-registered light entities for now-lightless
+        # devices so HA doesn't leave an orphaned "no longer provided" entity.
+        _remove_lightless_light_entities(hass, lightless)
         data_now = coordinator.data
         if not isinstance(data_now, dict) or not data_now:
             # No data yet: load the light platform unless every known device is

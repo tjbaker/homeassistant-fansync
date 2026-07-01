@@ -100,6 +100,31 @@ async def test_legacy_account_wide_bool_migrates_to_all(hass: HomeAssistant) -> 
     assert _light_devices(hass) == set()
 
 
+async def test_marking_lightless_removes_existing_light_entity(hass: HomeAssistant) -> None:
+    """Hiding a light removes its registry entry (no orphaned entity warning)."""
+    client = LightClient(["dev1"])
+    entry = MockConfigEntry(
+        domain="fansync",
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": True},
+        options={},
+        unique_id="lightless-remove",
+    )
+    entry.add_to_hass(hass)
+    with patch("custom_components.fansync.FanSyncClient", return_value=client):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        assert _light_devices(hass) == {"dev1"}
+
+        # Mark dev1 lightless -> reload -> stale light entity removed.
+        hass.config_entries.async_update_entry(entry, options={OPTION_LIGHTLESS_DEVICES: ["dev1"]})
+        await hass.async_block_till_done()
+
+    reg = er.async_get(hass)
+    assert reg.async_get_entity_id("light", "fansync", "fansync_dev1_light") is None
+    assert _light_devices(hass) == set()
+
+
 def test_resolve_lightless_devices() -> None:
     ids = ["a", "b", "c"]
     # Per-device list wins.
