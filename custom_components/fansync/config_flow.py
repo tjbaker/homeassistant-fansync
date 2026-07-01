@@ -405,12 +405,20 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_show_form(step_id="init", data_schema=vol.Schema(schema_dict))
 
     def _device_name_map(self) -> dict[str, str]:
-        """Map this entry's fansync device_ids to friendly names for the UI."""
+        """Map this entry's fansync device_ids to "name — model (serial)" labels."""
         dev_reg = dr.async_get(self.hass)
         result: dict[str, str] = {}
         for device in dr.async_entries_for_config_entry(dev_reg, self._entry.entry_id):
-            for domain, identifier in device.identifiers:
-                if domain == DOMAIN:
-                    result[identifier] = device.name_by_user or device.name or identifier
-                    break
+            identifier = next(
+                (ident for domain, ident in device.identifiers if domain == DOMAIN), None
+            )
+            if not identifier:
+                continue
+            name = device.name_by_user or device.name or "Fan"
+            label = (
+                f"{name} — {device.model} ({identifier})"
+                if device.model
+                else f"{name} ({identifier})"
+            )
+            result[identifier] = label
         return result
