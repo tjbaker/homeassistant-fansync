@@ -89,7 +89,7 @@ async def async_get_config_entry_diagnostics(
                     profile = client.device_profile(device_id)
                     if profile:
                         # Include useful metadata, exclude sensitive data
-                        sanitized = {}
+                        sanitized: dict[str, Any] = {}
                         # Include the full esh block (device model / capability
                         # descriptor: brand, model, class, device_id, esh_version).
                         # It carries no secrets — the sensitive "cert" block is never
