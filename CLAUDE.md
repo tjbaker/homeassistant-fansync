@@ -90,4 +90,4 @@ type FanSyncConfigEntry = ConfigEntry[FanSyncRuntimeData]
 
 ### Testing
 
-Tests live in `tests/` (59 files). Mock at the import path used in the module under test, not the definition path. Coverage target is ≥75% for `custom_components/fansync`.
+Tests live in `tests/` (60+ files). Mock at the import path used in the module under test, not the definition path. Coverage target is ≥75% for `custom_components/fansync` (enforced in CI via `--cov-fail-under=75`).
