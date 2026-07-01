@@ -39,6 +39,7 @@ A local Home Assistant instance for manual testing is available via `docker-comp
   - `fix:` → patch bump, appears in changelog; `feat:` → minor bump; `build:`/`chore:`/`docs:`/`test:`/`ci:` → no bump, not in changelog
   - When a PR mixes a code fix with a dep/tooling upgrade, use two commits (`fix:` first, then `build:`) so the fix lands in the changelog
 - All code must be fully type-annotated
+- **Editing/searching (Claude Code)**: prefer the Read/Grep/Edit tools over shell `grep`/`sed`/`cat`/`awk` — avoids permission prompts from glob/pipe expansion, gives cleaner reviewable diffs, and sidesteps shell-quoting bugs
 
 ## Architecture
 
