@@ -13,5 +13,5 @@
         "httpx>=0.27",
         "websockets>=12.0"
     ],
-    "version": "0.8.0"
+    "version": "0.8.1"
 }

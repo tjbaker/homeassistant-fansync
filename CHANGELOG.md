@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.8.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.8.0...0.8.1) (2026-07-01)
+
+
+### Bug Fixes
+
+* make the "no light" option per-device instead of account-wide ([#202](https://github.com/tjbaker/homeassistant-fansync/issues/202)) ([c43668d](https://github.com/tjbaker/homeassistant-fansync/commit/c43668d15a7a5d6a4e5926ffacf9c16c593afbbf))
+
 ## [0.8.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.5...0.8.0) (2026-07-01)
 
 
