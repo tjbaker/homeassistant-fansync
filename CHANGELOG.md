@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.8.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.5...0.8.0) (2026-07-01)
+
+
+### Features
+
+* hide light entity on lightless fans; full esh in diagnostics ([#200](https://github.com/tjbaker/homeassistant-fansync/issues/200)) ([94fe85c](https://github.com/tjbaker/homeassistant-fansync/commit/94fe85cdf9e37e312989d7f861fa28eac3e5c6f2))
+
+
+### Bug Fixes
+
+* harden websocket reconnect, auth refresh, and status handling ([#195](https://github.com/tjbaker/homeassistant-fansync/issues/195)) ([bc8bfb8](https://github.com/tjbaker/homeassistant-fansync/commit/bc8bfb8cb38a21e8a8e40f892b416182bfc90765))
+* ignore pushes for unknown device ids; refactor coordinator poll-commit ([#198](https://github.com/tjbaker/homeassistant-fansync/issues/198)) ([4266e50](https://github.com/tjbaker/homeassistant-fansync/commit/4266e5095277c946febeb85996d618eca01ff830))
+* route push updates to originating device in multi-fan setups ([#192](https://github.com/tjbaker/homeassistant-fansync/issues/192)) ([7a31814](https://github.com/tjbaker/homeassistant-fansync/commit/7a31814bd07dab9fc04cc604bcd2e177ad611530)), closes [#185](https://github.com/tjbaker/homeassistant-fansync/issues/185) [#188](https://github.com/tjbaker/homeassistant-fansync/issues/188)
+
+
+### Code Refactoring
+
+* extract shared FanSyncOptimisticEntity base for fan/light ([#197](https://github.com/tjbaker/homeassistant-fansync/issues/197)) ([4ba6927](https://github.com/tjbaker/homeassistant-fansync/commit/4ba6927c5976d122a46c8c365d15622bd080b60e))
+
 ## [0.7.5](https://github.com/tjbaker/homeassistant-fansync/compare/0.7.4...0.7.5) (2026-04-22)
 
 
