@@ -30,6 +30,7 @@ from .const import (
     KEY_LIGHT_POWER,
     ha_brightness_to_pct,
     pct_to_ha_brightness,
+    resolve_lightless_devices,
 )
 from .coordinator import FanSyncCoordinator
 from .entity import FanSyncOptimisticEntity
@@ -65,9 +66,16 @@ async def async_setup_entry(
             # If refresh times out or fails, fall back to empty dict
             data = {}
 
-    # Create a light entity per device that reports light capability
+    # Devices the user marked as having no physical light (per-device option).
+    all_ids = getattr(client, "device_ids", []) or (list(data) if isinstance(data, dict) else [])
+    lightless = resolve_lightless_devices(entry.options, all_ids)
+
+    # Create a light entity per device that reports light capability and that the
+    # user has not marked as lightless.
     if isinstance(data, dict):
         for did, status in data.items():
+            if did in lightless:
+                continue
             if isinstance(status, dict) and (
                 KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status
             ):

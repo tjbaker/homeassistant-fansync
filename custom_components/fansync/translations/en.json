@@ -41,10 +41,10 @@
           "fallback_poll_seconds": "Fallback poll interval (seconds, 0 to disable)",
           "http_timeout_seconds": "HTTP timeout (seconds)",
           "ws_timeout_seconds": "WebSocket timeout (seconds)",
-          "disable_light": "Fan has no light (hide the light entity)"
+          "lightless_devices": "Fans with no light (hide their Light entity)"
         },
         "data_description": {
-          "disable_light": "Enable this if your fan has no physical light but a Light entity still appears. Some models report a light channel they don't actually have. Changing this reloads the integration."
+          "lightless_devices": "Select any fans that have no physical light. Some models report a light channel they don't actually have, creating a non-functional Light entity — checking a fan here hides its Light. Changing this reloads the integration."
         }
       }
     }

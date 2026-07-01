@@ -41,10 +41,10 @@
           "fallback_poll_seconds": "Intervalle d'interrogation de secours (secondes, 0 pour désactiver)",
           "http_timeout_seconds": "Délai HTTP (secondes)",
           "ws_timeout_seconds": "Délai WebSocket (secondes)",
-          "disable_light": "Le ventilateur n'a pas de lumière (masquer l'entité lumière)"
+          "lightless_devices": "Ventilateurs sans lumière (masquer leur entité Lumière)"
         },
         "data_description": {
-          "disable_light": "Activez ceci si votre ventilateur n'a pas de lumière physique mais qu'une entité Lumière apparaît quand même. Certains modèles signalent un canal lumineux qu'ils n'ont pas réellement. Modifier ce paramètre recharge l'intégration."
+          "lightless_devices": "Sélectionnez les ventilateurs qui n'ont pas de lumière physique. Certains modèles signalent un canal lumineux qu'ils n'ont pas réellement, créant une entité Lumière non fonctionnelle ; cocher un ventilateur ici masque sa Lumière. Modifier ce paramètre recharge l'intégration."
         }
       }
     }

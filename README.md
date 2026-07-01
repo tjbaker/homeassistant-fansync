@@ -100,11 +100,11 @@ Push-first updates are used by default. A low-frequency fallback poll can be con
 | fallback_poll_seconds  | Poll interval in seconds when push is unavailable (0 disables polling). | 60      |
 | http_timeout_seconds   | HTTP connect/read timeout (seconds)                               | 20      |
 | ws_timeout_seconds     | WebSocket connect/recv timeout (seconds)                          | 30      |
-| disable_light          | Hide the Light entity for a fan that has no physical light (see below). | off     |
+| lightless_devices      | Per-fan: select any fans with no physical light to hide their Light entity (see below). | none    |
 
 Set via: Settings → Devices & Services → FanSync → Configure → Options.
 - Poll interval allowed range: 15–600 seconds (0 disables polling and relies on push)
-- Changing **Fan has no light** reloads the integration so the Light entity appears/disappears immediately.
+- **Fans with no light** is a per-fan selection, so in a multi-fan account you can hide the phantom Light on only the fans that lack one. Changing it reloads the integration so the Light entities appear/disappear immediately.
 - Timeout ranges: 5–120 seconds (HTTP and WebSocket)
 
 ## Reauthentication
@@ -262,7 +262,7 @@ Then restart Home Assistant and reproduce the issue. Check logs in **Settings** 
 
 **Cause**: Some fans (e.g. certain Kute60 units) advertise a light channel in their cloud status despite having no bulb. The integration creates the Light entity from that reported channel, so it cannot tell a real light from a phantom one.
 
-**Solution**: Turn on **Fan has no light** in Settings → Devices & Services → FanSync → Configure → Options. This hides the Light entity for that fan (the integration reloads automatically). If you believe your fan *does* have a light that isn't working, please [open an issue](https://github.com/tjbaker/homeassistant-fansync/issues) with a downloaded diagnostics file so we can investigate device capabilities.
+**Solution**: In Settings → Devices & Services → FanSync → Configure → Options, select the affected fan(s) under **Fans with no light**. This hides the Light entity for just those fans (the integration reloads automatically) — other fans that do have lights are unaffected. If you believe your fan *does* have a light that isn't working, please [open an issue](https://github.com/tjbaker/homeassistant-fansync/issues) with a downloaded diagnostics file so we can investigate device capabilities.
 
 #### Intermittent Disconnections
 

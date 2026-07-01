@@ -27,6 +27,7 @@ def create_device_info(client: Any, device_id: str) -> DeviceInfo:
     device_id = device_id or "unknown"
     brand = "Fanimation"
     model = "FanSync"
+    name = "FanSync"
     sw: str | None = None
     mac: str | None = None
 
@@ -49,11 +50,26 @@ def create_device_info(client: Any, device_id: str) -> DeviceInfo:
         # Best-effort device info; ignore profile errors
         pass
 
+    # Prefer the user's display name from the account (e.g. "Living Room Fan")
+    # so multi-fan households get distinct, meaningful device names instead of
+    # every device showing as "FanSync".
+    try:
+        meta = client.device_metadata(device_id)
+        if isinstance(meta, dict):
+            props = meta.get("properties")
+            if isinstance(props, dict):
+                display = props.get("displayName")
+                if isinstance(display, str) and display.strip():
+                    name = display.strip()
+    except Exception:
+        # Best-effort; fall back to the generic name
+        pass
+
     info = DeviceInfo(
         identifiers={(DOMAIN, device_id)},
         manufacturer=brand,
         model=model,
-        name="FanSync",
+        name=name,
         sw_version=sw,
         serial_number=device_id,
     )

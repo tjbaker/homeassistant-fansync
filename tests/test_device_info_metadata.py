@@ -51,6 +51,9 @@ class MetaClient:
     def device_profile(self, device_id: str):
         return self._profile.get(device_id, {})
 
+    def device_metadata(self, device_id: str):
+        return {"device": device_id, "properties": {"displayName": "Living Room Fan"}}
+
 
 async def test_device_info_metadata(hass: HomeAssistant):
     client = MetaClient()
@@ -79,3 +82,5 @@ async def test_device_info_metadata(hass: HomeAssistant):
     assert dev.manufacturer == "Fanimation"
     assert dev.model == "OdynCustom-FDR1L2"
     assert dev.sw_version == "1.7.1"
+    # Device name comes from the account display name, not the generic "FanSync".
+    assert dev.name == "Living Room Fan"
