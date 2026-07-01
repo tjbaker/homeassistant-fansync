@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Custom Home Assistant integration for Fanimation FanSync smart fans and lights. Uses WebSocket-based cloud push updates as the primary update mechanism with configurable fallback polling.
 
 - **Integration domain**: `fansync`
-- **HA minimum version**: 2026.3.0, Python 3.14+
+- **HA minimum version**: 2026.6.0, Python 3.14+ (enforced via `hacs.json`; latest-HA-only policy)
 - **IoT class**: `cloud_push`
 
 ## Commands
@@ -39,6 +39,7 @@ A local Home Assistant instance for manual testing is available via `docker-comp
   - `fix:` → patch bump, appears in changelog; `feat:` → minor bump; `build:`/`chore:`/`docs:`/`test:`/`ci:` → no bump, not in changelog
   - When a PR mixes a code fix with a dep/tooling upgrade, use two commits (`fix:` first, then `build:`) so the fix lands in the changelog
 - All code must be fully type-annotated
+- **Editing/searching (Claude Code)**: prefer the Read/Grep/Edit tools over shell `grep`/`sed`/`cat`/`awk` — avoids permission prompts from glob/pipe expansion, gives cleaner reviewable diffs, and sidesteps shell-quoting bugs
 
 ## Architecture
 
@@ -90,4 +91,4 @@ type FanSyncConfigEntry = ConfigEntry[FanSyncRuntimeData]
 
 ### Testing
 
-Tests live in `tests/` (59 files). Mock at the import path used in the module under test, not the definition path. Coverage target is ≥75% for `custom_components/fansync`.
+Tests live in `tests/` (60+ files). Mock at the import path used in the module under test, not the definition path. Coverage target is ≥75% for `custom_components/fansync` (enforced in CI via `--cov-fail-under=75`).
