@@ -19,6 +19,8 @@ from typing import Any
 import httpx
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 
 from .client import FanSyncClient
 from .const import (
@@ -27,7 +29,6 @@ from .const import (
     CONF_PASSWORD,
     CONF_VERIFY_SSL,
     CONF_WS_TIMEOUT,
-    DEFAULT_DISABLE_LIGHT,
     DEFAULT_FALLBACK_POLL_SECS,
     DEFAULT_HTTP_TIMEOUT_SECS,
     DEFAULT_WS_TIMEOUT_SECS,
@@ -38,8 +39,9 @@ from .const import (
     MIN_FALLBACK_POLL_SECS,
     MIN_HTTP_TIMEOUT_SECS,
     MIN_WS_TIMEOUT_SECS,
-    OPTION_DISABLE_LIGHT,
     OPTION_FALLBACK_POLL_SECS,
+    OPTION_LIGHTLESS_DEVICES,
+    resolve_lightless_devices,
 )
 
 DATA_SCHEMA = vol.Schema(
@@ -337,15 +339,17 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
                 else:
                     _LOGGER.debug("options poll interval set: %s", secs)
                 _LOGGER.debug("options timeouts set: http=%s ws=%s", http_t, ws_t)
+            lightless = user_input.get(
+                OPTION_LIGHTLESS_DEVICES,
+                self._entry.options.get(OPTION_LIGHTLESS_DEVICES, []),
+            )
             return self.async_create_entry(
                 title="FanSync Options",
                 data={
                     OPTION_FALLBACK_POLL_SECS: secs,
                     CONF_HTTP_TIMEOUT: http_t,
                     CONF_WS_TIMEOUT: ws_t,
-                    OPTION_DISABLE_LIGHT: bool(
-                        user_input.get(OPTION_DISABLE_LIGHT, DEFAULT_DISABLE_LIGHT)
-                    ),
+                    OPTION_LIGHTLESS_DEVICES: list(lightless),
                 },
             )
 
@@ -360,17 +364,28 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_WS_TIMEOUT,
             data_defaults.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
         )
-        current_disable_light = self._entry.options.get(OPTION_DISABLE_LIGHT, DEFAULT_DISABLE_LIGHT)
-        schema = vol.Schema(
+        # Map this account's devices to friendly names for a per-device
+        # "no light" selection (the phantom-light option is per fan, not global).
+        device_map = self._device_name_map()
+        current_lightless = [
+            d
+            for d in resolve_lightless_devices(self._entry.options, list(device_map))
+            if d in device_map
+        ]
+
+        schema_dict: dict[Any, Any] = {
+            vol.Optional(
+                OPTION_FALLBACK_POLL_SECS,
+                default=current,
+            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=MAX_FALLBACK_POLL_SECS)),
+        }
+        # Only offer the per-device selector when we know this account's devices.
+        if device_map:
+            schema_dict[vol.Optional(OPTION_LIGHTLESS_DEVICES, default=current_lightless)] = (
+                cv.multi_select(device_map)
+            )
+        schema_dict.update(
             {
-                vol.Optional(
-                    OPTION_FALLBACK_POLL_SECS,
-                    default=current,
-                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=MAX_FALLBACK_POLL_SECS)),
-                vol.Optional(
-                    OPTION_DISABLE_LIGHT,
-                    default=current_disable_light,
-                ): bool,
                 vol.Optional(
                     CONF_HTTP_TIMEOUT,
                     default=current_http,
@@ -387,4 +402,15 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
                 ),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="init", data_schema=vol.Schema(schema_dict))
+
+    def _device_name_map(self) -> dict[str, str]:
+        """Map this entry's fansync device_ids to friendly names for the UI."""
+        dev_reg = dr.async_get(self.hass)
+        result: dict[str, str] = {}
+        for device in dr.async_entries_for_config_entry(dev_reg, self._entry.entry_id):
+            for domain, identifier in device.identifiers:
+                if domain == DOMAIN:
+                    result[identifier] = device.name_by_user or device.name or identifier
+                    break
+        return result

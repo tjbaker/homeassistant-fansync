@@ -10,6 +10,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Iterable, Mapping
+
 DOMAIN = "fansync"
 PLATFORMS = ["fan", "light"]
 CONF_EMAIL = "email"
@@ -51,6 +53,10 @@ MIN_FALLBACK_POLL_SECS = 15
 MAX_FALLBACK_POLL_SECS = 600
 # Options: hide the light entity for fans that have no physical light but still
 # advertise a light channel (H0B/H0C) in their status (e.g. some Kute60 units).
+# Stored per-device: a list of device_ids whose light entity should be hidden.
+OPTION_LIGHTLESS_DEVICES = "lightless_devices"
+# Legacy account-wide boolean (0.8.0). Kept only for migration to the per-device
+# list above; a mixed multi-fan household could not use it correctly.
 OPTION_DISABLE_LIGHT = "disable_light"
 DEFAULT_DISABLE_LIGHT = False
 # Timeouts
@@ -122,3 +128,19 @@ def ha_brightness_to_pct(brightness: int | None) -> int:
 def pct_to_ha_brightness(pct: int) -> int:
     """Map FanSync 0-100 to Home Assistant brightness (0-255)."""
     return int(int(pct) * 255 / 100)
+
+
+def resolve_lightless_devices(options: Mapping[str, object], device_ids: Iterable[str]) -> set[str]:
+    """Return the device_ids whose light entity should be hidden.
+
+    Reads the per-device ``OPTION_LIGHTLESS_DEVICES`` list. If that key is not
+    set, migrates the legacy account-wide ``OPTION_DISABLE_LIGHT`` boolean
+    (0.8.0): when it was enabled, every known device is treated as lightless,
+    preserving the old behavior until the user re-picks per device.
+    """
+    explicit = options.get(OPTION_LIGHTLESS_DEVICES)
+    if isinstance(explicit, list):
+        return {str(d) for d in explicit if d}
+    if options.get(OPTION_DISABLE_LIGHT):
+        return {d for d in device_ids if d}
+    return set()

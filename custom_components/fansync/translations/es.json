@@ -41,10 +41,10 @@
           "fallback_poll_seconds": "Intervalo de sondeo de respaldo (segundos, 0 para deshabilitar)",
           "http_timeout_seconds": "Tiempo de espera HTTP (segundos)",
           "ws_timeout_seconds": "Tiempo de espera WebSocket (segundos)",
-          "disable_light": "El ventilador no tiene luz (ocultar la entidad de luz)"
+          "lightless_devices": "Ventiladores sin luz (ocultar su entidad de luz)"
         },
         "data_description": {
-          "disable_light": "Habilite esto si su ventilador no tiene luz física pero aún aparece una entidad de luz. Algunos modelos informan un canal de luz que en realidad no tienen. Cambiar esto recarga la integración."
+          "lightless_devices": "Seleccione los ventiladores que no tienen luz física. Algunos modelos informan un canal de luz que en realidad no tienen, creando una entidad de luz no funcional; marcar un ventilador aquí oculta su luz. Cambiar esto recarga la integración."
         }
       }
     }

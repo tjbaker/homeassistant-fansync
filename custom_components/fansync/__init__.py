@@ -32,17 +32,16 @@ from .const import (
     CONF_PASSWORD,
     CONF_VERIFY_SSL,
     CONF_WS_TIMEOUT,
-    DEFAULT_DISABLE_LIGHT,
     DEFAULT_FALLBACK_POLL_SECS,
     DEFAULT_HTTP_TIMEOUT_SECS,
     DEFAULT_WS_TIMEOUT_SECS,
     DOMAIN,
     KEY_LIGHT_BRIGHTNESS,
     KEY_LIGHT_POWER,
-    OPTION_DISABLE_LIGHT,
     OPTION_FALLBACK_POLL_SECS,
     PLATFORMS,
     POLL_STATUS_TIMEOUT_SECS,
+    resolve_lightless_devices,
 )
 from .coordinator import FanSyncCoordinator
 
@@ -186,26 +185,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
         # If no data yet (first refresh deferred or empty), fall back to all PLATFORMS
         # so that capability platforms (e.g., light) are available once data arrives.
         # Users can hide a phantom light on lightless fans that still report a
-        # light channel (see OPTION_DISABLE_LIGHT).
-        disable_light = entry.options.get(OPTION_DISABLE_LIGHT, DEFAULT_DISABLE_LIGHT)
+        # light channel; this is per-device (see resolve_lightless_devices).
+        known_ids = _get_client_device_ids(client)
+        lightless = resolve_lightless_devices(entry.options, known_ids)
         data_now = coordinator.data
         if not isinstance(data_now, dict) or not data_now:
-            platforms = ["fan"] if disable_light else list(PLATFORMS)
+            # No data yet: load the light platform unless every known device is
+            # marked lightless. light.py filters per-device once data arrives.
+            has_lit_device = not known_ids or any(d not in lightless for d in known_ids)
+            platforms = list(PLATFORMS) if has_lit_device else ["fan"]
         else:
             platforms = ["fan"]
-            if not disable_light and any(
-                isinstance(s, dict) and (KEY_LIGHT_POWER in s or KEY_LIGHT_BRIGHTNESS in s)
-                for s in data_now.values()
+            if any(
+                isinstance(s, dict)
+                and did not in lightless
+                and (KEY_LIGHT_POWER in s or KEY_LIGHT_BRIGHTNESS in s)
+                for did, s in data_now.items()
             ):
                 platforms.append("light")
 
         async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry) -> None:
-            # Toggling the light option adds/removes the light platform, which
-            # requires a full reload of the config entry to take effect.
-            new_disable_light = updated_entry.options.get(
-                OPTION_DISABLE_LIGHT, DEFAULT_DISABLE_LIGHT
-            )
-            if new_disable_light != disable_light:
+            # Changing which devices are lightless adds/removes light entities,
+            # which requires a full reload of the config entry to take effect.
+            new_lightless = resolve_lightless_devices(updated_entry.options, known_ids)
+            if new_lightless != lightless:
                 await hass.config_entries.async_reload(updated_entry.entry_id)
                 return
 
