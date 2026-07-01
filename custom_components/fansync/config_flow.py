@@ -27,6 +27,7 @@ from .const import (
     CONF_PASSWORD,
     CONF_VERIFY_SSL,
     CONF_WS_TIMEOUT,
+    DEFAULT_DISABLE_LIGHT,
     DEFAULT_FALLBACK_POLL_SECS,
     DEFAULT_HTTP_TIMEOUT_SECS,
     DEFAULT_WS_TIMEOUT_SECS,
@@ -37,6 +38,7 @@ from .const import (
     MIN_FALLBACK_POLL_SECS,
     MIN_HTTP_TIMEOUT_SECS,
     MIN_WS_TIMEOUT_SECS,
+    OPTION_DISABLE_LIGHT,
     OPTION_FALLBACK_POLL_SECS,
 )
 
@@ -341,6 +343,9 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
                     OPTION_FALLBACK_POLL_SECS: secs,
                     CONF_HTTP_TIMEOUT: http_t,
                     CONF_WS_TIMEOUT: ws_t,
+                    OPTION_DISABLE_LIGHT: bool(
+                        user_input.get(OPTION_DISABLE_LIGHT, DEFAULT_DISABLE_LIGHT)
+                    ),
                 },
             )
 
@@ -355,12 +360,17 @@ class FanSyncOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_WS_TIMEOUT,
             data_defaults.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
         )
+        current_disable_light = self._entry.options.get(OPTION_DISABLE_LIGHT, DEFAULT_DISABLE_LIGHT)
         schema = vol.Schema(
             {
                 vol.Optional(
                     OPTION_FALLBACK_POLL_SECS,
                     default=current,
                 ): vol.All(vol.Coerce(int), vol.Range(min=0, max=MAX_FALLBACK_POLL_SECS)),
+                vol.Optional(
+                    OPTION_DISABLE_LIGHT,
+                    default=current_disable_light,
+                ): bool,
                 vol.Optional(
                     CONF_HTTP_TIMEOUT,
                     default=current_http,

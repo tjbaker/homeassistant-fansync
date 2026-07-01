@@ -36,11 +36,15 @@
     "step": {
       "init": {
         "title": "FanSync Options",
-        "description": "Configure fallback polling and network timeouts",
+        "description": "Configure fallback polling, network timeouts, and device options",
         "data": {
           "fallback_poll_seconds": "Fallback poll interval (seconds, 0 to disable)",
           "http_timeout_seconds": "HTTP timeout (seconds)",
-          "ws_timeout_seconds": "WebSocket timeout (seconds)"
+          "ws_timeout_seconds": "WebSocket timeout (seconds)",
+          "disable_light": "Fan has no light (hide the light entity)"
+        },
+        "data_description": {
+          "disable_light": "Enable this if your fan has no physical light but a Light entity still appears. Some models report a light channel they don't actually have. Changing this reloads the integration."
         }
       }
     }

@@ -89,12 +89,18 @@ async def async_get_config_entry_diagnostics(
                     profile = client.device_profile(device_id)
                     if profile:
                         # Include useful metadata, exclude sensitive data
-                        sanitized = {}
-                        if "esh" in profile:
-                            sanitized["esh"] = {
-                                "model": profile["esh"].get("model"),
-                                "brand": profile["esh"].get("brand"),
-                            }
+                        sanitized: dict[str, Any] = {}
+                        # Include the full esh block (device model / capability
+                        # descriptor: brand, model, class, device_id, esh_version).
+                        # It carries no secrets — the sensitive "cert" block is never
+                        # copied — and its fields help diagnose device-capability
+                        # issues (e.g. fans that advertise a light channel they lack).
+                        esh = profile.get("esh")
+                        if isinstance(esh, dict):
+                            sanitized["esh"] = dict(esh)
+                        # Surface which top-level profile blocks exist (not their
+                        # contents) so capability data outside esh is discoverable.
+                        sanitized["profile_keys"] = sorted(profile.keys())
                         if "module" in profile:
                             # Mask MAC address for privacy (show first 3 octets only)
                             mac = profile["module"].get("mac_address", "")

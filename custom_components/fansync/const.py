@@ -49,6 +49,10 @@ OPTION_FALLBACK_POLL_SECS = "fallback_poll_seconds"
 DEFAULT_FALLBACK_POLL_SECS = 60
 MIN_FALLBACK_POLL_SECS = 15
 MAX_FALLBACK_POLL_SECS = 600
+# Options: hide the light entity for fans that have no physical light but still
+# advertise a light channel (H0B/H0C) in their status (e.g. some Kute60 units).
+OPTION_DISABLE_LIGHT = "disable_light"
+DEFAULT_DISABLE_LIGHT = False
 # Timeouts
 # HTTP timeouts apply to connect/read for login and token refresh
 DEFAULT_HTTP_TIMEOUT_SECS = 20
