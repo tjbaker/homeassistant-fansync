@@ -100,9 +100,11 @@ Push-first updates are used by default. A low-frequency fallback poll can be con
 | fallback_poll_seconds  | Poll interval in seconds when push is unavailable (0 disables polling). | 60      |
 | http_timeout_seconds   | HTTP connect/read timeout (seconds)                               | 20      |
 | ws_timeout_seconds     | WebSocket connect/recv timeout (seconds)                          | 30      |
+| disable_light          | Hide the Light entity for a fan that has no physical light (see below). | off     |
 
 Set via: Settings → Devices & Services → FanSync → Configure → Options.
 - Poll interval allowed range: 15–600 seconds (0 disables polling and relies on push)
+- Changing **Fan has no light** reloads the integration so the Light entity appears/disappears immediately.
 - Timeout ranges: 5–120 seconds (HTTP and WebSocket)
 
 ## Reauthentication
@@ -253,6 +255,14 @@ Then restart Home Assistant and reproduce the issue. Check logs in **Settings** 
 - If `avg_latency_ms > 5000`: Increase WebSocket timeout in integration options
 - If `websocket_reconnects > 10`: Check WiFi signal strength and network stability
 - If `timeout_rate > 0.3`: Network latency issues - check router/ISP
+
+#### A Light Entity Appears for a Fan With No Light
+
+**Symptoms**: A `light.*` entity is created (and may show in the Fanimation app too) even though your fan has no physical light. Controlling it does nothing.
+
+**Cause**: Some fans (e.g. certain Kute60 units) advertise a light channel in their cloud status despite having no bulb. The integration creates the Light entity from that reported channel, so it cannot tell a real light from a phantom one.
+
+**Solution**: Turn on **Fan has no light** in Settings → Devices & Services → FanSync → Configure → Options. This hides the Light entity for that fan (the integration reloads automatically). If you believe your fan *does* have a light that isn't working, please [open an issue](https://github.com/tjbaker/homeassistant-fansync/issues) with a downloaded diagnostics file so we can investigate device capabilities.
 
 #### Intermittent Disconnections
 
