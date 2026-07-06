@@ -19,7 +19,7 @@ pytest-cov==7.1.0
 pytest-homeassistant-custom-component==0.13.357
 pytest==9.0.3
 pre-commit==4.6.0
-ruff==0.15.12
+ruff==0.15.20
 # Runtime deps required by integration (for local tests)
 httpx==0.28.1
 websockets==16.0
