@@ -16,7 +16,7 @@ homeassistant==2026.6.4
 mypy==2.1.0
 pycares==5.0.1
 pytest-cov==7.1.0
-pytest-homeassistant-custom-component==0.13.340
+pytest-homeassistant-custom-component==0.13.345
 pytest==9.0.3
 pre-commit==4.6.0
 ruff==0.15.12
