@@ -27,6 +27,11 @@ KEY_SPEED = "H02"
 KEY_DIRECTION = "H06"
 KEY_LIGHT_POWER = "H0B"
 KEY_LIGHT_BRIGHTNESS = "H0C"
+KEY_LIGHT_COLOR_TEMP = "H04"
+
+# Warm, natural, cool. Not a continuous range - requested kelvin values are
+# snapped to the nearest of these.
+LIGHT_COLOR_TEMP_PRESETS_KELVIN = (3000, 4000, 5000)
 
 # Preset modes mapping
 PRESET_MODES = {0: "normal", 1: "fresh_air"}
@@ -128,6 +133,11 @@ def ha_brightness_to_pct(brightness: int | None) -> int:
 def pct_to_ha_brightness(pct: int) -> int:
     """Map FanSync 0-100 to Home Assistant brightness (0-255)."""
     return int(int(pct) * 255 / 100)
+
+
+def snap_color_temp_kelvin(kelvin: int) -> int:
+    """Snap a requested kelvin value to the nearest supported preset."""
+    return min(LIGHT_COLOR_TEMP_PRESETS_KELVIN, key=lambda preset: abs(preset - kelvin))
 
 
 def resolve_lightless_devices(options: Mapping[str, object], device_ids: Iterable[str]) -> set[str]:
