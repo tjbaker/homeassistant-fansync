@@ -16,6 +16,13 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    groups:
+      # pytest-homeassistant-custom-component pins exact homeassistant and
+      # pytest* versions, so these must be bumped together in one PR.
+      homeassistant-test-stack:
+        patterns:
+          - "homeassistant"
+          - "pytest*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
