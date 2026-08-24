@@ -167,6 +167,11 @@ async def test_diagnostics_returns_metrics(hass: HomeAssistant) -> None:
     assert diagnostics["coordinator"]["last_poll_mismatch_keys"]["test_device_123"] == ["H00"]
     assert diagnostics["coordinator"]["status_history"][0]["device_count"] == 1
 
+    # Verify raw protocol values survive into the snapshot (issue #189: without
+    # them, user-supplied diagnostics cannot show which undecoded key changed)
+    snapshot = diagnostics["coordinator"]["status_snapshot"]["test_device_123"]
+    assert snapshot["raw"] == {"H00": 1, "H02": 50}
+
     # Verify device IDs
     assert "test_device_123" in diagnostics["device_ids"]
 
