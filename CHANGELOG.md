@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.8.2](https://github.com/tjbaker/homeassistant-fansync/compare/0.8.1...0.8.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* include raw protocol values in diagnostics snapshots ([#219](https://github.com/tjbaker/homeassistant-fansync/issues/219)) ([9d346aa](https://github.com/tjbaker/homeassistant-fansync/commit/9d346aa454138d8a9dcfc77fa5551633d6058d4c))
+
 ## [0.8.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.8.0...0.8.1) (2026-07-01)
 
 
