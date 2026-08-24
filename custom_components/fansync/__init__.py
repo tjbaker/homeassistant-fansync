@@ -45,6 +45,7 @@ from .const import (
     resolve_lightless_devices,
 )
 from .coordinator import FanSyncCoordinator
+from .device_utils import cloud_lightless_devices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -205,7 +206,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
         # Users can hide a phantom light on lightless fans that still report a
         # light channel; this is per-device (see resolve_lightless_devices).
         known_ids = _get_client_device_ids(client)
-        lightless = resolve_lightless_devices(entry.options, known_ids)
+        # Union of the user's explicit per-device option and devices the cloud
+        # itself marks lightless (properties.hideLightDimmer, see issue #199).
+        cloud_lightless = cloud_lightless_devices(client, known_ids)
+        lightless = resolve_lightless_devices(entry.options, known_ids) | cloud_lightless
         # Remove any previously-registered light entities for now-lightless
         # devices so HA doesn't leave an orphaned "no longer provided" entity.
         _remove_lightless_light_entities(hass, lightless)
@@ -228,7 +232,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
         async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry) -> None:
             # Changing which devices are lightless adds/removes light entities,
             # which requires a full reload of the config entry to take effect.
-            new_lightless = resolve_lightless_devices(updated_entry.options, known_ids)
+            new_lightless = (
+                resolve_lightless_devices(updated_entry.options, known_ids) | cloud_lightless
+            )
             if new_lightless != lightless:
                 await hass.config_entries.async_reload(updated_entry.entry_id)
                 return
