@@ -13,7 +13,7 @@
 # Development requirements for CI and local checks
 black==26.5.1
 homeassistant==2026.8.3
-mypy==2.1.0
+mypy==2.3.1
 pycares==5.0.1
 pytest-cov==7.1.0
 pytest-homeassistant-custom-component==0.13.357
