@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 
 from .const import (
@@ -22,6 +23,13 @@ from .const import (
     KEY_PRESET,
     KEY_SPEED,
 )
+
+# Device protocol registers (H00, H0B, ...). Their raw values are plain fan/light
+# state — the same numbers the decoded fan/light summaries already expose — so
+# including them verbatim leaks nothing, and it lets user-supplied diagnostics
+# answer protocol questions about keys we have not decoded yet (see issue #189,
+# where redacted snapshots could not show which key carried color temperature).
+_PROTOCOL_KEY_RE = re.compile(r"^H[0-9A-F]{2}$")
 
 
 def summarize_status_snapshot(data: object | None) -> dict[str, dict[str, object]]:
@@ -38,6 +46,7 @@ def summarize_status_snapshot(data: object | None) -> dict[str, dict[str, object
         status_map = dict(status)
         summary[device_id] = {
             "keys": sorted(status_map.keys()),
+            "raw": {k: status_map[k] for k in sorted(status_map) if _PROTOCOL_KEY_RE.match(k)},
             "fan": {
                 "power": status_map.get(KEY_POWER),
                 "speed": status_map.get(KEY_SPEED),
