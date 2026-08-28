@@ -15,8 +15,8 @@
 H04 was previously undecoded. Confirmed against a live device: switching a
 light's color in the Fanimation app between its "warm"/"natural"/"cool" presets
 moved H04 between exactly 3000/4000/5000 (Kelvin), with every other key
-unchanged. Not every device reports it - fixed-temperature fixtures omit it,
-which is what the capability-gating tests below cover.
+unchanged. Devices without tunable lights can report other H04 values, so the
+confirmed preset values are used as the capability signal.
 """
 
 from homeassistant.core import HomeAssistant
@@ -68,6 +68,36 @@ async def test_color_temp_unsupported_when_device_omits_h04(
         title="FanSync",
         data={"email": "u@e.com", "password": "p", "verify_ssl": False},
         unique_id="test-no-color-temp",
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = hass.states.get("light.fansync_light")
+    assert state is not None
+    assert state.attributes.get("supported_color_modes") == ["brightness"]
+    assert "color_temp_kelvin" not in state.attributes
+
+
+async def test_color_temp_unsupported_when_device_reports_off_preset_h04(
+    hass: HomeAssistant, mock_client, patch_client
+) -> None:
+    """A device reporting an off-preset H04 value stays BRIGHTNESS-only."""
+    mock_client.status = {
+        "H00": 1,
+        "H02": 41,
+        "H06": 0,
+        "H01": 0,
+        "H0B": 1,
+        "H0C": 100,
+        "H04": 3500,
+    }
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": False},
+        unique_id="test-off-preset-color-temp",
     )
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)

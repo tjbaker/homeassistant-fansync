@@ -82,7 +82,9 @@ async def async_setup_entry(
             if isinstance(status, dict) and (
                 KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status
             ):
-                supports_color_temp = KEY_LIGHT_COLOR_TEMP in status
+                supports_color_temp = (
+                    status.get(KEY_LIGHT_COLOR_TEMP) in LIGHT_COLOR_TEMP_PRESETS_KELVIN
+                )
                 entities.append(FanSyncLight(coordinator, client, did, supports_color_temp))
 
     async_add_entities(entities)
@@ -103,7 +105,7 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
     ):
         super().__init__(coordinator, client, device_id)
         self._attr_unique_id = f"{DOMAIN}_{self._device_id}_light"
-        # Gated on H04 presence: fixed-temperature fixtures never report it.
+        # Fanimation exposes no capability flag, so gate on the confirmed H04 presets.
         self._supports_color_temp = supports_color_temp
         if supports_color_temp:
             self._attr_supported_color_modes = {ColorMode.COLOR_TEMP}
