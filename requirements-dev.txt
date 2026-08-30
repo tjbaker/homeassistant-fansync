@@ -19,7 +19,7 @@ pycares==5.0.1
 # pins exact versions of both, so pip resolves them from its requirements.
 pytest-homeassistant-custom-component==0.13.357
 pre-commit==4.6.2
-ruff==0.15.20
+ruff==0.16.5
 # Runtime deps required by integration (for local tests)
 httpx==0.28.1
 websockets==17.0.1
