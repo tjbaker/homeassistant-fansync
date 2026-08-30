@@ -17,7 +17,7 @@ mypy==2.3.1
 pycares==5.0.1
 # pytest and pytest-cov are intentionally unpinned: pytest-homeassistant-custom-component
 # pins exact versions of both, so pip resolves them from its requirements.
-pytest-homeassistant-custom-component==0.13.357
+pytest-homeassistant-custom-component==0.13.358
 pre-commit==4.6.2
 ruff==0.15.20
 # Runtime deps required by integration (for local tests)
