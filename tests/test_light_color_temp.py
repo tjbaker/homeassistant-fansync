@@ -58,6 +58,35 @@ async def test_color_temp_supported_when_device_reports_h04(
     assert state.attributes.get("color_temp_kelvin") == 4000
 
 
+async def test_color_temp_supported_when_device_reports_h04_as_string(
+    hass: HomeAssistant, mock_client, patch_client
+) -> None:
+    """A string H04 value still enables COLOR_TEMP mode."""
+    mock_client.status = {
+        "H00": 1,
+        "H02": 41,
+        "H06": 0,
+        "H01": 0,
+        "H0B": 1,
+        "H0C": 100,
+        "H04": "4000",
+    }
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": False},
+        unique_id="test-string-color-temp",
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = hass.states.get("light.fansync_light")
+    assert state is not None
+    assert state.attributes.get("supported_color_modes") == ["color_temp"]
+
+
 async def test_color_temp_unsupported_when_device_omits_h04(
     hass: HomeAssistant, mock_client, patch_client
 ) -> None:
@@ -113,7 +142,15 @@ async def test_turn_on_snaps_requested_kelvin_to_nearest_preset(
     hass: HomeAssistant, mock_client, patch_client
 ) -> None:
     """A requested kelvin between two presets snaps to the nearer one and reaches the device."""
-    mock_client.status = {"H00": 1, "H02": 41, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0, "H04": 3000}
+    mock_client.status = {
+        "H00": 1,
+        "H02": 41,
+        "H06": 0,
+        "H01": 0,
+        "H0B": 0,
+        "H0C": 0,
+        "H04": 3000,
+    }
 
     entry = MockConfigEntry(
         domain=DOMAIN,

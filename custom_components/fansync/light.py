@@ -82,9 +82,14 @@ async def async_setup_entry(
             if isinstance(status, dict) and (
                 KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status
             ):
-                supports_color_temp = (
-                    status.get(KEY_LIGHT_COLOR_TEMP) in LIGHT_COLOR_TEMP_PRESETS_KELVIN
-                )
+                color_temp = status.get(KEY_LIGHT_COLOR_TEMP)
+                try:
+                    color_temp_kelvin = (
+                        int(color_temp) if isinstance(color_temp, int | str) else None
+                    )
+                except ValueError:
+                    color_temp_kelvin = None
+                supports_color_temp = color_temp_kelvin in LIGHT_COLOR_TEMP_PRESETS_KELVIN
                 entities.append(FanSyncLight(coordinator, client, did, supports_color_temp))
 
     async_add_entities(entities)
