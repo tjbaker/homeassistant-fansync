@@ -22,4 +22,4 @@ pre-commit==4.6.2
 ruff==0.15.20
 # Runtime deps required by integration (for local tests)
 httpx==0.28.1
-websockets==17.0.1
+websockets==17.1
