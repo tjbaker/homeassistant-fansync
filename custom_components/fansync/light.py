@@ -27,16 +27,19 @@ from .const import (
     CONFIRM_INITIAL_DELAY_SEC,  # noqa: F401  retained as a patch seam for tests
     DOMAIN,
     KEY_LIGHT_BRIGHTNESS,
+    KEY_LIGHT_COLOR_TEMP,
     KEY_LIGHT_POWER,
+    LIGHT_COLOR_TEMP_PRESETS_KELVIN,
     ha_brightness_to_pct,
     pct_to_ha_brightness,
     resolve_lightless_devices,
+    snap_color_temp_kelvin,
 )
 from .coordinator import FanSyncCoordinator
 from .entity import FanSyncOptimisticEntity
 
 # Only overlay keys that directly affect HA UI state to prevent snap-back
-OVERLAY_KEYS = {KEY_LIGHT_POWER, KEY_LIGHT_BRIGHTNESS}
+OVERLAY_KEYS = {KEY_LIGHT_POWER, KEY_LIGHT_BRIGHTNESS, KEY_LIGHT_COLOR_TEMP}
 
 # Coordinator handles all API calls; allow unlimited parallel entity updates (no semaphore)
 PARALLEL_UPDATES = 0
@@ -79,7 +82,15 @@ async def async_setup_entry(
             if isinstance(status, dict) and (
                 KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status
             ):
-                entities.append(FanSyncLight(coordinator, client, did))
+                color_temp = status.get(KEY_LIGHT_COLOR_TEMP)
+                try:
+                    color_temp_kelvin = (
+                        int(color_temp) if isinstance(color_temp, int | str) else None
+                    )
+                except ValueError:
+                    color_temp_kelvin = None
+                supports_color_temp = color_temp_kelvin in LIGHT_COLOR_TEMP_PRESETS_KELVIN
+                entities.append(FanSyncLight(coordinator, client, did, supports_color_temp))
 
     async_add_entities(entities)
 
@@ -87,14 +98,28 @@ async def async_setup_entry(
 class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "light"
-    _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
-    _attr_color_mode = ColorMode.BRIGHTNESS
 
     OVERLAY_KEYS = OVERLAY_KEYS
 
-    def __init__(self, coordinator: FanSyncCoordinator, client: FanSyncClient, device_id: str):
+    def __init__(
+        self,
+        coordinator: FanSyncCoordinator,
+        client: FanSyncClient,
+        device_id: str,
+        supports_color_temp: bool = False,
+    ):
         super().__init__(coordinator, client, device_id)
         self._attr_unique_id = f"{DOMAIN}_{self._device_id}_light"
+        # Fanimation exposes no capability flag, so gate on the confirmed H04 presets.
+        self._supports_color_temp = supports_color_temp
+        if supports_color_temp:
+            self._attr_supported_color_modes = {ColorMode.COLOR_TEMP}
+            self._attr_color_mode = ColorMode.COLOR_TEMP
+            self._attr_min_color_temp_kelvin = min(LIGHT_COLOR_TEMP_PRESETS_KELVIN)
+            self._attr_max_color_temp_kelvin = max(LIGHT_COLOR_TEMP_PRESETS_KELVIN)
+        else:
+            self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+            self._attr_color_mode = ColorMode.BRIGHTNESS
 
     @property
     def is_on(self) -> bool:
@@ -105,7 +130,15 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         val = self._get_with_overlay(KEY_LIGHT_BRIGHTNESS, 0)
         return pct_to_ha_brightness(val)
 
-    async def async_turn_on(self, brightness: int | None = None, **kwargs) -> None:
+    @property
+    def color_temp_kelvin(self) -> int | None:
+        if not self._supports_color_temp:
+            return None
+        return self._get_with_overlay(KEY_LIGHT_COLOR_TEMP, min(LIGHT_COLOR_TEMP_PRESETS_KELVIN))
+
+    async def async_turn_on(
+        self, brightness: int | None = None, color_temp_kelvin: int | None = None, **kwargs
+    ) -> None:
         optimistic = {KEY_LIGHT_POWER: 1}
         payload = {KEY_LIGHT_POWER: 1}
         if brightness is not None:
@@ -115,8 +148,23 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         else:
             pct = None
 
-        def _confirm(s: dict[str, object], pb: int | None = pct) -> bool:
-            return s.get(KEY_LIGHT_POWER) == 1 and (pb is None or s.get(KEY_LIGHT_BRIGHTNESS) == pb)
+        kelvin = None
+        if color_temp_kelvin is not None and self._supports_color_temp:
+            kelvin = snap_color_temp_kelvin(color_temp_kelvin)
+            optimistic[KEY_LIGHT_COLOR_TEMP] = kelvin
+            payload[KEY_LIGHT_COLOR_TEMP] = kelvin
+
+        def _confirm(s: dict[str, object], pb: int | None = pct, pk: int | None = kelvin) -> bool:
+            color_temp = s.get(KEY_LIGHT_COLOR_TEMP)
+            try:
+                confirmed_kelvin = int(color_temp) if isinstance(color_temp, int | str) else None
+            except ValueError:
+                confirmed_kelvin = None
+            return (
+                s.get(KEY_LIGHT_POWER) == 1
+                and (pb is None or s.get(KEY_LIGHT_BRIGHTNESS) == pb)
+                and (pk is None or confirmed_kelvin == pk)
+            )
 
         await self._apply_with_optimism(optimistic, payload, _confirm)
 
