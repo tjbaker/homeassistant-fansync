@@ -19,6 +19,8 @@ unchanged. Devices without tunable lights can report other H04 values, so the
 confirmed preset values are used as the capability signal.
 """
 
+from unittest.mock import AsyncMock, patch
+
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -175,3 +177,48 @@ async def test_turn_on_snaps_requested_kelvin_to_nearest_preset(
     assert state.state == "on"
     assert state.attributes.get("color_temp_kelvin") == 5000
     assert mock_client.status["H04"] == 5000
+
+
+async def test_turn_on_confirms_when_device_returns_string_h04(
+    hass: HomeAssistant, mock_client, patch_client
+) -> None:
+    """A string H04 status confirms the optimistic color-temperature update."""
+    mock_client.status = {
+        "H00": 1,
+        "H02": 41,
+        "H06": 0,
+        "H01": 0,
+        "H0B": 1,
+        "H0C": 100,
+        "H04": 3000,
+    }
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": False},
+        unique_id="test-string-color-temp-confirmation",
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    async def async_set_string_h04(data: dict[str, int], *, device_id: str | None = None) -> None:
+        mock_client.status.update(data)
+        mock_client.status["H04"] = str(mock_client.status["H04"])
+
+    mock_client.async_set = async_set_string_h04
+    mock_client.async_get_status = AsyncMock(return_value=mock_client.status)
+
+    with (
+        patch("custom_components.fansync.entity.CONFIRM_INITIAL_DELAY_SEC", 0),
+        patch("custom_components.fansync.entity.CONFIRM_RETRY_DELAY_SEC", 0),
+    ):
+        await hass.services.async_call(
+            "light",
+            "turn_on",
+            {"entity_id": "light.fansync_light", "color_temp_kelvin": 4600},
+            blocking=True,
+        )
+
+    assert mock_client.async_get_status.await_count == 1

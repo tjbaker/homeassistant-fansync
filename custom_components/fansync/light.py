@@ -155,10 +155,15 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
             payload[KEY_LIGHT_COLOR_TEMP] = kelvin
 
         def _confirm(s: dict[str, object], pb: int | None = pct, pk: int | None = kelvin) -> bool:
+            color_temp = s.get(KEY_LIGHT_COLOR_TEMP)
+            try:
+                confirmed_kelvin = int(color_temp) if isinstance(color_temp, int | str) else None
+            except ValueError:
+                confirmed_kelvin = None
             return (
                 s.get(KEY_LIGHT_POWER) == 1
                 and (pb is None or s.get(KEY_LIGHT_BRIGHTNESS) == pb)
-                and (pk is None or s.get(KEY_LIGHT_COLOR_TEMP) == pk)
+                and (pk is None or confirmed_kelvin == pk)
             )
 
         await self._apply_with_optimism(optimistic, payload, _confirm)
