@@ -70,7 +70,9 @@ async def test_device_registry_updated_before_first_refresh(hass: HomeAssistant)
 
         # Verify device was registered even though first refresh timed out
         device_registry = dr.async_get(hass)
-        device = device_registry.async_get_device(identifiers={(DOMAIN, "test_device_123")})
+        device = device_registry.async_get_device_by_identifier(
+            (DOMAIN, "test_device_123"), entry.entry_id
+        )
 
         # Device should exist with profile data
         assert device is not None
@@ -119,13 +121,76 @@ async def test_early_registry_handles_missing_profile_gracefully(
 
         # Device should exist but without profile metadata
         device_registry = dr.async_get(hass)
-        device = device_registry.async_get_device(identifiers={(DOMAIN, "test_device_456")})
+        device = device_registry.async_get_device_by_identifier(
+            (DOMAIN, "test_device_456"), entry.entry_id
+        )
 
         # Device should exist (created by entity setup)
         # but profile fields should be None since no profile data was available
         assert device is not None
         # Model/manufacturer/sw_version will be None since profile wasn't available
         # This is expected behavior - they'll be updated when profile arrives later
+
+
+async def test_registry_update_preserves_existing_connections(hass: HomeAssistant) -> None:
+    """Existing device connections survive the profile-driven registry update.
+
+    HA deprecated merge_connections in favor of new_connections, which replaces
+    the full set. The coordinator must union the discovered MAC with whatever
+    the device already had rather than dropping it.
+    """
+    mock_client = MagicMock()
+    mock_client.device_id = "test_device_789"
+    mock_client.device_ids = ["test_device_789"]
+
+    def mock_device_profile(device_id: str) -> dict[str, Any]:
+        return {
+            "esh": {"model": "TestFan-789", "brand": "TestBrand"},
+            "module": {"firmware_version": "1.0.0", "mac_address": "AA:BB:CC:DD:EE:FF"},
+        }
+
+    mock_client.device_profile = MagicMock(side_effect=mock_device_profile)
+    mock_client.ws_timeout_seconds.return_value = 30
+
+    async def mock_connect() -> None:
+        pass
+
+    mock_client.async_connect = mock_connect
+
+    async def mock_get_status(device_id: str | None = None) -> dict[str, int]:
+        return {"H00": 1, "H02": 3}
+
+    mock_client.async_get_status = mock_get_status
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="FanSync",
+        data={CONF_EMAIL: "test@example.com", CONF_PASSWORD: "password"},
+        unique_id="test_registry_preserves_connections",
+    )
+    entry.add_to_hass(hass)
+
+    # Pre-seed the device with a connection the profile does not report
+    device_registry = dr.async_get(hass)
+    existing = (dr.CONNECTION_NETWORK_MAC, "11:22:33:44:55:66")
+    device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "test_device_789")},
+        connections={existing},
+    )
+
+    with patch("custom_components.fansync.FanSyncClient", return_value=mock_client):
+        result = await hass.config_entries.async_setup(entry.entry_id)
+        assert result is True
+        await hass.async_block_till_done()
+
+        device = device_registry.async_get_device_by_identifier(
+            (DOMAIN, "test_device_789"), entry.entry_id
+        )
+        assert device is not None
+        assert device.model == "TestFan-789"
+        assert existing in device.connections
+        assert (dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff") in device.connections
 
 
 async def test_early_registry_handles_exception_gracefully(hass: HomeAssistant) -> None:
