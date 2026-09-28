@@ -159,3 +159,57 @@ async def test_options_update_listener_applies_timeouts_runtime(hass):
     client.apply_timeouts.assert_called_with(11, 21)  # type: ignore[attr-defined]
     assert getattr(client, "_http_timeout_s", None) == 11
     assert getattr(client, "_ws_timeout_s", None) == 21
+
+
+async def test_options_update_listener_skips_unchanged_interval_and_timeouts(hass):
+    """An options write that changes neither the poll interval nor the timeouts
+    (e.g. toggling "Light installed") must not re-apply them: apply_timeouts
+    recreates the HTTP client, and the interval log would be a no-op."""
+    entry = MockConfigEntry(
+        domain="fansync",
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": True},
+        options={OPTION_FALLBACK_POLL_SECS: 60, CONF_HTTP_TIMEOUT: 20, CONF_WS_TIMEOUT: 30},
+        unique_id="timeouts-noop",
+    )
+    entry.add_to_hass(hass)
+
+    with patch("custom_components.fansync.FanSyncClient") as client_cls:
+        client = client_cls.return_value
+        client.async_connect = AsyncMock(return_value=None)
+        client.set_status_callback = lambda cb: None
+        client.async_disconnect = AsyncMock(return_value=None)
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        coordinator = entry.runtime_data["coordinator"]
+        interval_before = coordinator.update_interval
+
+        client.apply_timeouts = MagicMock()  # type: ignore[attr-defined]
+        # unrelated option added, interval and timeouts identical
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, "lightless_devices": ["dev1"]}
+        )
+        await hass.async_block_till_done()
+        client.apply_timeouts.assert_not_called()  # type: ignore[attr-defined]
+        assert coordinator.update_interval == interval_before
+
+        # interval changes alone: applied, timeouts still untouched
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, OPTION_FALLBACK_POLL_SECS: 120}
+        )
+        await hass.async_block_till_done()
+        client.apply_timeouts.assert_not_called()  # type: ignore[attr-defined]
+        assert coordinator.update_interval is not None
+        assert coordinator.update_interval.total_seconds() == 120
+
+        # a real timeout change is applied once, and not again on a repeat write
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, CONF_WS_TIMEOUT: 45}
+        )
+        await hass.async_block_till_done()
+        client.apply_timeouts.assert_called_once_with(20, 45)  # type: ignore[attr-defined]
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, "lightless_devices": []}
+        )
+        await hass.async_block_till_done()
+        client.apply_timeouts.assert_called_once()  # type: ignore[attr-defined]

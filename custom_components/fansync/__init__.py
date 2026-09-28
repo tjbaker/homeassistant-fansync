@@ -220,8 +220,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
         # changes, so toggling "Light installed" never reloads the entry.
         platforms = list(PLATFORMS)
 
+        # Values last handed to the client, so an unrelated options change (e.g.
+        # toggling "Light installed") does not re-apply identical timeouts, which
+        # tears down and recreates the HTTP client, or log a no-op interval change.
+        applied_http = http_timeout if http_timeout is not None else DEFAULT_HTTP_TIMEOUT_SECS
+        applied_ws = ws_timeout if ws_timeout is not None else DEFAULT_WS_TIMEOUT_SECS
+
         async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry) -> None:
-            nonlocal lightless
+            nonlocal lightless, applied_http, applied_ws
             # Changing which devices are lightless adds/removes Light entities in
             # place (light.py listens) and refreshes the per-fan switches.
             new_lightless = (
@@ -234,14 +240,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
             new_secs = updated_entry.options.get(
                 OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS
             )
-            old = coordinator.update_interval
-            coordinator.update_interval = (
-                None if new_secs == 0 else timedelta(seconds=int(new_secs))
-            )
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("interval changed old=%s new=%s", old, coordinator.update_interval)
+            new_interval = None if new_secs == 0 else timedelta(seconds=int(new_secs))
+            if new_interval != coordinator.update_interval:
+                old = coordinator.update_interval
+                coordinator.update_interval = new_interval
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("interval changed old=%s new=%s", old, new_interval)
 
-            # Apply timeout changes immediately when options are updated
+            # Apply timeout changes immediately, but only when they actually changed
             http_t = updated_entry.options.get(
                 CONF_HTTP_TIMEOUT,
                 updated_entry.data.get(CONF_HTTP_TIMEOUT, DEFAULT_HTTP_TIMEOUT_SECS),
@@ -250,11 +256,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
                 CONF_WS_TIMEOUT,
                 updated_entry.data.get(CONF_WS_TIMEOUT, DEFAULT_WS_TIMEOUT_SECS),
             )
+            if (http_t, ws_t) == (applied_http, applied_ws):
+                return
             try:
                 await hass.async_add_executor_job(client.apply_timeouts, http_t, ws_t)
             except Exception as exc:  # pragma: no cover
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug("apply_timeouts failed: %s", exc)
+            else:
+                applied_http, applied_ws = http_t, ws_t
 
         # Store runtime data in entry.runtime_data (modern pattern)
         entry.runtime_data = FanSyncRuntimeData(

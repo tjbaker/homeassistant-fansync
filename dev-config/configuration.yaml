@@ -64,14 +64,12 @@ http:
 logger:
   default: info
   logs:
+    # Covers every integration module (client, coordinator, fan, light, switch)
     custom_components.fansync: debug
-    custom_components.fansync.client: debug
-    custom_components.fansync.coordinator: debug
-    custom_components.fansync.fan: debug
-    custom_components.fansync.light: debug
-    httpcore: debug
-    httpx: debug
-    websockets: debug
+    # Enable only for login/connection problems. Both are very noisy, and
+    # websockets prints the login token and session cookie in frame dumps.
+    # httpx: debug
+    # websockets: debug
 
 # Minimal recorder (faster startup, less disk usage)
 recorder:
