@@ -62,6 +62,9 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             config_entry=config_entry,
         )
         self.client = client
+        # Registry lookups are scoped to this entry: identifiers are no longer
+        # globally unique across config entries (HA 2026.9 deprecation).
+        self._config_entry_id = config_entry.entry_id
         # Note: dr.async_get() is @callback decorated, safe to call in __init__
         self._device_registry = dr.async_get(hass)
         # Track which devices have had registry updated to avoid redundant updates
@@ -114,8 +117,10 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 # If profile change detection becomes needed, consider storing a hash
                 # of relevant fields (model, sw_version, connections) to trigger updates.
                 continue
-            # Get the device entry by identifier
-            device = self._device_registry.async_get_device(identifiers={(DOMAIN, device_id)})
+            # Get the device entry by identifier, scoped to this config entry
+            device = self._device_registry.async_get_device_by_identifier(
+                (DOMAIN, device_id), self._config_entry_id
+            )
             if not device:
                 continue
             # Build updated device info from current profile data
@@ -130,13 +135,18 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 )
             ):
                 continue
-            # Update the device registry entry with new information
+            # Update the device registry entry with new information. HA requires
+            # the full connection set (merge_connections is deprecated), so union
+            # the newly discovered connections with what the device already has.
+            new_connections = device_info.get("connections")
             self._device_registry.async_update_device(
                 device.id,
                 manufacturer=device_info.get("manufacturer"),
                 model=device_info.get("model"),
                 sw_version=device_info.get("sw_version"),
-                merge_connections=device_info.get("connections") or UNDEFINED,
+                new_connections=(
+                    device.connections | new_connections if new_connections else UNDEFINED
+                ),
             )
             # Mark this device as updated
             self._registry_updated.add(device_id)
