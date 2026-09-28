@@ -10,14 +10,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Speed writes carry only the registers that have to change.
+"""Fan writes carry the speed register and nothing that need not change.
 
-Probed live on a Kute60-FD6R1L5: {"H02": 100} alone, {"H02": 100, "H00": 1}
-and {"H02": 100, "H01": 0} each produce a device_change push with H02=100.
-The integration's former {"H00": 1, "H02": 100, "H01": 0} is applied by the
-fan (it audibly speeds up) but never reported, so the cloud, the app and HA
-all stay on the old speed. Writing power and preset only when they differ
-from what the device reports sidesteps the quirk.
+Probed live on a Kute60-FD6R1L5:
+
+* {"H02": 100} alone, {"H02": 100, "H00": 1} and {"H02": 100, "H01": 0} each
+  produce a device_change push with H02=100, while the former three-register
+  {"H00": 1, "H02": 100, "H01": 0} is applied but never reported. So power and
+  preset are written only when they differ from what the device reports.
+* The fan only reports after a write that contains H02 at all. {"H00": 0}
+  alone (and the app's own off) turned the fan off silently; {"H00": 0,
+  "H02": 35} and {"H00": 1, "H02": 35} both apply and both report. So power,
+  direction and preset writes carry the current speed.
 """
 
 from __future__ import annotations
@@ -112,9 +116,10 @@ async def test_turn_on_writes_power_only_when_needed(
     mock_client.status = {"H00": 1, "H02": 50, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
     writes = await _setup(hass, mock_client, "min-turn-on")
 
-    # already on: a bare turn_on still writes power (there is nothing else to send)
+    # already on: a bare turn_on still writes power, with the current speed so
+    # the fan reports
     await _svc(hass, "turn_on")
-    assert writes[-1] == {"H00": 1}
+    assert writes[-1] == {"H00": 1, "H02": 50}
 
     # already on with a percentage: speed only
     await _svc(hass, "turn_on", percentage=100)
@@ -135,15 +140,29 @@ async def test_direction_and_preset_write_power_only_when_off(
     writes = await _setup(hass, mock_client, "min-dir-preset")
 
     await _svc(hass, "set_direction", direction="reverse")
-    assert writes[-1] == {"H06": 1}
+    assert writes[-1] == {"H06": 1, "H02": 50}
     await _svc(hass, "set_preset_mode", preset_mode="fresh_air")
-    assert writes[-1] == {"H01": 1}
+    assert writes[-1] == {"H01": 1, "H02": 50}
 
     mock_client.status["H00"] = 0
     mock_client._status_callback("test-device", {"H00": 0})
     await hass.async_block_till_done()
     await _svc(hass, "set_direction", direction="forward")
-    assert writes[-1] == {"H06": 0, "H00": 1}
+    assert writes[-1] == {"H06": 0, "H00": 1, "H02": 50}
+
+
+async def test_turn_off_carries_current_speed_so_the_fan_reports(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    mock_client.status = {"H00": 1, "H02": 65, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    writes = await _setup(hass, mock_client, "min-turn-off")
+
+    await _svc(hass, "turn_off")
+
+    assert writes[-1] == {"H00": 0, "H02": 65}
+    assert hass.states.get("fan.fansync_fan").state == "off"
+    # speed is retained for the next turn_on
+    assert mock_client.status["H02"] == 65
 
 
 async def _light(hass: HomeAssistant, service: str, **data) -> None:

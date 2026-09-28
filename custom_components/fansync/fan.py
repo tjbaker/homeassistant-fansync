@@ -139,6 +139,7 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         # only when the fan is not already on. See _needs_write.
         if not payload or self._needs_write(KEY_POWER, 1):
             payload[KEY_POWER] = 1
+        self._with_current_speed(payload)
         previous = self._previous_values(payload)
 
         def _confirm(s: dict[str, object]) -> bool:
@@ -146,11 +147,37 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
 
         await self._apply_with_optimism(optimistic, payload, _confirm)
 
+    def _with_current_speed(self, payload: dict[str, int]) -> dict[str, int]:
+        """Carry the current speed on writes that do not set one.
+
+        Probed live on a Kute60-FD6R1L5: the fan only reports its state back to
+        the cloud after a write that contains the speed register. Power alone,
+        or power plus preset, is applied silently, so the cloud, the official
+        app and HA all keep the old state (an off written as {"H00": 0} never
+        showed up anywhere). {"H00": 0, "H02": <current>} and {"H00": 1,
+        "H02": <current>} both apply and both report. The fan answers the off
+        variant with an error acknowledgement, apparently refusing the speed
+        while off, but applies it and reports regardless.
+        """
+        if KEY_SPEED in payload:
+            return payload
+        speed = self._device_value(KEY_SPEED)
+        if speed is None:
+            speed = self._get_with_overlay(KEY_SPEED, 0)
+        if speed > 0:
+            payload[KEY_SPEED] = int(speed)
+        return payload
+
     async def async_turn_off(self, **kwargs) -> None:
         # Toggling power should not change percentage speed
         optimistic = {KEY_POWER: 0}
-        payload = {KEY_POWER: 0}
-        await self._apply_with_optimism(optimistic, payload, lambda s: s.get(KEY_POWER) == 0)
+        payload = self._with_current_speed({KEY_POWER: 0})
+        previous = self._previous_values(payload)
+        await self._apply_with_optimism(
+            optimistic,
+            payload,
+            lambda s: self._write_applied(s, payload, previous),
+        )
 
     async def async_set_percentage(self, percentage: int) -> None:
         target = clamp_percentage(percentage)
@@ -174,6 +201,7 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         payload = {KEY_DIRECTION: target_dir}
         if self._needs_write(KEY_POWER, 1):
             payload[KEY_POWER] = 1
+        self._with_current_speed(payload)
         await self._apply_with_optimism(
             optimistic,
             payload,
@@ -187,6 +215,7 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         payload = {KEY_PRESET: target_preset}
         if self._needs_write(KEY_POWER, 1):
             payload[KEY_POWER] = 1
+        self._with_current_speed(payload)
         await self._apply_with_optimism(
             optimistic,
             payload,
