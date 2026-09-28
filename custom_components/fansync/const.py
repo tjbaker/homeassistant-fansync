@@ -13,7 +13,7 @@
 from collections.abc import Iterable, Mapping
 
 DOMAIN = "fansync"
-PLATFORMS = ["fan", "light"]
+PLATFORMS = ["fan", "light", "switch"]
 CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
 CONF_VERIFY_SSL = "verify_ssl"

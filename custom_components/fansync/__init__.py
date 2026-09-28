@@ -223,9 +223,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
             # No data yet: load the light platform unless every known device is
             # marked lightless. light.py filters per-device once data arrives.
             has_lit_device = not known_ids or any(d not in lightless for d in known_ids)
-            platforms = list(PLATFORMS) if has_lit_device else ["fan"]
+            platforms = list(PLATFORMS) if has_lit_device else ["fan", "switch"]
         else:
-            platforms = ["fan"]
+            platforms = ["fan", "switch"]
             if any(
                 isinstance(s, dict)
                 and did not in lightless

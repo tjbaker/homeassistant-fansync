@@ -59,7 +59,11 @@
       "light": {
         "name": "Lumière"
       }
+    },
+    "switch": {
+      "light_installed": {
+        "name": "Lumière installée"
+      }
     }
   }
 }
-
