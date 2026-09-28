@@ -33,6 +33,7 @@ from .const import (
     clamp_percentage,
 )
 from .coordinator import FanSyncCoordinator
+from .device_utils import cloud_no_direction_devices
 from .entity import FanSyncOptimisticEntity
 
 # Only overlay keys that directly affect HA UI state to prevent snap-back
@@ -54,31 +55,47 @@ async def async_setup_entry(
     client: FanSyncClient = runtime_data["client"]
     # Create one Fan entity per device ID
     device_ids = getattr(client, "device_ids", []) or [client.device_id]
+    # Devices the cloud marks as not reversible (properties.hideFanDirection,
+    # see issue #228) do not get a direction control.
+    no_direction = cloud_no_direction_devices(client, device_ids)
     entities: list[FanSyncFan] = []
     for did in device_ids:
         if not did:
             continue
-        entities.append(FanSyncFan(coordinator, client, did))
+        entities.append(
+            FanSyncFan(coordinator, client, did, supports_direction=did not in no_direction)
+        )
     async_add_entities(entities)
+
+
+BASE_FEATURES = (
+    FanEntityFeature.SET_SPEED
+    | FanEntityFeature.PRESET_MODE
+    | FanEntityFeature.TURN_OFF
+    | FanEntityFeature.TURN_ON
+)
 
 
 class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "fan"
-    _attr_supported_features = (
-        FanEntityFeature.SET_SPEED
-        | FanEntityFeature.DIRECTION
-        | FanEntityFeature.PRESET_MODE
-        | FanEntityFeature.TURN_OFF
-        | FanEntityFeature.TURN_ON
-    )
+    _attr_supported_features = BASE_FEATURES | FanEntityFeature.DIRECTION
     _attr_preset_modes = list(PRESET_MODES.values())
 
     OVERLAY_KEYS = OVERLAY_KEYS
 
-    def __init__(self, coordinator: FanSyncCoordinator, client: FanSyncClient, device_id: str):
+    def __init__(
+        self,
+        coordinator: FanSyncCoordinator,
+        client: FanSyncClient,
+        device_id: str,
+        supports_direction: bool = True,
+    ):
         super().__init__(coordinator, client, device_id)
         self._attr_unique_id = f"{DOMAIN}_{self._device_id}_fan"
+        self._supports_direction = supports_direction
+        if not supports_direction:
+            self._attr_supported_features = BASE_FEATURES
 
     @property
     def is_on(self) -> bool:
@@ -89,7 +106,9 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         return self._get_with_overlay(KEY_SPEED, 0)
 
     @property
-    def current_direction(self) -> str:
+    def current_direction(self) -> str | None:
+        if not self._supports_direction:
+            return None
         dir_val = self._get_with_overlay(KEY_DIRECTION, 0)
         return "forward" if dir_val == 0 else "reverse"
 

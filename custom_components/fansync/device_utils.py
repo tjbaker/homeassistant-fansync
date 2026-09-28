@@ -22,6 +22,28 @@ from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 
 
+def _cloud_flagged_devices(client: Any, device_ids: Iterable[str], flag: str) -> set[str]:
+    """Return device_ids whose cloud metadata has ``properties.<flag>`` set to true.
+
+    Only an explicit ``True`` counts. The official app writes these per-device
+    hints when the owner configures the fan there; absence proves nothing, so a
+    missing or false flag never changes behavior. Tolerant of clients without
+    metadata support (returns an empty set on any error).
+    """
+    flagged: set[str] = set()
+    for device_id in device_ids:
+        try:
+            meta = client.device_metadata(device_id)
+        except Exception:
+            continue
+        if not isinstance(meta, dict):
+            continue
+        props = meta.get("properties")
+        if isinstance(props, dict) and props.get(flag) is True:
+            flagged.add(device_id)
+    return flagged
+
+
 def cloud_lightless_devices(client: Any, device_ids: Iterable[str]) -> set[str]:
     """Return device_ids the Fanimation cloud marks as having no light kit.
 
@@ -32,18 +54,19 @@ def cloud_lightless_devices(client: Any, device_ids: Iterable[str]) -> set[str]:
     told the app. So true is trusted as "no light"; absence proves nothing, and
     the manual per-device option remains for the untagged case.
     """
-    lightless: set[str] = set()
-    for device_id in device_ids:
-        try:
-            meta = client.device_metadata(device_id)
-        except Exception:
-            continue
-        if not isinstance(meta, dict):
-            continue
-        props = meta.get("properties")
-        if isinstance(props, dict) and props.get("hideLightDimmer") is True:
-            lightless.add(device_id)
-    return lightless
+    return _cloud_flagged_devices(client, device_ids, "hideLightDimmer")
+
+
+def cloud_no_direction_devices(client: Any, device_ids: Iterable[str]) -> set[str]:
+    """Return device_ids the Fanimation cloud marks as not reversible.
+
+    The official app sets ``properties.hideFanDirection`` to true on devices
+    whose owner told it the fan cannot change direction (issue #228: a universal
+    receiver on a third-party fan accepts the reverse command, but the motor
+    never reverses). The fan entity drops its direction feature for these so a
+    control that cannot work is not offered.
+    """
+    return _cloud_flagged_devices(client, device_ids, "hideFanDirection")
 
 
 def create_device_info(client: Any, device_id: str) -> DeviceInfo:
