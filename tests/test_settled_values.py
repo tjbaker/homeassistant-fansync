@@ -23,6 +23,8 @@ values each device has reported so real levels can be read off a report.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from unittest.mock import patch
 
 import pytest
@@ -313,6 +315,59 @@ async def test_late_confirming_push_clears_overlay_immediately(
     mock_client._status_callback("test-device", {"H02": 80})
     await hass.async_block_till_done()
 
+    assert fan._optimistic_until is None
+    assert fan._overlay == {}
+    assert hass.states.get("fan.fansync_fan").attributes["percentage"] == 80
+
+
+async def test_push_during_final_retry_sleep_counts_as_confirmed(
+    hass: HomeAssistant, mock_client, patch_client, caplog
+) -> None:
+    """A push that lands while the last retry sleep is pending confirms the write.
+
+    Seen live: the fan pushed its settled speed 1.8 s after the request, after
+    both confirmation polls had returned stale data. The handler applied it, but
+    the retry loop exited as unconfirmed, so no confirm was reported.
+    """
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+
+    async def _slow_device(data, *, device_id=None):
+        return None  # device applies later, announced only by push
+
+    mock_client.async_set = _slow_device
+    await _setup(hass, mock_client, "test-late-sleep-push")
+    fan = hass.data["entity_components"]["fan"].get_entity("fan.fansync_fan")
+
+    real_sleep = asyncio.sleep
+    retry_sleeps = 0
+
+    async def _sleep(delay: float) -> None:
+        nonlocal retry_sleeps
+        if delay == fan._retry_delay:
+            retry_sleeps += 1
+            if retry_sleeps == fan._retry_attempts:
+                # The final retry sleep: the device pushes its settled speed now.
+                mock_client._status_callback("test-device", {"H02": 80})
+                await hass.async_block_till_done()
+        await real_sleep(0)
+
+    caplog.set_level(logging.DEBUG, logger="custom_components.fansync.fan")
+    with (
+        patch("custom_components.fansync.entity.CONFIRM_INITIAL_DELAY_SEC", 0),
+        patch("custom_components.fansync.entity.asyncio.sleep", _sleep),
+    ):
+        await hass.services.async_call(
+            "fan",
+            "set_percentage",
+            {"entity_id": "fan.fansync_fan", "percentage": 87},
+            blocking=True,
+        )
+        await hass.async_block_till_done()
+
+    assert retry_sleeps == fan._retry_attempts
+    # The write must be reported as confirmed, not left to time out silently.
+    assert "optimism late confirm" in caplog.text
+    assert "optimism confirm" in caplog.text
     assert fan._optimistic_until is None
     assert fan._overlay == {}
     assert hass.states.get("fan.fansync_fan").attributes["percentage"] == 80
