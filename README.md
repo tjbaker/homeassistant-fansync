@@ -61,25 +61,7 @@ Custom Home Assistant integration for Fanimation FanSync devices with cloud push
 
 ## Removal
 
-To remove the FanSync integration:
-
-1) Go to **Settings** → **Devices & Services**
-2) Find the **FanSync** integration
-3) Click the **three dots (⋮)** menu
-4) Select **Delete**
-5) Confirm the removal
-
-If installed via HACS:
-1) Go to **HACS** → **Integrations**
-2) Find **FanSync**
-3) Click the **three dots (⋮)** menu
-4) Select **Remove**
-5) Restart Home Assistant
-
-If installed manually:
-1) Remove the integration from the UI (steps 1-5 above)
-2) Delete the `config/custom_components/fansync/` directory
-3) Restart Home Assistant
+Delete the integration under Settings → Devices & Services → FanSync → ⋮ → **Delete**. Then remove the code: in HACS, remove FanSync from HACS → Integrations; for a manual install, delete `config/custom_components/fansync/`. Restart Home Assistant.
 
 ## Configuration
 
@@ -157,62 +139,37 @@ Diagnostics are automatically logged! Look for:
 - Copy the entire JSON block from the logs
 
 **What's included** (no passwords or tokens):
-- **Connection timing breakdown**:
-  - HTTP login duration
-  - WebSocket handshake duration (connect only)
-  - WebSocket login response wait time
-  - Total WebSocket connection time
-  - Token refresh attempts count
-- **Token metadata**: Format, length, expiry status
-- **Login response details**: Last server response (sanitized)
-- **Connection failure history**: Recent failures with timestamps and error types
-- **Environment info**: Python version, library versions
-- **Network metrics**: Latency, timeouts, reconnects, push updates
-- **Device configuration**: Device count and settings
+- **Connection**: HTTP login, WebSocket handshake and login timing; token metadata; last login response; recent failure history; latency, timeout, reconnect and push metrics
+- **Devices**: profiles (model, firmware) and cloud metadata; `status_snapshot` with the raw protocol registers; `observed_values`, the distinct values each device has actually reported per register (this is how a fan's real speed levels or a light's color presets show up)
+- **Commands**: recent set/get history with latency
+- **Environment**: Home Assistant, Python and library versions
 
-**Share this file when reporting issues** - it contains everything needed to diagnose most connection problems!
+**Share this file when reporting issues.** It covers most connection and device-behavior questions without a debug log.
 
 #### 2. Enable Debug Logging
 
-For more detailed logs, enable debug logging for **all relevant components**:
+The integration's own logger covers every module (client, coordinator, entities). Add the two network libraries only for login or connection problems.
 
-**Temporary** (via Developer Tools → Services):
+**Temporary** (Developer Tools → Actions):
 ```yaml
-service: logger.set_level
+action: logger.set_level
 data:
   custom_components.fansync: debug
-  custom_components.fansync.client: debug
-  custom_components.fansync.coordinator: debug
-  custom_components.fansync.fan: debug
-  custom_components.fansync.light: debug
-  httpcore: debug
-  httpx: debug
-  websockets: debug
+  httpx: debug        # HTTP login and token refresh
+  websockets: debug   # WebSocket connection and server messages
 ```
 
-**Persistent** (add to `configuration.yaml`):
+**Persistent** (`configuration.yaml`, then restart):
 ```yaml
 logger:
   default: info
   logs:
     custom_components.fansync: debug
-    custom_components.fansync.client: debug
-    custom_components.fansync.coordinator: debug
-    custom_components.fansync.fan: debug
-    custom_components.fansync.light: debug
-    httpcore: debug
     httpx: debug
     websockets: debug
 ```
 
-**Why all these loggers?**
-- `custom_components.fansync.*` - Integration modules (client, coordinator, entities)
-- `httpcore` & `httpx` - HTTP authentication, token requests, SSL handshake
-- `websockets` - WebSocket connection, login messages, server responses
-
-**Tip**: Start with just `custom_components.fansync: debug` for most issues. Add the module-specific loggers (`client`, `coordinator`, etc.) only if you need more granular detail.
-
-Then restart Home Assistant and reproduce the issue. Check logs in **Settings** → **System** → **Logs**.
+Reproduce the issue, then read the log under **Settings** → **System** → **Logs**. Note that the `websockets` logger prints the login token and session cookie; trim those before posting a log publicly.
 
 **Note**: If setup fails, the integration automatically logs structured diagnostics at ERROR level, so debug logging is optional but helpful for additional context.
 
