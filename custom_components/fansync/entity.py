@@ -37,7 +37,7 @@ from .const import (
     CONFIRM_RETRY_ATTEMPTS,
     CONFIRM_RETRY_DELAY_SEC,
     OPTIMISTIC_GUARD_SEC,
-    normalize_color_temp_kelvin,
+    coerce_status_int,
 )
 from .coordinator import FanSyncCoordinator
 from .device_utils import confirm_after_initial_delay, create_device_info, module_attrs
@@ -101,9 +101,9 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
             self._overlay.pop(key, None)
         status = self._status_for(self.coordinator.data or {})
         raw = status.get(key, default)
-        normalized = normalize_color_temp_kelvin(raw)
-        if normalized is not None:
-            return normalized
+        coerced = coerce_status_int(raw)
+        if coerced is not None:
+            return coerced
         return int(default)
 
     async def _retry_update_until(

@@ -162,17 +162,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
                 did = device_id or getattr(client, "device_id", None) or "unknown"
                 current = coordinator.data or {}
                 merged: dict[str, dict[str, object]] = dict(current)
+                # Pushes may carry only the changed keys; merge into the cached
+                # snapshot so untouched registers (e.g. H04) are not lost.
                 previous = current.get(did)
-                if isinstance(previous, dict):
-                    device_status = dict(previous)
-                    device_status.update(status)
-                else:
-                    device_status = dict(status)
+                device_status = dict(previous) if isinstance(previous, dict) else {}
+                device_status.update(status)
                 merged[did] = device_status
                 coordinator.async_set_updated_data(merged)
                 if _LOGGER.isEnabledFor(logging.DEBUG):
-                    keys = list(status.keys()) if isinstance(status, dict) else []
-                    _LOGGER.debug("push merge d=%s keys=%s", did, keys)
+                    _LOGGER.debug("push merge d=%s keys=%s", did, list(status.keys()))
 
             client.set_status_callback(_on_status)
         # Perform first refresh with a guard; proceed even if it times out

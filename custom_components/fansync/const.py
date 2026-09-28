@@ -143,10 +143,14 @@ def pct_to_ha_brightness(pct: int) -> int:
     return int(int(pct) * 255 / 100)
 
 
-def normalize_color_temp_kelvin(value: object) -> int | None:
-    """Return a numeric Kelvin value from an API status value."""
+def coerce_status_int(value: object) -> int | None:
+    """Return an int from an API status value, or None if it is not integral.
+
+    Accepts bool (True -> 1), int, integral float, and numeric strings. Used by
+    every register getter, so it must stay permissive.
+    """
     if isinstance(value, bool):
-        return None
+        return int(value)
     if isinstance(value, int):
         return value
     if isinstance(value, float):
@@ -157,6 +161,16 @@ def normalize_color_temp_kelvin(value: object) -> int | None:
         except TypeError, ValueError:
             return None
     return None
+
+
+def normalize_color_temp_kelvin(value: object) -> int | None:
+    """Return a numeric Kelvin value from an API status value.
+
+    Like coerce_status_int but a bool is never a Kelvin value.
+    """
+    if isinstance(value, bool):
+        return None
+    return coerce_status_int(value)
 
 
 def _normalize_model(model: object) -> str:

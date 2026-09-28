@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time  # noqa: F401  retained as a module-level patch seam for tests
+from typing import Any
 
 from homeassistant.components.light import (
     DEFAULT_MAX_KELVIN,
@@ -34,7 +35,7 @@ from .const import (
     KEY_LIGHT_BRIGHTNESS,
     KEY_LIGHT_COLOR_TEMP,
     KEY_LIGHT_POWER,
-    LIGHT_COLOR_TEMP_PRESETS_KELVIN,
+    coerce_status_int,
     ha_brightness_to_pct,
     normalize_color_temp_kelvin,
     pct_to_ha_brightness,
@@ -55,24 +56,24 @@ PARALLEL_UPDATES = 0
 _LOGGER = logging.getLogger(__name__)
 
 
-def _get_profile_model(client: object, device_id: str) -> tuple[bool, object]:
-    """Return whether the profile is ready and its model, if available."""
+def _get_profile_model(client: object, device_id: str) -> object:
+    """Return the device's profile model, or None if the profile is not known yet."""
     get_profile = getattr(client, "device_profile", None)
     if not callable(get_profile):
-        return False, None
+        return None
     try:
         profile = get_profile(device_id)
     except Exception:
         # The real client reads a local cache and cannot raise; this guards
         # test doubles and older clients. Log so a data-shape bug is visible.
         _LOGGER.debug("device_profile lookup failed for %s", device_id, exc_info=True)
-        return False, None
+        return None
     if not isinstance(profile, dict):
-        return False, None
+        return None
     esh = profile.get("esh")
     if not isinstance(esh, dict):
-        return False, None
-    return True, esh.get("model")
+        return None
+    return esh.get("model")
 
 
 async def async_setup_entry(
@@ -113,16 +114,10 @@ async def async_setup_entry(
             if isinstance(status, dict) and (
                 KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status
             ):
-                _, model = _get_profile_model(client, did)
+                model = _get_profile_model(client, did)
                 color_temp_presets = resolve_light_color_temp_presets(model, status)
                 entities.append(
-                    FanSyncLight(
-                        coordinator,
-                        client,
-                        did,
-                        supports_color_temp=color_temp_presets is not None,
-                        color_temp_presets=color_temp_presets,
-                    )
+                    FanSyncLight(coordinator, client, did, color_temp_presets=color_temp_presets)
                 )
 
     async_add_entities(entities)
@@ -139,15 +134,12 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         coordinator: FanSyncCoordinator,
         client: FanSyncClient,
         device_id: str,
-        supports_color_temp: bool = False,
         color_temp_presets: tuple[int, ...] | None = None,
     ):
         super().__init__(coordinator, client, device_id)
         self._attr_unique_id = f"{DOMAIN}_{self._device_id}_light"
-        # Keep the old constructor keyword working for callers/tests while
-        # allowing each device to carry its own model-specific preset list.
-        if color_temp_presets is None and supports_color_temp:
-            color_temp_presets = LIGHT_COLOR_TEMP_PRESETS_KELVIN
+        # Each device carries its own model-specific preset list; None or empty
+        # means the light is brightness-only.
         self._color_temp_presets: tuple[int, ...] = ()
         self._set_color_temp_presets(color_temp_presets)
 
@@ -170,12 +162,17 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         return changed
 
     def _refresh_color_temp_profile(self) -> bool:
-        """Refresh model-specific CCT support after a late profile update."""
-        profile_ready, model = _get_profile_model(self.client, self._device_id)
-        if not profile_ready:
-            return False
+        """Re-evaluate CCT support after a late profile or status update.
+
+        Uses the same rule as entity setup. Support is only ever upgraded: once
+        a preset profile has been resolved, a transient off-preset H04 reading
+        must not strip the capability (which would flap the entity registry).
+        """
+        model = _get_profile_model(self.client, self._device_id)
         status = self._status_for(self.coordinator.data or {})
         presets = resolve_light_color_temp_presets(model, status)
+        if presets is None:
+            return False
         return self._set_color_temp_presets(presets)
 
     @property
@@ -194,7 +191,10 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         return self._get_with_overlay(KEY_LIGHT_COLOR_TEMP, min(self._color_temp_presets))
 
     async def async_turn_on(
-        self, brightness: int | None = None, color_temp_kelvin: int | None = None, **kwargs
+        self,
+        brightness: int | None = None,
+        color_temp_kelvin: int | None = None,
+        **kwargs: Any,
     ) -> None:
         optimistic = {KEY_LIGHT_POWER: 1}
         payload = {KEY_LIGHT_POWER: 1}
@@ -214,13 +214,13 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         def _confirm(s: dict[str, object], pb: int | None = pct, pk: int | None = kelvin) -> bool:
             return (
                 s.get(KEY_LIGHT_POWER) == 1
-                and (pb is None or s.get(KEY_LIGHT_BRIGHTNESS) == pb)
+                and (pb is None or coerce_status_int(s.get(KEY_LIGHT_BRIGHTNESS)) == pb)
                 and (pk is None or normalize_color_temp_kelvin(s.get(KEY_LIGHT_COLOR_TEMP)) == pk)
             )
 
         await self._apply_with_optimism(optimistic, payload, _confirm)
 
-    async def async_turn_off(self, **kwargs) -> None:
+    async def async_turn_off(self, **kwargs: Any) -> None:
         optimistic = {KEY_LIGHT_POWER: 0}
         payload = {KEY_LIGHT_POWER: 0}
         await self._apply_with_optimism(
@@ -232,16 +232,18 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
     def _log_state(self, status: dict[str, object]) -> None:
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(
-                "state update d=%s power=%s brightness=%s",
+                "state update d=%s power=%s brightness=%s color_temp=%s",
                 self._device_id,
                 status.get(KEY_LIGHT_POWER),
                 status.get(KEY_LIGHT_BRIGHTNESS),
+                status.get(KEY_LIGHT_COLOR_TEMP),
             )
 
     def _handle_coordinator_update(self) -> None:
+        # Resolve capabilities before the base class writes state, so a profile
+        # change never publishes a stale intermediate state.
+        self._refresh_color_temp_profile()
         super()._handle_coordinator_update()
-        if self._refresh_color_temp_profile():
-            self.async_write_ha_state()
 
     @property
     def icon(self) -> str | None:

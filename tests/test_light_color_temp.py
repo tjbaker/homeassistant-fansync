@@ -341,3 +341,87 @@ async def test_turn_on_confirms_when_device_returns_string_h04(
         )
 
     assert mock_client.async_get_status.await_count == 1
+
+
+async def _setup_light(hass: HomeAssistant, mock_client, unique_id: str) -> MockConfigEntry:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="FanSync",
+        data={"email": "u@e.com", "password": "p", "verify_ssl": False},
+        unique_id=unique_id,
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+async def test_off_preset_push_does_not_downgrade_resolved_color_temp(
+    hass: HomeAssistant, mock_client, patch_client
+) -> None:
+    """Once CCT support is resolved, a transient off-preset H04 must not remove it.
+
+    Downgrading on every stray reading would flap supported_color_modes and the
+    entity registry capabilities.
+    """
+    mock_client.status = {
+        "H00": 1,
+        "H02": 41,
+        "H06": 0,
+        "H01": 0,
+        "H0B": 1,
+        "H0C": 100,
+        "H04": 4000,
+    }
+    await _setup_light(hass, mock_client, "test-no-downgrade")
+
+    state = hass.states.get("light.fansync_light")
+    assert state is not None
+    assert state.attributes.get("supported_color_modes") == ["color_temp"]
+
+    mock_client._status_callback("test-device", {"H04": 0})
+    await hass.async_block_till_done()
+
+    state = hass.states.get("light.fansync_light")
+    assert state.attributes.get("supported_color_modes") == ["color_temp"]
+    assert state.attributes.get("min_color_temp_kelvin") == 3000
+    assert state.attributes.get("max_color_temp_kelvin") == 5000
+
+
+async def test_late_h04_upgrades_light_without_device_profile(
+    hass: HomeAssistant, mock_client, patch_client
+) -> None:
+    """A light set up before H04 was reported gains CCT support when it appears.
+
+    The refresh path must apply the same rule as setup even when the client has
+    no profile (no `esh` block) for the device.
+    """
+    mock_client.profile = {}
+    mock_client.status = {"H00": 1, "H02": 41, "H06": 0, "H01": 0, "H0B": 1, "H0C": 100}
+    await _setup_light(hass, mock_client, "test-late-h04")
+
+    state = hass.states.get("light.fansync_light")
+    assert state is not None
+    assert state.attributes.get("supported_color_modes") == ["brightness"]
+
+    mock_client._status_callback("test-device", {"H04": 5000})
+    await hass.async_block_till_done()
+
+    state = hass.states.get("light.fansync_light")
+    assert state.attributes.get("supported_color_modes") == ["color_temp"]
+    assert state.attributes.get("color_temp_kelvin") == 5000
+
+
+async def test_shared_getter_keeps_bool_status_semantics(
+    hass: HomeAssistant, mock_client, patch_client
+) -> None:
+    """A JSON boolean register still coerces like an int for non-Kelvin keys."""
+    mock_client.status = {"H00": 1, "H02": 41, "H06": 0, "H01": 0, "H0B": 0, "H0C": 100}
+    await _setup_light(hass, mock_client, "test-bool-status")
+
+    assert hass.states.get("light.fansync_light").state == "off"
+
+    mock_client._status_callback("test-device", {"H0B": True})
+    await hass.async_block_till_done()
+
+    assert hass.states.get("light.fansync_light").state == "on"
