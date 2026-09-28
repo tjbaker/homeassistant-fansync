@@ -81,6 +81,8 @@ def mock_client():
             self.status = {"H00": 1, "H02": 41, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
             self.device_id = "test-device"
             self.device_ids = [self.device_id]
+            self.profile = {}
+            self._status_callback = None
 
         async def async_connect(self):
             return None
@@ -98,6 +100,12 @@ def mock_client():
 
         async def async_set(self, data, *, device_id: str | None = None):
             self.status.update(data)
+
+        def device_profile(self, device_id: str) -> dict:
+            return self.profile
+
+        def set_status_callback(self, callback) -> None:
+            self._status_callback = callback
 
     return _Mock()
 

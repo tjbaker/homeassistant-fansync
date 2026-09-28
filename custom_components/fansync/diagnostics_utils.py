@@ -18,6 +18,7 @@ from collections.abc import Mapping
 from .const import (
     KEY_DIRECTION,
     KEY_LIGHT_BRIGHTNESS,
+    KEY_LIGHT_COLOR_TEMP,
     KEY_LIGHT_POWER,
     KEY_POWER,
     KEY_PRESET,
@@ -56,6 +57,7 @@ def summarize_status_snapshot(data: object | None) -> dict[str, dict[str, object
             "light": {
                 "power": status_map.get(KEY_LIGHT_POWER),
                 "brightness": status_map.get(KEY_LIGHT_BRIGHTNESS),
+                "color_temp": status_map.get(KEY_LIGHT_COLOR_TEMP),
             },
         }
     return summary
