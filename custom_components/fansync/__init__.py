@@ -168,6 +168,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
                 device_status = dict(previous) if isinstance(previous, dict) else {}
                 device_status.update(status)
                 merged[did] = device_status
+                coordinator.record_observed_status(did, status)
                 coordinator.async_set_updated_data(merged)
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug("push merge d=%s keys=%s", did, list(status.keys()))

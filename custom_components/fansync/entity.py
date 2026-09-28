@@ -26,7 +26,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -82,6 +82,40 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
             if isinstance(inner, dict):
                 return inner
         return {}
+
+    def _device_value(self, key: str) -> int | None:
+        """Return the last device-reported value for key, ignoring any overlay."""
+        return coerce_status_int(self._status_for(self.coordinator.data or {}).get(key))
+
+    def _previous_values(self, keys: Iterable[str]) -> dict[str, int | None]:
+        """Snapshot the device-reported values of ``keys`` before a write."""
+        return {k: self._device_value(k) for k in keys}
+
+    @staticmethod
+    def _write_applied(
+        s: Mapping[str, object],
+        targets: Mapping[str, int],
+        previous: Mapping[str, int | None],
+    ) -> bool:
+        """True once the device has applied a multi-register write.
+
+        Some registers are quantized by the controller (e.g. a fan that only
+        holds six speeds): the device accepts the request, snaps it to the
+        nearest value it supports, and reports that back. Waiting for an exact
+        echo of every register would then never confirm. The write counts as
+        applied when every written register echoes its target, or when any of
+        them reports a value other than what it held before the write, which
+        proves the device processed the message and snapped the rest. A read
+        where nothing moved cannot be told from a stale one, so it does not
+        confirm; the optimistic guard then expires and the device's own value
+        shows, as before.
+        """
+        values = {k: coerce_status_int(s.get(k)) for k in targets}
+        if any(v is None for v in values.values()):
+            return False
+        if all(values[k] == targets[k] for k in targets):
+            return True
+        return any(previous.get(k) is not None and values[k] != previous[k] for k in targets)
 
     def _get_with_overlay(self, key: str, default: int) -> int:
         now = time.monotonic()
@@ -206,15 +240,18 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
             raise
         status, ok = await self._retry_update_until(confirm_pred)
         if ok:
+            # Drop the guard and overlays *before* publishing, so the state
+            # write triggered by the update reads the device's settled values
+            # rather than the requested ones (they differ when the device
+            # quantizes a register, e.g. a fan snapping 87 to its 80 level).
+            self._optimistic_until = None
+            self._optimistic_predicate = None
+            for k in optimistic:
+                self._overlay.pop(k, None)
             # Merge confirmed per-device status into aggregated mapping
             new_all = dict(self.coordinator.data or {})
             new_all[self._device_id] = status
             self.coordinator.async_set_updated_data(new_all)
-            self._optimistic_until = None
-            self._optimistic_predicate = None
-            # Clear overlays on confirm
-            for k in optimistic:
-                self._overlay.pop(k, None)
             if self._logger.isEnabledFor(logging.DEBUG):
                 self._logger.debug(
                     "optimism confirm d=%s keys=%s overlay_count=%d",

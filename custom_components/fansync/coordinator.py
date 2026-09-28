@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -31,11 +32,13 @@ from .const import (
     DEFAULT_FALLBACK_POLL_SECS,
     DOMAIN,
     MISMATCH_HISTORY_MAX,
+    OBSERVED_VALUES_MAX,
     POLL_STATUS_TIMEOUT_SECS,
     STATUS_HISTORY_MAX,
+    coerce_status_int,
 )
 from .device_utils import create_device_info
-from .diagnostics_utils import summarize_status_snapshot
+from .diagnostics_utils import _PROTOCOL_KEY_RE, summarize_status_snapshot
 
 SCAN_INTERVAL = timedelta(seconds=DEFAULT_FALLBACK_POLL_SECS)
 
@@ -81,7 +84,29 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         self._last_poll_mismatch_history_max = MISMATCH_HISTORY_MAX
         self._status_history: list[dict[str, object]] = []
         self._status_history_max = STATUS_HISTORY_MAX
+        # Distinct values each device has actually reported per protocol
+        # register (polls and pushes only, never optimistic writes). Shows in
+        # diagnostics so quantized registers (e.g. a fan's real speed levels)
+        # can be read off a report without guessing.
+        self._observed_values: dict[str, dict[str, list[int]]] = {}
         self._next_update_trigger: str | None = "startup"
+
+    def record_observed_status(self, device_id: str, status: Mapping[str, object]) -> None:
+        """Record the values a device reported, for diagnostics."""
+        if not device_id or not isinstance(status, Mapping):
+            return
+        per_device = self._observed_values.setdefault(device_id, {})
+        for key, raw in status.items():
+            if not isinstance(key, str) or not _PROTOCOL_KEY_RE.match(key):
+                continue
+            value = coerce_status_int(raw)
+            if value is None:
+                continue
+            seen = per_device.setdefault(key, [])
+            if value in seen or len(seen) >= OBSERVED_VALUES_MAX:
+                continue
+            seen.append(value)
+            seen.sort()
 
     async def async_request_refresh(self) -> None:
         """Request a manual refresh and track the trigger for diagnostics."""
@@ -377,6 +402,8 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
     ) -> None:
         """Shared success path: registry refresh, status/mismatch history, finalize."""
         self._update_device_registry(list(statuses.keys()))
+        for did, status in statuses.items():
+            self.record_observed_status(did, status)
         self._append_status_history(statuses)
         self._finalize_update(
             statuses=statuses,

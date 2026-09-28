@@ -21,6 +21,33 @@ from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN
 
+_LOGGER = logging.getLogger(__name__)
+
+
+def profile_model(client: Any, device_id: str) -> object:
+    """Return the device's ``esh.model`` from the client's cached profile.
+
+    None when the client has no profile support, the profile is not known yet,
+    or it lacks an ``esh`` block. Entities re-check on later updates because the
+    profile can arrive after they were created.
+    """
+    get_profile = getattr(client, "device_profile", None)
+    if not callable(get_profile):
+        return None
+    try:
+        profile = get_profile(device_id)
+    except Exception:
+        # The real client reads a local cache and cannot raise; this guards
+        # test doubles and older clients. Log so a data-shape bug is visible.
+        _LOGGER.debug("device_profile lookup failed for %s", device_id, exc_info=True)
+        return None
+    if not isinstance(profile, dict):
+        return None
+    esh = profile.get("esh")
+    if not isinstance(esh, dict):
+        return None
+    return esh.get("model")
+
 
 def _cloud_flagged_devices(client: Any, device_ids: Iterable[str], flag: str) -> set[str]:
     """Return device_ids whose cloud metadata has ``properties.<flag>`` set to true.
