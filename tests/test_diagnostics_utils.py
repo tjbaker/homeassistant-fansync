@@ -16,7 +16,7 @@ from custom_components.fansync.diagnostics_utils import summarize_status_snapsho
 
 
 def test_raw_includes_undecoded_protocol_keys() -> None:
-    """Undecoded registers (e.g. H04/H05/H0D/H0E) keep their values in `raw`.
+    """Undecoded registers (e.g. H05/H0D/H0E) keep their values in `raw`.
 
     Issue #189: diagnostics listed key names only, so user-supplied before/after
     snapshots could not show which key carried color temperature.
@@ -37,7 +37,7 @@ def test_raw_includes_undecoded_protocol_keys() -> None:
     assert summary["dev1"]["raw"] == data["dev1"]
     # Decoded summaries are unchanged
     assert summary["dev1"]["fan"] == {"power": 1, "speed": 41, "preset": None, "direction": None}
-    assert summary["dev1"]["light"] == {"power": 1, "brightness": 100}
+    assert summary["dev1"]["light"] == {"power": 1, "brightness": 100, "color_temp": 3500}
 
 
 def test_raw_excludes_non_protocol_keys() -> None:

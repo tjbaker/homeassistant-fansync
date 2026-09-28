@@ -27,6 +27,19 @@ KEY_SPEED = "H02"
 KEY_DIRECTION = "H06"
 KEY_LIGHT_POWER = "H0B"
 KEY_LIGHT_BRIGHTNESS = "H0C"
+KEY_LIGHT_COLOR_TEMP = "H04"
+
+# Warm, natural, cool. Not a continuous range - requested kelvin values are
+# snapped to the nearest of these for devices without a model-specific profile.
+LIGHT_COLOR_TEMP_PRESETS_KELVIN = (3000, 4000, 5000)
+
+# The known Corke fixture profile has five selectable CCT presets. Model names
+# are matched by normalized prefix so size/receiver suffixes (for example
+# Corke36-FD6R1L5) do not need individual entries. Unknown models stay on the
+# legacy three-preset profile; H04 alone is not enough to infer Corke support.
+LIGHT_COLOR_TEMP_MODEL_PRESETS = {
+    "corke": (2700, 3000, 3500, 4000, 5000),
+}
 
 # Preset modes mapping
 PRESET_MODES = {0: "normal", 1: "fresh_air"}
@@ -128,6 +141,80 @@ def ha_brightness_to_pct(brightness: int | None) -> int:
 def pct_to_ha_brightness(pct: int) -> int:
     """Map FanSync 0-100 to Home Assistant brightness (0-255)."""
     return int(int(pct) * 255 / 100)
+
+
+def coerce_status_int(value: object) -> int | None:
+    """Return an int from an API status value, or None if it is not integral.
+
+    Accepts bool (True -> 1), int, integral float, and numeric strings. Used by
+    every register getter, so it must stay permissive.
+    """
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else None
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except TypeError, ValueError:
+            return None
+    return None
+
+
+def normalize_color_temp_kelvin(value: object) -> int | None:
+    """Return a numeric Kelvin value from an API status value.
+
+    Like coerce_status_int but a bool is never a Kelvin value.
+    """
+    if isinstance(value, bool):
+        return None
+    return coerce_status_int(value)
+
+
+def _normalize_model(model: object) -> str:
+    """Normalize a FanSync model identifier for prefix matching."""
+    if not isinstance(model, str):
+        return ""
+    return "".join(char for char in model.casefold() if char.isalnum())
+
+
+def resolve_light_color_temp_presets(
+    model: object,
+    status: Mapping[str, object],
+) -> tuple[int, ...] | None:
+    """Resolve the supported CCT presets for one device.
+
+    H04 is present on devices that do not have a tunable light, so presence of
+    the key is not sufficient. Known model profiles select their own preset
+    list, but the current H04 value must still be one of those presets. The
+    known Corke profile provides five presets (2700/3000/3500/4000/5000 K).
+    Unknown models use the original three-preset behavior only when H04 is one
+    of the known three-preset values; otherwise the light remains
+    brightness-only.
+    """
+    current = normalize_color_temp_kelvin(status.get(KEY_LIGHT_COLOR_TEMP))
+    if current is None:
+        return None
+
+    normalized_model = _normalize_model(model)
+    for prefix, presets in LIGHT_COLOR_TEMP_MODEL_PRESETS.items():
+        if normalized_model.startswith(prefix):
+            return presets if current in presets else None
+
+    return LIGHT_COLOR_TEMP_PRESETS_KELVIN if current in LIGHT_COLOR_TEMP_PRESETS_KELVIN else None
+
+
+def snap_color_temp_kelvin(
+    kelvin: int,
+    presets: Iterable[int] = LIGHT_COLOR_TEMP_PRESETS_KELVIN,
+) -> int:
+    """Snap a requested kelvin value to the nearest device-supported preset."""
+    supported = tuple(presets)
+    if not supported:
+        raise ValueError("at least one color-temperature preset is required")
+    return min(supported, key=lambda preset: abs(preset - kelvin))
 
 
 def resolve_lightless_devices(options: Mapping[str, object], device_ids: Iterable[str]) -> set[str]:
