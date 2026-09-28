@@ -262,7 +262,9 @@ Then restart Home Assistant and reproduce the issue. Check logs in **Settings** 
 
 **Cause**: Some fans (e.g. certain Kute60 units) advertise a light channel in their cloud status despite having no bulb. The integration creates the Light entity from that reported channel, so it cannot tell a real light from a phantom one.
 
-**Solution**: In Settings → Devices & Services → FanSync → Configure → Options, select the affected fan(s) under **Fans with no light**. This hides the Light entity for just those fans (the integration reloads automatically) — other fans that do have lights are unaffected. If you believe your fan *does* have a light that isn't working, please [open an issue](https://github.com/tjbaker/homeassistant-fansync/issues) with a downloaded diagnostics file so we can investigate device capabilities.
+**Automatic detection**: If you told the official Fanimation app that your fan has no light kit, the cloud marks the device accordingly (`hideLightDimmer`) and the integration hides the Light entity automatically — no configuration needed.
+
+**Manual option**: If the app was never told (the flag is only set when you configure it there), select the affected fan(s) under Settings → Devices & Services → FanSync → Configure → Options → **Fans with no light**. This hides the Light entity for just those fans (the integration reloads automatically) — other fans that do have lights are unaffected. If you believe your fan *does* have a light that isn't working, please [open an issue](https://github.com/tjbaker/homeassistant-fansync/issues) with a downloaded diagnostics file so we can investigate device capabilities.
 
 #### Intermittent Disconnections
 

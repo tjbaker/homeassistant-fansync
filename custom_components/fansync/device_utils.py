@@ -13,13 +13,37 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN
+
+
+def cloud_lightless_devices(client: Any, device_ids: Iterable[str]) -> set[str]:
+    """Return device_ids the Fanimation cloud marks as having no light kit.
+
+    The official app sets ``properties.hideLightDimmer`` to true on devices whose
+    owner told it no light kit is installed (issue #199). Observed across five
+    devices: true only ever appears on lightless fans, while light-equipped fans
+    report false or omit the key — but so do lightless fans whose owner never
+    told the app. So true is trusted as "no light"; absence proves nothing, and
+    the manual per-device option remains for the untagged case.
+    """
+    lightless: set[str] = set()
+    for device_id in device_ids:
+        try:
+            meta = client.device_metadata(device_id)
+        except Exception:
+            continue
+        if not isinstance(meta, dict):
+            continue
+        props = meta.get("properties")
+        if isinstance(props, dict) and props.get("hideLightDimmer") is True:
+            lightless.add(device_id)
+    return lightless
 
 
 def create_device_info(client: Any, device_id: str) -> DeviceInfo:

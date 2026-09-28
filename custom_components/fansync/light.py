@@ -33,6 +33,7 @@ from .const import (
     resolve_lightless_devices,
 )
 from .coordinator import FanSyncCoordinator
+from .device_utils import cloud_lightless_devices
 from .entity import FanSyncOptimisticEntity
 
 # Only overlay keys that directly affect HA UI state to prevent snap-back
@@ -66,9 +67,12 @@ async def async_setup_entry(
             # If refresh times out or fails, fall back to empty dict
             data = {}
 
-    # Devices the user marked as having no physical light (per-device option).
+    # Devices with no physical light: the user's per-device option plus devices
+    # the cloud marks lightless (properties.hideLightDimmer, see issue #199).
     all_ids = getattr(client, "device_ids", []) or (list(data) if isinstance(data, dict) else [])
-    lightless = resolve_lightless_devices(entry.options, all_ids)
+    lightless = resolve_lightless_devices(entry.options, all_ids) | cloud_lightless_devices(
+        client, all_ids
+    )
 
     # Create a light entity per device that reports light capability and that the
     # user has not marked as lightless.
