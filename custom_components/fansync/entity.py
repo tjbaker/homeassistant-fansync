@@ -84,8 +84,26 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
         return {}
 
     def _device_value(self, key: str) -> int | None:
-        """Return the last device-reported value for key, ignoring any overlay."""
-        return coerce_status_int(self._status_for(self.coordinator.data or {}).get(key))
+        """Return the last value the device itself reported for ``key``.
+
+        Reads the coordinator's device-reported baseline, not ``coordinator.data``:
+        an unconfirmed optimistic write leaves the requested value in ``data``,
+        and using that as the "before" snapshot let the next write confirm on a
+        stale read that merely differed from the earlier request.
+        """
+        reported = getattr(self.coordinator, "last_reported_status", None)
+        if not callable(reported):
+            return None
+        status = reported(self._device_id)
+        if not isinstance(status, Mapping):
+            return None
+        return coerce_status_int(status.get(key))
+
+    def _record_reported(self, status: object) -> None:
+        """Feed a confirmation read into the coordinator's device-reported baseline."""
+        record = getattr(self.coordinator, "record_observed_status", None)
+        if callable(record) and isinstance(status, Mapping):
+            record(self._device_id, status)
 
     def _previous_values(self, keys: Iterable[str]) -> dict[str, int | None]:
         """Snapshot the device-reported values of ``keys`` before a write."""
@@ -181,6 +199,7 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
                 if ok:
                     return status, True
             status = await self.client.async_get_status(self._device_id)
+            self._record_reported(status)
             if predicate(status):
                 return status, True
             await asyncio.sleep(self._retry_delay)
@@ -291,9 +310,12 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
             # Note: Intended use case is confirmation via push, but this is set whenever
             # the predicate is satisfied during the guard period, regardless of update source.
             self._confirmed_by_push = True
-            # Clear the guard
+            # Clear the guard and the overlays now. If the confirmation polls have
+            # already given up, nobody else will, and the UI would keep showing the
+            # requested value instead of what the device settled on until expiry.
             self._optimistic_until = None
             self._optimistic_predicate = None
+            self._overlay.clear()
 
         # Per-entity debug state logging (subclass hook)
         self._log_state(self._status_for(self.coordinator.data or {}))

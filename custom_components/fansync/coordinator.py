@@ -89,12 +89,22 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         # diagnostics so quantized registers (e.g. a fan's real speed levels)
         # can be read off a report without guessing.
         self._observed_values: dict[str, dict[str, list[int]]] = {}
+        # Last status each device actually reported, merged from polls, pushes
+        # and confirmation reads. Unlike ``data`` it is never overwritten by an
+        # entity's optimistic write, so it is the right baseline for judging
+        # whether a later write moved a register.
+        self._last_reported: dict[str, dict[str, object]] = {}
         self._next_update_trigger: str | None = "startup"
 
+    def last_reported_status(self, device_id: str) -> dict[str, object]:
+        """Return the last device-reported status for a device (may be empty)."""
+        return dict(self._last_reported.get(device_id, {}))
+
     def record_observed_status(self, device_id: str, status: Mapping[str, object]) -> None:
-        """Record the values a device reported, for diagnostics."""
+        """Record what a device reported: last-known baseline and value history."""
         if not device_id or not isinstance(status, Mapping):
             return
+        self._last_reported.setdefault(device_id, {}).update(status)
         per_device = self._observed_values.setdefault(device_id, {})
         for key, raw in status.items():
             if not isinstance(key, str) or not _PROTOCOL_KEY_RE.match(key):

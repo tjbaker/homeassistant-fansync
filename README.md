@@ -35,7 +35,7 @@ Custom Home Assistant integration for Fanimation FanSync devices with cloud push
 ## Features
 
 ### Device Control
-- **Fan:** On/off, percentage speed (1-100%), direction (hidden on fans the app marks as not reversible), preset modes (normal, fresh_air). Fans whose controller only holds fixed speeds (e.g. the Kute60's six named levels) settle on the nearest level, and Home Assistant shows the speed the fan actually settled on.
+- **Fan:** On/off, percentage speed (1-100%), direction (hidden on fans the app marks as not reversible), preset modes (normal, fresh_air). Fans whose controller only holds fixed speeds settle on one of their levels, and Home Assistant shows the speed the fan actually settled on. A Kute60, for example, holds 20/35/50/65/80/100 and rounds a request *down* to the level below it, so 97% gives med high and only 100% gives high.
 - **Light:** On/off, brightness (0-255 with smooth mapping), and color temperature on tunable-white fixtures. The app's warm/natural/cool presets map to 3000/4000/5000 K; Corke models expose five presets (2700/3000/3500/4000/5000 K). Requested values snap to the nearest preset. Fixed-temperature lights stay brightness-only.
 - **Real-time Updates:** Cloud push updates for instant state synchronization
 - **Fallback Polling:** Configurable polling when push unavailable (default: 60s)

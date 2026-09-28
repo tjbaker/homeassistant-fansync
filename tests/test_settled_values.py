@@ -252,3 +252,67 @@ def test_observed_values_are_capped_and_ignore_non_protocol_keys(hass: HomeAssis
     assert len(observed["dev"]["H0C"]) == OBSERVED_VALUES_MAX
     assert "users" not in observed["dev"]
     assert "H02" not in observed["dev"]
+
+
+async def test_previous_value_comes_from_device_reports_not_optimistic_cache(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    """An unconfirmed write must not become the baseline for the next write.
+
+    Seen live: a request the fan never answered left 65 in the coordinator
+    cache while the fan sat at 20; the next request then confirmed on a stale
+    read of 20 because it 'differed' from 65.
+    """
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+
+    async def _ignore_writes(data, *, device_id=None):
+        return None  # device accepts the command but never applies or pushes
+
+    mock_client.async_set = _ignore_writes
+    await _setup(hass, mock_client, "test-baseline")
+    fan = hass.data["entity_components"]["fan"].get_entity("fan.fansync_fan")
+
+    await hass.services.async_call(
+        "fan", "set_percentage", {"entity_id": "fan.fansync_fan", "percentage": 65}, blocking=True
+    )
+    await hass.async_block_till_done()
+    # Unconfirmed: optimistic 65 is still in the cache, device still says 20.
+    assert hass.states.get("fan.fansync_fan").attributes["percentage"] == 65
+    assert fan._device_value("H02") == 20
+
+    await hass.services.async_call(
+        "fan", "set_percentage", {"entity_id": "fan.fansync_fan", "percentage": 49}, blocking=True
+    )
+    await hass.async_block_till_done()
+    # The stale read of 20 must not count as "moved" just because the cache held 65.
+    assert fan._optimistic_until is not None
+    assert hass.states.get("fan.fansync_fan").attributes["percentage"] == 49
+
+
+async def test_late_confirming_push_clears_overlay_immediately(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    """A push that satisfies the predicate after polling gave up must not leave
+    the requested value on screen until the guard expires."""
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+
+    async def _slow_device(data, *, device_id=None):
+        return None  # applies later, announced only by push
+
+    mock_client.async_set = _slow_device
+    await _setup(hass, mock_client, "test-late-push")
+    fan = hass.data["entity_components"]["fan"].get_entity("fan.fansync_fan")
+
+    await hass.services.async_call(
+        "fan", "set_percentage", {"entity_id": "fan.fansync_fan", "percentage": 87}, blocking=True
+    )
+    await hass.async_block_till_done()
+    assert fan._optimistic_until is not None
+    assert hass.states.get("fan.fansync_fan").attributes["percentage"] == 87
+
+    mock_client._status_callback("test-device", {"H02": 80})
+    await hass.async_block_till_done()
+
+    assert fan._optimistic_until is None
+    assert fan._overlay == {}
+    assert hass.states.get("fan.fansync_fan").attributes["percentage"] == 80
