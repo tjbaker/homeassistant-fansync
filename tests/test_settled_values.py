@@ -371,3 +371,60 @@ async def test_push_during_final_retry_sleep_counts_as_confirmed(
     assert fan._optimistic_until is None
     assert fan._overlay == {}
     assert hass.states.get("fan.fansync_fan").attributes["percentage"] == 80
+
+
+async def test_unconfirmed_guard_expiry_publishes_device_state(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    """A request the device settled back to its prior value stops showing when
+    the guard lapses, without waiting for the next push or poll.
+
+    Seen live: 27 requested at 20, the fan floored it to 20, nothing moved,
+    and HA showed 27 for 62 seconds until the timer poll.
+    """
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    _quantize_client(mock_client, "H02", KUTE60_LEVELS)
+    await _setup(hass, mock_client, "test-guard-expiry")
+    fan = hass.data["entity_components"]["fan"].get_entity("fan.fansync_fan")
+
+    with patch("custom_components.fansync.entity.OPTIMISTIC_GUARD_SEC", 0.2):
+        await hass.services.async_call(
+            "fan",
+            "set_percentage",
+            {"entity_id": "fan.fansync_fan", "percentage": 27},
+            blocking=True,
+        )
+        await hass.async_block_till_done()
+
+    # unconfirmed: the requested value is still on screen, guard armed
+    assert mock_client.status["H02"] == 20
+    assert hass.states.get("fan.fansync_fan").attributes["percentage"] == 27
+    assert fan._optimistic_until is not None
+
+    await asyncio.sleep(0.35)
+    await hass.async_block_till_done()
+
+    assert fan._optimistic_until is None
+    assert fan._overlay == {}
+    assert hass.states.get("fan.fansync_fan").attributes["percentage"] == 20
+
+
+async def test_guard_expiry_timer_is_cancelled_by_confirmation(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    """A confirmed write leaves no expiry timer behind."""
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    await _setup(hass, mock_client, "test-guard-cancel")
+    fan = hass.data["entity_components"]["fan"].get_entity("fan.fansync_fan")
+
+    await hass.services.async_call(
+        "fan",
+        "set_percentage",
+        {"entity_id": "fan.fansync_fan", "percentage": 65},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    assert hass.states.get("fan.fansync_fan").attributes["percentage"] == 65
+    assert fan._optimistic_until is None
+    assert fan._guard_expiry_unsub is None
