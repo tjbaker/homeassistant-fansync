@@ -35,7 +35,7 @@ Custom Home Assistant integration for Fanimation FanSync devices with cloud push
 ## Features
 
 ### Device Control
-- **Fan:** On/off, percentage speed (1-100%), direction, preset modes (normal, fresh_air)
+- **Fan:** On/off, percentage speed (1-100%), direction (hidden on fans the app marks as not reversible), preset modes (normal, fresh_air)
 - **Light:** On/off, brightness (0-255 with smooth mapping), and color temperature on tunable-white fixtures. The app's warm/natural/cool presets map to 3000/4000/5000 K; Corke models expose five presets (2700/3000/3500/4000/5000 K). Requested values snap to the nearest preset. Fixed-temperature lights stay brightness-only.
 - **Real-time Updates:** Cloud push updates for instant state synchronization
 - **Fallback Polling:** Configurable polling when push unavailable (default: 60s)
@@ -265,6 +265,14 @@ Then restart Home Assistant and reproduce the issue. Check logs in **Settings** 
 **Automatic detection**: If you told the official Fanimation app that your fan has no light kit, the cloud marks the device accordingly (`hideLightDimmer`) and the integration hides the Light entity automatically — no configuration needed.
 
 **Manual option**: If the app was never told (the flag is only set when you configure it there), select the affected fan(s) under Settings → Devices & Services → FanSync → Configure → Options → **Fans with no light**. This hides the Light entity for just those fans (the integration reloads automatically) — other fans that do have lights are unaffected. If you believe your fan *does* have a light that isn't working, please [open an issue](https://github.com/tjbaker/homeassistant-fansync/issues) with a downloaded diagnostics file so we can investigate device capabilities.
+
+#### Changing Fan Direction Does Nothing
+
+**Symptoms**: Setting the fan to reverse in Home Assistant is accepted (no error), but the fan keeps spinning forward and the direction snaps back a few seconds later. Reversing in the official Fanimation app may not work either; you may hear the receiver click.
+
+**Cause**: The FanSync cloud accepts the reverse command and forwards it to the receiver, but the receiver reports that the direction did not change. This is a hardware limitation, most often a universal add-on receiver (e.g. `FanSync-UAR1L2`) installed in a third-party fan whose motor cannot be reversed by the receiver. Debug logs show the `set` with `H06: 1` acknowledged, followed by a `device_change` push with `H06: 0`. The integration sends exactly what the app sends; there is nothing it can do differently.
+
+**What to do**: Check whether the fan has a physical reverse switch on the housing, and confirm with Fanimation support that the receiver can reverse your fan's motor. If you tell the Fanimation app the fan is not reversible, the cloud marks the device (`hideFanDirection`) and the integration hides the direction control for that fan automatically on the next reload.
 
 #### Intermittent Disconnections
 
