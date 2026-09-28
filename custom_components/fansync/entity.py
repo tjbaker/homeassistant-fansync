@@ -28,7 +28,9 @@ import logging
 import time
 from collections.abc import Callable, Iterable, Mapping
 
+from homeassistant.core import CALLBACK_TYPE, callback
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .client import FanSyncClient
@@ -71,6 +73,8 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
         self._overlay: dict[str, tuple[int, float]] = {}
         # Flag to signal early termination of confirmation polling when push confirms
         self._confirmed_by_push: bool = False
+        # Timer that publishes the device's state when a guard lapses unconfirmed
+        self._guard_expiry_unsub: CALLBACK_TYPE | None = None
 
     def _log_state(self, status: dict[str, object]) -> None:
         """Hook for subclasses to emit per-entity debug state logs (no-op by default)."""
@@ -117,6 +121,56 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
         write.
         """
         return self._device_value(key) != value
+
+    def _cancel_guard_expiry(self) -> None:
+        if self._guard_expiry_unsub is not None:
+            self._guard_expiry_unsub()
+            self._guard_expiry_unsub = None
+
+    def _schedule_guard_expiry(self, expires: float) -> None:
+        """Publish the device's state the moment an unconfirmed guard lapses.
+
+        When a device settles a request back to the value it already held (a
+        fan flooring 27 to the 20 it was at), nothing moved, the write cannot
+        be confirmed, and no update arrives to trigger a state write. Without
+        this timer the requested value stayed on screen until the next poll,
+        a minute later.
+        """
+        self._cancel_guard_expiry()
+
+        @callback
+        def _on_expiry(_now: object) -> None:
+            self._guard_expiry_unsub = None
+            if self._optimistic_until != expires:
+                return  # confirmed since, or a newer write owns the guard
+            self._optimistic_until = None
+            self._optimistic_predicate = None
+            self._overlay.clear()
+            if self._logger.isEnabledFor(logging.DEBUG):
+                self._logger.debug(
+                    "optimism expired d=%s unconfirmed; showing device state", self._device_id
+                )
+            # The coordinator cache still holds the optimistic values if the
+            # device never pushed. Put the device-reported baseline back so the
+            # state write below shows what the device actually holds.
+            reported = getattr(self.coordinator, "last_reported_status", None)
+            baseline = reported(self._device_id) if callable(reported) else {}
+            if isinstance(baseline, Mapping) and baseline:
+                all_data = dict(self.coordinator.data or {})
+                current = all_data.get(self._device_id, {})
+                merged = dict(current) if isinstance(current, dict) else {}
+                merged.update(baseline)
+                all_data[self._device_id] = merged
+                self.coordinator.async_set_updated_data(all_data)
+            else:
+                self.async_write_ha_state()
+
+        delay = max(0.0, expires - time.monotonic())
+        self._guard_expiry_unsub = async_call_later(self.hass, delay, _on_expiry)
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._cancel_guard_expiry()
+        await super().async_will_remove_from_hass()
 
     def _previous_values(self, keys: Iterable[str]) -> dict[str, int | None]:
         """Snapshot the device-reported values of ``keys`` before a write."""
@@ -254,6 +308,7 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
                 OPTIMISTIC_GUARD_SEC,
             )
         expires = time.monotonic() + OPTIMISTIC_GUARD_SEC
+        self._cancel_guard_expiry()
         for k, v in optimistic.items():
             if k in self.OVERLAY_KEYS:
                 self._overlay[k] = (int(v), expires)
@@ -303,6 +358,8 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
                     list(optimistic.keys()),
                     len(self._overlay),
                 )
+        elif self._optimistic_until == expires:
+            self._schedule_guard_expiry(expires)
 
     @property
     def available(self) -> bool:
