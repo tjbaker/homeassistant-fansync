@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.9.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.8.1...0.9.0) (2026-09-28)
+
+
+### Features
+
+* add per-fan "Light installed" switch on the device page ([#239](https://github.com/tjbaker/homeassistant-fansync/issues/239)) ([58b46ac](https://github.com/tjbaker/homeassistant-fansync/commit/58b46ac4a3381f0b140910d8742f890337c98cab))
+* apply "Light installed" changes in place without a reload ([#240](https://github.com/tjbaker/homeassistant-fansync/issues/240)) ([5eb0b91](https://github.com/tjbaker/homeassistant-fansync/commit/5eb0b916acb2090ca6d023488bf8e21139298ab6))
+* auto-hide light on devices the cloud marks lightless ([#221](https://github.com/tjbaker/homeassistant-fansync/issues/221)) ([1d3fcee](https://github.com/tjbaker/homeassistant-fansync/commit/1d3fceedfb3f8e5944e70c5bae9615d917a2d540))
+* decode light color temperature (H04) ([#211](https://github.com/tjbaker/homeassistant-fansync/issues/211)) ([bf54cc7](https://github.com/tjbaker/homeassistant-fansync/commit/bf54cc77c017a555d32fb29c973a56486335773a)), closes [#189](https://github.com/tjbaker/homeassistant-fansync/issues/189)
+* hide direction control on fans the cloud marks not reversible ([#234](https://github.com/tjbaker/homeassistant-fansync/issues/234)) ([d5321b3](https://github.com/tjbaker/homeassistant-fansync/commit/d5321b30b971ada7aab64232ec464f24069f06d9)), closes [#228](https://github.com/tjbaker/homeassistant-fansync/issues/228)
+
+
+### Bug Fixes
+
+* carry the current speed on fan power, direction and preset writes ([#245](https://github.com/tjbaker/homeassistant-fansync/issues/245)) ([ef47fa7](https://github.com/tjbaker/homeassistant-fansync/commit/ef47fa7545e90dcd2984150823189caf0dacdf6d))
+* confirm writes on the value the device settles on ([#237](https://github.com/tjbaker/homeassistant-fansync/issues/237)) ([dc57dbf](https://github.com/tjbaker/homeassistant-fansync/commit/dc57dbf42005ae28be40fcdfaaf1bb7388bed3a5))
+* honor a confirming push that lands during the final retry sleep ([#242](https://github.com/tjbaker/homeassistant-fansync/issues/242)) ([f62f452](https://github.com/tjbaker/homeassistant-fansync/commit/f62f45281bc3cab70c619660408a7f996dff83b8))
+* include raw protocol values in diagnostics snapshots ([#219](https://github.com/tjbaker/homeassistant-fansync/issues/219)) ([9d346aa](https://github.com/tjbaker/homeassistant-fansync/commit/9d346aa454138d8a9dcfc77fa5551633d6058d4c))
+* judge writes against device-reported values and clear late confirms ([#238](https://github.com/tjbaker/homeassistant-fansync/issues/238)) ([a28a87f](https://github.com/tjbaker/homeassistant-fansync/commit/a28a87fb7dc7e8f57da4b48f673f1337162b6c0f))
+* publish device state when an unconfirmed guard expires ([#244](https://github.com/tjbaker/homeassistant-fansync/issues/244)) ([bca5dfc](https://github.com/tjbaker/homeassistant-fansync/commit/bca5dfca4c09cd0650c76d6d45f9e8fa779b24dc))
+* skip no-op interval and timeout re-application on options change ([#241](https://github.com/tjbaker/homeassistant-fansync/issues/241)) ([3539836](https://github.com/tjbaker/homeassistant-fansync/commit/3539836a6c5426ad402d7a4a709b8861e36af17a))
+* use scoped device registry lookup and full connection set ([#233](https://github.com/tjbaker/homeassistant-fansync/issues/233)) ([1f48e22](https://github.com/tjbaker/homeassistant-fansync/commit/1f48e221317da6955d5b51f24dc5cf2e2222e15f)), closes [#229](https://github.com/tjbaker/homeassistant-fansync/issues/229)
+* write only the registers a change needs ([#243](https://github.com/tjbaker/homeassistant-fansync/issues/243)) ([707e01d](https://github.com/tjbaker/homeassistant-fansync/commit/707e01d25003363533f9626634da8ca0417324de))
+
 ## [0.8.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.8.0...0.8.1) (2026-07-01)
 
 
