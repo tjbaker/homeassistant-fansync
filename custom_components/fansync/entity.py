@@ -105,6 +105,19 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
         if callable(record) and isinstance(status, Mapping):
             record(self._device_id, status)
 
+    def _needs_write(self, key: str, value: int) -> bool:
+        """True unless the device already reports ``value`` for ``key``.
+
+        Writes used to bundle "power on" (and for speed, "preset normal")
+        unconditionally. A Kute60 applies a three-register write of speed 100
+        but never reports it back, so the cloud, the app and HA all stay stale,
+        while the same speed alone or with one companion register reports fine.
+        Writing only what has to change sidesteps the quirk and leaves fewer
+        registers to confirm. An unknown device value counts as needing the
+        write.
+        """
+        return self._device_value(key) != value
+
     def _previous_values(self, keys: Iterable[str]) -> dict[str, int | None]:
         """Snapshot the device-reported values of ``keys`` before a write."""
         return {k: self._device_value(k) for k in keys}

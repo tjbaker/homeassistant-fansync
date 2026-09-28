@@ -126,3 +126,55 @@ async def test_turn_on_writes_power_only_when_needed(
     await hass.async_block_till_done()
     await _svc(hass, "turn_on", percentage=65)
     assert writes[-1] == {"H02": 65, "H00": 1}
+
+
+async def test_direction_and_preset_write_power_only_when_off(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    mock_client.status = {"H00": 1, "H02": 50, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    writes = await _setup(hass, mock_client, "min-dir-preset")
+
+    await _svc(hass, "set_direction", direction="reverse")
+    assert writes[-1] == {"H06": 1}
+    await _svc(hass, "set_preset_mode", preset_mode="fresh_air")
+    assert writes[-1] == {"H01": 1}
+
+    mock_client.status["H00"] = 0
+    mock_client._status_callback("test-device", {"H00": 0})
+    await hass.async_block_till_done()
+    await _svc(hass, "set_direction", direction="forward")
+    assert writes[-1] == {"H06": 0, "H00": 1}
+
+
+async def _light(hass: HomeAssistant, service: str, **data) -> None:
+    await hass.services.async_call(
+        "light", service, {"entity_id": "light.fansync_light", **data}, blocking=True
+    )
+    await hass.async_block_till_done()
+
+
+async def test_light_writes_power_only_when_needed(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    # tunable light (H04 on a known preset) so color temperature is writable
+    mock_client.status = {"H00": 1, "H02": 50, "H06": 0, "H01": 0, "H0B": 1, "H0C": 50, "H04": 4000}
+    writes = await _setup(hass, mock_client, "min-light")
+
+    # already on: brightness only
+    await _light(hass, "turn_on", brightness=255)
+    assert writes[-1] == {"H0C": 100}
+
+    # already on: color temperature only
+    await _light(hass, "turn_on", color_temp_kelvin=3000)
+    assert writes[-1] == {"H04": 3000}
+
+    # already on: a bare turn_on still writes power
+    await _light(hass, "turn_on")
+    assert writes[-1] == {"H0B": 1}
+
+    # off: brightness plus power
+    mock_client.status["H0B"] = 0
+    mock_client._status_callback("test-device", {"H0B": 0})
+    await hass.async_block_till_done()
+    await _light(hass, "turn_on", brightness=128)
+    assert writes[-1] == {"H0C": 50, "H0B": 1}

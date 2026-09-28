@@ -220,7 +220,7 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         **kwargs: Any,
     ) -> None:
         optimistic = {KEY_LIGHT_POWER: 1}
-        payload = {KEY_LIGHT_POWER: 1}
+        payload: dict[str, int] = {}
         if brightness is not None:
             pct = ha_brightness_to_pct(brightness)
             optimistic[KEY_LIGHT_BRIGHTNESS] = pct
@@ -229,6 +229,10 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
             kelvin = snap_color_temp_kelvin(color_temp_kelvin, self._color_temp_presets)
             optimistic[KEY_LIGHT_COLOR_TEMP] = kelvin
             payload[KEY_LIGHT_COLOR_TEMP] = kelvin
+        # Power always goes when nothing else does (a bare turn_on), otherwise
+        # only when the light is not already on. See _needs_write.
+        if not payload or self._needs_write(KEY_LIGHT_POWER, 1):
+            payload[KEY_LIGHT_POWER] = 1
 
         previous = self._previous_values(payload)
 
