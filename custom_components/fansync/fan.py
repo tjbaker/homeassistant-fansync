@@ -124,7 +124,7 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         **kwargs,
     ) -> None:
         optimistic = {KEY_POWER: 1}
-        payload = {KEY_POWER: 1}
+        payload: dict[str, int] = {}
         if percentage is not None:
             target_speed = clamp_percentage(percentage)
             optimistic[KEY_SPEED] = target_speed
@@ -133,7 +133,12 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
             inv = {v: k for k, v in PRESET_MODES.items()}
             target_preset = inv.get(preset_mode, 0)
             optimistic[KEY_PRESET] = target_preset
-            payload[KEY_PRESET] = target_preset
+            if self._needs_write(KEY_PRESET, target_preset):
+                payload[KEY_PRESET] = target_preset
+        # Power always goes when nothing else does (a bare turn_on), otherwise
+        # only when the fan is not already on. See _needs_write.
+        if not payload or self._needs_write(KEY_POWER, 1):
+            payload[KEY_POWER] = 1
         previous = self._previous_values(payload)
 
         def _confirm(s: dict[str, object]) -> bool:
@@ -151,7 +156,11 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         target = clamp_percentage(percentage)
         # Adjusting percentage exits fresh-air (breeze) mode -> set preset to normal (0)
         optimistic = {KEY_POWER: 1, KEY_SPEED: target, KEY_PRESET: 0}
-        payload = {KEY_POWER: 1, KEY_SPEED: target, KEY_PRESET: 0}
+        payload = {KEY_SPEED: target}
+        if self._needs_write(KEY_POWER, 1):
+            payload[KEY_POWER] = 1
+        if self._needs_write(KEY_PRESET, 0):
+            payload[KEY_PRESET] = 0
         previous = self._previous_values(payload)
         await self._apply_with_optimism(
             optimistic,
@@ -162,7 +171,9 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
     async def async_set_direction(self, direction: str) -> None:
         target_dir = 0 if direction == "forward" else 1
         optimistic = {KEY_POWER: 1, KEY_DIRECTION: target_dir}
-        payload = {KEY_POWER: 1, KEY_DIRECTION: target_dir}
+        payload = {KEY_DIRECTION: target_dir}
+        if self._needs_write(KEY_POWER, 1):
+            payload[KEY_POWER] = 1
         await self._apply_with_optimism(
             optimistic,
             payload,
@@ -173,7 +184,9 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         inv = {v: k for k, v in PRESET_MODES.items()}
         target_preset = inv.get(preset_mode, 0)
         optimistic = {KEY_POWER: 1, KEY_PRESET: target_preset}
-        payload = {KEY_POWER: 1, KEY_PRESET: target_preset}
+        payload = {KEY_PRESET: target_preset}
+        if self._needs_write(KEY_POWER, 1):
+            payload[KEY_POWER] = 1
         await self._apply_with_optimism(
             optimistic,
             payload,
