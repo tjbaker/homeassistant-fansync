@@ -203,6 +203,18 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
             if predicate(status):
                 return status, True
             await asyncio.sleep(self._retry_delay)
+        # A push can land during the final retry sleep. The update handler has
+        # already applied it (and cleared the guard and overlays); honor it here
+        # so the write is reported as confirmed rather than timed out.
+        if self._confirmed_by_push:
+            data = self.coordinator.data or {}
+            pushed = data.get(self._device_id, {}) if isinstance(data, dict) else {}
+            if predicate(pushed):
+                if self._logger.isEnabledFor(logging.DEBUG):
+                    self._logger.debug(
+                        "optimism late confirm d=%s via push update", self._device_id
+                    )
+                return pushed, True
         return status, False
 
     async def _apply_with_optimism(
