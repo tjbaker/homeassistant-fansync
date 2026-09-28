@@ -141,6 +141,10 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         # Each device carries its own model-specific preset list; None or empty
         # means the light is brightness-only.
         self._color_temp_presets: tuple[int, ...] = ()
+        # Last H04 value that was within the resolved preset range. Reported
+        # instead of a transient off-preset reading so state never advertises a
+        # Kelvin value outside the entity's own min/max bounds.
+        self._last_valid_color_temp: int | None = None
         self._set_color_temp_presets(color_temp_presets)
 
     def _set_color_temp_presets(self, color_temp_presets: tuple[int, ...] | None) -> bool:
@@ -188,7 +192,14 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
     def color_temp_kelvin(self) -> int | None:
         if not self._supports_color_temp:
             return None
-        return self._get_with_overlay(KEY_LIGHT_COLOR_TEMP, min(self._color_temp_presets))
+        lo, hi = min(self._color_temp_presets), max(self._color_temp_presets)
+        value = self._get_with_overlay(KEY_LIGHT_COLOR_TEMP, lo)
+        if lo <= value <= hi:
+            self._last_valid_color_temp = value
+            return value
+        if self._last_valid_color_temp is not None:
+            return self._last_valid_color_temp
+        return lo
 
     async def async_turn_on(
         self,

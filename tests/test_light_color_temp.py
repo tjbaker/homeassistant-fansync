@@ -386,6 +386,9 @@ async def test_off_preset_push_does_not_downgrade_resolved_color_temp(
     assert state.attributes.get("supported_color_modes") == ["color_temp"]
     assert state.attributes.get("min_color_temp_kelvin") == 3000
     assert state.attributes.get("max_color_temp_kelvin") == 5000
+    # The off-preset reading must not surface as an out-of-range Kelvin state;
+    # the last in-range value is reported instead.
+    assert state.attributes.get("color_temp_kelvin") == 4000
 
 
 async def test_late_h04_upgrades_light_without_device_profile(
