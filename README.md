@@ -36,6 +36,7 @@ Custom Home Assistant integration for Fanimation FanSync devices with cloud push
 
 ### Device Control
 - **Fan:** On/off, percentage speed (1-100%), direction (hidden on fans the app marks as not reversible), preset modes (normal, fresh_air). Fans whose controller only holds fixed speeds settle on one of their levels, and Home Assistant shows the speed the fan actually settled on. A Kute60, for example, holds 20/35/50/65/80/100 and rounds a request *down* to the level below it, so 97% gives med high and only 100% gives high.
+- **Light installed** switch (per fan, under the device's *Configuration* section): turn it off on a fan with no light kit to remove its phantom Light entity.
 - **Light:** On/off, brightness (0-255 with smooth mapping), and color temperature on tunable-white fixtures. The app's warm/natural/cool presets map to 3000/4000/5000 K; Corke models expose five presets (2700/3000/3500/4000/5000 K). Requested values snap to the nearest preset. Fixed-temperature lights stay brightness-only.
 - **Real-time Updates:** Cloud push updates for instant state synchronization
 - **Fallback Polling:** Configurable polling when push unavailable (default: 60s)
@@ -264,7 +265,7 @@ Then restart Home Assistant and reproduce the issue. Check logs in **Settings** 
 
 **Automatic detection**: If you told the official Fanimation app that your fan has no light kit, the cloud marks the device accordingly (`hideLightDimmer`) and the integration hides the Light entity automatically — no configuration needed.
 
-**Manual option**: If the app was never told (the flag is only set when you configure it there), select the affected fan(s) under Settings → Devices & Services → FanSync → Configure → Options → **Fans with no light**. This hides the Light entity for just those fans (the integration reloads automatically) — other fans that do have lights are unaffected. If you believe your fan *does* have a light that isn't working, please [open an issue](https://github.com/tjbaker/homeassistant-fansync/issues) with a downloaded diagnostics file so we can investigate device capabilities.
+**Manual option**: If the app was never told (the flag is only set when you configure it there), open the fan's device page (Settings → Devices & Services → FanSync → the fan) and turn off the **Light installed** switch under *Configuration*. The integration reloads and removes that fan's Light entity; turn the switch back on to restore it. The same setting is also available for all fans at once under the integration's Configure → Options → **Fans with no light**. Other fans that do have lights are unaffected. If you believe your fan *does* have a light that isn't working, please [open an issue](https://github.com/tjbaker/homeassistant-fansync/issues) with a downloaded diagnostics file so we can investigate device capabilities.
 
 #### Changing Fan Direction Does Nothing
 
