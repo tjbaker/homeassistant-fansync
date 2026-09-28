@@ -14,6 +14,17 @@ from collections.abc import Iterable, Mapping
 
 DOMAIN = "fansync"
 PLATFORMS = ["fan", "light", "switch"]
+
+
+def lightless_signal(entry_id: str) -> str:
+    """Dispatcher signal sent with the new lightless device set when it changes.
+
+    The light platform adds/removes Light entities in place and the per-fan
+    "Light installed" switches refresh, so no config-entry reload is needed.
+    """
+    return f"{DOMAIN}_lightless_{entry_id}"
+
+
 CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
 CONF_VERIFY_SSL = "verify_ssl"

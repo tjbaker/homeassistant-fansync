@@ -24,6 +24,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.typing import ConfigType
 
 from .client import FanSyncClient, FanSyncConfigError
@@ -37,11 +38,10 @@ from .const import (
     DEFAULT_HTTP_TIMEOUT_SECS,
     DEFAULT_WS_TIMEOUT_SECS,
     DOMAIN,
-    KEY_LIGHT_BRIGHTNESS,
-    KEY_LIGHT_POWER,
     OPTION_FALLBACK_POLL_SECS,
     PLATFORMS,
     POLL_STATUS_TIMEOUT_SECS,
+    lightless_signal,
     resolve_lightless_devices,
 )
 from .coordinator import FanSyncCoordinator
@@ -205,9 +205,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
                 type(exc).__name__,
             )
 
-        # Determine which platforms to load.
-        # If no data yet (first refresh deferred or empty), fall back to all PLATFORMS
-        # so that capability platforms (e.g., light) are available once data arrives.
         # Users can hide a phantom light on lightless fans that still report a
         # light channel; this is per-device (see resolve_lightless_devices).
         known_ids = _get_client_device_ids(client)
@@ -218,31 +215,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
         # Remove any previously-registered light entities for now-lightless
         # devices so HA doesn't leave an orphaned "no longer provided" entity.
         _remove_lightless_light_entities(hass, lightless)
-        data_now = coordinator.data
-        if not isinstance(data_now, dict) or not data_now:
-            # No data yet: load the light platform unless every known device is
-            # marked lightless. light.py filters per-device once data arrives.
-            has_lit_device = not known_ids or any(d not in lightless for d in known_ids)
-            platforms = list(PLATFORMS) if has_lit_device else ["fan", "switch"]
-        else:
-            platforms = ["fan", "switch"]
-            if any(
-                isinstance(s, dict)
-                and did not in lightless
-                and (KEY_LIGHT_POWER in s or KEY_LIGHT_BRIGHTNESS in s)
-                for did, s in data_now.items()
-            ):
-                platforms.append("light")
+        # All platforms always load. The light platform creates entities only
+        # for lit devices and adds/removes them in place when the lightless set
+        # changes, so toggling "Light installed" never reloads the entry.
+        platforms = list(PLATFORMS)
 
         async def _async_options_updated(hass: HomeAssistant, updated_entry: ConfigEntry) -> None:
-            # Changing which devices are lightless adds/removes light entities,
-            # which requires a full reload of the config entry to take effect.
+            nonlocal lightless
+            # Changing which devices are lightless adds/removes Light entities in
+            # place (light.py listens) and refreshes the per-fan switches.
             new_lightless = (
                 resolve_lightless_devices(updated_entry.options, known_ids) | cloud_lightless
             )
             if new_lightless != lightless:
-                await hass.config_entries.async_reload(updated_entry.entry_id)
-                return
+                lightless = new_lightless
+                async_dispatcher_send(hass, lightless_signal(updated_entry.entry_id), new_lightless)
 
             new_secs = updated_entry.options.get(
                 OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS

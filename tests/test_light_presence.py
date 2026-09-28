@@ -65,7 +65,7 @@ async def test_light_not_created_when_no_light_keys(hass: HomeAssistant):
 
 
 async def test_platforms_stored_and_forwarded_without_light(hass: HomeAssistant, monkeypatch):
-    """Platforms should be ['fan'] and forward excludes light when no light keys present."""
+    """All platforms load; the light platform simply creates no entity without light keys."""
 
     client = _make_client({"H00": 1, "H02": 41, "H06": 0, "H01": 0}, "dev-no-light")
     entry = MockConfigEntry(
@@ -94,8 +94,8 @@ async def test_platforms_stored_and_forwarded_without_light(hass: HomeAssistant,
         await hass.async_block_till_done()
 
     stored = entry.runtime_data["platforms"]
-    assert stored == ["fan", "switch"]
-    assert calls and calls[-1] == ["fan", "switch"]
+    assert stored == ["fan", "light", "switch"]
+    assert calls and calls[-1] == ["fan", "light", "switch"]
 
 
 async def test_platforms_stored_and_forwarded_with_light(hass: HomeAssistant, monkeypatch):
@@ -131,8 +131,8 @@ async def test_platforms_stored_and_forwarded_with_light(hass: HomeAssistant, mo
         await hass.async_block_till_done()
 
     stored = entry.runtime_data["platforms"]
-    assert stored == ["fan", "switch", "light"]
-    assert calls and calls[-1] == ["fan", "switch", "light"]
+    assert stored == ["fan", "light", "switch"]
+    assert calls and calls[-1] == ["fan", "light", "switch"]
 
 
 async def test_platforms_fallback_when_first_refresh_deferred(hass: HomeAssistant, monkeypatch):
