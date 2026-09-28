@@ -124,7 +124,7 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         **kwargs,
     ) -> None:
         optimistic = {KEY_POWER: 1}
-        payload = {KEY_POWER: 1}
+        payload: dict[str, int] = {}
         if percentage is not None:
             target_speed = clamp_percentage(percentage)
             optimistic[KEY_SPEED] = target_speed
@@ -133,7 +133,12 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
             inv = {v: k for k, v in PRESET_MODES.items()}
             target_preset = inv.get(preset_mode, 0)
             optimistic[KEY_PRESET] = target_preset
-            payload[KEY_PRESET] = target_preset
+            if self._needs_write(KEY_PRESET, target_preset):
+                payload[KEY_PRESET] = target_preset
+        # Power always goes when nothing else does (a bare turn_on), otherwise
+        # only when the fan is not already on. See _needs_write.
+        if not payload or self._needs_write(KEY_POWER, 1):
+            payload[KEY_POWER] = 1
         previous = self._previous_values(payload)
 
         def _confirm(s: dict[str, object]) -> bool:
@@ -147,11 +152,26 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         payload = {KEY_POWER: 0}
         await self._apply_with_optimism(optimistic, payload, lambda s: s.get(KEY_POWER) == 0)
 
+    def _needs_write(self, key: str, value: int) -> bool:
+        """True unless the device already reports ``value`` for ``key``.
+
+        Speed writes used to bundle power=1 and preset=0 unconditionally. A
+        Kute60 applies such a three-register write of speed 100 but never
+        reports it back, so the cloud, the app and HA all stay stale (speed
+        alone, or with just one of the two, reports fine). Writing only what
+        has to change avoids the quirk and is less to confirm.
+        """
+        return self._device_value(key) != value
+
     async def async_set_percentage(self, percentage: int) -> None:
         target = clamp_percentage(percentage)
         # Adjusting percentage exits fresh-air (breeze) mode -> set preset to normal (0)
         optimistic = {KEY_POWER: 1, KEY_SPEED: target, KEY_PRESET: 0}
-        payload = {KEY_POWER: 1, KEY_SPEED: target, KEY_PRESET: 0}
+        payload = {KEY_SPEED: target}
+        if self._needs_write(KEY_POWER, 1):
+            payload[KEY_POWER] = 1
+        if self._needs_write(KEY_PRESET, 0):
+            payload[KEY_PRESET] = 0
         previous = self._previous_values(payload)
         await self._apply_with_optimism(
             optimistic,
