@@ -23,6 +23,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.typing import ConfigType
@@ -314,3 +315,22 @@ async def async_unload_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> 
     if unloaded:
         await runtime_data["client"].async_disconnect()
     return unloaded
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: FanSyncConfigEntry, device_entry: dr.DeviceEntry
+) -> bool:
+    """Allow deleting a device the account no longer lists.
+
+    Implementing this is what makes Home Assistant show "Delete device" on the
+    device page. A fan removed from the Fanimation account (sold, or left at a
+    previous house) otherwise lingers in the registry with no entities and no
+    way to remove it short of deleting the whole integration entry. Devices the
+    account still lists are refused; they would be recreated on the next setup.
+    """
+    runtime = getattr(entry, "runtime_data", None)
+    if not runtime:
+        return False
+    known = set(_get_client_device_ids(runtime["client"]))
+    ours = {ident for domain, ident in device_entry.identifiers if domain == DOMAIN}
+    return not (ours & known)

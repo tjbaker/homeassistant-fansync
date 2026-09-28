@@ -230,6 +230,12 @@ Reproduce the issue, then read the log under **Settings** → **System** → **L
 
 **Cause**: Some fans only hold a fixed set of speeds. The controller accepts any value, snaps it to one of its levels, and reports that back; Home Assistant shows what the fan settled on. A Kute60, for example, holds 20/35/50/65/80/100 and rounds a request *down*, so 97% gives med high and only 100% gives high. The distinct values a fan has reported appear under `coordinator.observed_values` in a diagnostics download.
 
+#### A Fan You No Longer Own Still Shows as a Device
+
+**Symptoms**: A FanSync device with no entities lingers under Settings → Devices & Services, typically a fan that was removed from the Fanimation account or left at a previous home.
+
+**What to do**: Open the device page, click ⋮ → **Delete device**. The integration allows deletion for any device the account no longer lists; a device that is still in the account is refused, since it would be recreated on the next start.
+
 #### Changing Fan Direction Does Nothing
 
 **Symptoms**: Setting the fan to reverse in Home Assistant is accepted (no error), but the fan keeps spinning forward and the direction snaps back a few seconds later. Reversing in the official Fanimation app may not work either; you may hear the receiver click.
