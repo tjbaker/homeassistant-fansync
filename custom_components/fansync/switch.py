@@ -27,13 +27,14 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .client import FanSyncClient
-from .const import DOMAIN, OPTION_LIGHTLESS_DEVICES, resolve_lightless_devices
+from .const import DOMAIN, OPTION_LIGHTLESS_DEVICES, lightless_signal, resolve_lightless_devices
 from .device_utils import cloud_lightless_devices, create_device_info
 
 # Config writes only; nothing here talks to the cloud
@@ -78,6 +79,19 @@ class FanSyncLightInstalledSwitch(SwitchEntity):
         self._cloud_lightless = cloud_lightless
         self._attr_unique_id = f"{DOMAIN}_{device_id}_light_installed"
 
+    async def async_added_to_hass(self) -> None:
+        # The option change is applied in place (no reload), so refresh on the
+        # same signal the light platform uses to add/remove Light entities.
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, lightless_signal(self._entry.entry_id), self._on_lightless_changed
+            )
+        )
+
+    @callback
+    def _on_lightless_changed(self, _lightless: set[str]) -> None:
+        self.async_write_ha_state()
+
     @property
     def device_info(self) -> DeviceInfo:
         return create_device_info(self._client, self._device_id)
@@ -118,8 +132,9 @@ class FanSyncLightInstalledSwitch(SwitchEntity):
         if updated == current:
             return
         _LOGGER.debug("light installed switch d=%s lightless=%s", self._device_id, add)
-        # The options listener in __init__ reloads the entry, which adds or
-        # removes the Light entity and recreates this switch with the new state.
+        # The options listener in __init__ broadcasts the new lightless set; the
+        # light platform adds/removes the Light entity in place and this switch
+        # refreshes. The fan never goes unavailable.
         self.hass.config_entries.async_update_entry(
             self._entry, options={**self._entry.options, OPTION_LIGHTLESS_DEVICES: updated}
         )

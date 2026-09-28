@@ -28,16 +28,16 @@ Custom Home Assistant integration for Fanimation FanSync devices with cloud push
 ## Requirements
 
 - **Python:** 3.14+
-- **Home Assistant:** 2026.6.0 or newer (HACS enforces this minimum)
+- **Home Assistant:** 2026.8.0 or newer (HACS enforces this minimum)
 - **HACS:** Optional (only if installing via HACS)
 - **Account:** Valid Fanimation FanSync account with registered devices
 
 ## Features
 
 ### Device Control
-- **Fan:** On/off, percentage speed (1-100%), direction (hidden on fans the app marks as not reversible), preset modes (normal, fresh_air). Fans whose controller only holds fixed speeds settle on one of their levels, and Home Assistant shows the speed the fan actually settled on. A Kute60, for example, holds 20/35/50/65/80/100 and rounds a request *down* to the level below it, so 97% gives med high and only 100% gives high.
-- **Light installed** switch (per fan, under the device's *Configuration* section): turn it off on a fan with no light kit to remove its phantom Light entity.
-- **Light:** On/off, brightness (0-255 with smooth mapping), and color temperature on tunable-white fixtures. The app's warm/natural/cool presets map to 3000/4000/5000 K; Corke models expose five presets (2700/3000/3500/4000/5000 K). Requested values snap to the nearest preset. Fixed-temperature lights stay brightness-only.
+- **Fan:** On/off, speed, direction, preset modes (normal, fresh_air). Direction is hidden on fans the app marks as not reversible.
+- **Light:** On/off, brightness, and color temperature on tunable-white fixtures (fixed-temperature lights stay brightness-only).
+- **Light installed** switch on each fan's device page: turn it off on a fan with no light kit to remove its phantom Light entity.
 - **Real-time Updates:** Cloud push updates for instant state synchronization
 - **Fallback Polling:** Configurable polling when push unavailable (default: 60s)
 
@@ -61,25 +61,7 @@ Custom Home Assistant integration for Fanimation FanSync devices with cloud push
 
 ## Removal
 
-To remove the FanSync integration:
-
-1) Go to **Settings** → **Devices & Services**
-2) Find the **FanSync** integration
-3) Click the **three dots (⋮)** menu
-4) Select **Delete**
-5) Confirm the removal
-
-If installed via HACS:
-1) Go to **HACS** → **Integrations**
-2) Find **FanSync**
-3) Click the **three dots (⋮)** menu
-4) Select **Remove**
-5) Restart Home Assistant
-
-If installed manually:
-1) Remove the integration from the UI (steps 1-5 above)
-2) Delete the `config/custom_components/fansync/` directory
-3) Restart Home Assistant
+Delete the integration under Settings → Devices & Services → FanSync → ⋮ → **Delete**. Then remove the code: in HACS, remove FanSync from HACS → Integrations; for a manual install, delete `config/custom_components/fansync/`. Restart Home Assistant.
 
 ## Configuration
 
@@ -105,7 +87,7 @@ Push-first updates are used by default. A low-frequency fallback poll can be con
 
 Set via: Settings → Devices & Services → FanSync → Configure → Options.
 - Poll interval allowed range: 15–600 seconds (0 disables polling and relies on push)
-- **Fans with no light** is a per-fan selection, so in a multi-fan account you can hide the phantom Light on only the fans that lack one. Changing it reloads the integration so the Light entities appear/disappear immediately.
+- **Fans with no light** is a per-fan selection, so in a multi-fan account you can hide the phantom Light on only the fans that lack one. The same setting is available per fan as the **Light installed** switch on the fan's device page. Changes apply immediately without a reload.
 - Timeout ranges: 5–120 seconds (HTTP and WebSocket)
 
 ## Reauthentication
@@ -157,62 +139,37 @@ Diagnostics are automatically logged! Look for:
 - Copy the entire JSON block from the logs
 
 **What's included** (no passwords or tokens):
-- **Connection timing breakdown**:
-  - HTTP login duration
-  - WebSocket handshake duration (connect only)
-  - WebSocket login response wait time
-  - Total WebSocket connection time
-  - Token refresh attempts count
-- **Token metadata**: Format, length, expiry status
-- **Login response details**: Last server response (sanitized)
-- **Connection failure history**: Recent failures with timestamps and error types
-- **Environment info**: Python version, library versions
-- **Network metrics**: Latency, timeouts, reconnects, push updates
-- **Device configuration**: Device count and settings
+- **Connection**: HTTP login, WebSocket handshake and login timing; token metadata; last login response; recent failure history; latency, timeout, reconnect and push metrics
+- **Devices**: profiles (model, firmware) and cloud metadata; `status_snapshot` with the raw protocol registers; `observed_values`, the distinct values each device has actually reported per register (this is how a fan's real speed levels or a light's color presets show up)
+- **Commands**: recent set/get history with latency
+- **Environment**: Home Assistant, Python and library versions
 
-**Share this file when reporting issues** - it contains everything needed to diagnose most connection problems!
+**Share this file when reporting issues.** It covers most connection and device-behavior questions without a debug log.
 
 #### 2. Enable Debug Logging
 
-For more detailed logs, enable debug logging for **all relevant components**:
+The integration's own logger covers every module (client, coordinator, entities). Add the two network libraries only for login or connection problems.
 
-**Temporary** (via Developer Tools → Services):
+**Temporary** (Developer Tools → Actions):
 ```yaml
-service: logger.set_level
+action: logger.set_level
 data:
   custom_components.fansync: debug
-  custom_components.fansync.client: debug
-  custom_components.fansync.coordinator: debug
-  custom_components.fansync.fan: debug
-  custom_components.fansync.light: debug
-  httpcore: debug
-  httpx: debug
-  websockets: debug
+  httpx: debug        # HTTP login and token refresh
+  websockets: debug   # WebSocket connection and server messages
 ```
 
-**Persistent** (add to `configuration.yaml`):
+**Persistent** (`configuration.yaml`, then restart):
 ```yaml
 logger:
   default: info
   logs:
     custom_components.fansync: debug
-    custom_components.fansync.client: debug
-    custom_components.fansync.coordinator: debug
-    custom_components.fansync.fan: debug
-    custom_components.fansync.light: debug
-    httpcore: debug
     httpx: debug
     websockets: debug
 ```
 
-**Why all these loggers?**
-- `custom_components.fansync.*` - Integration modules (client, coordinator, entities)
-- `httpcore` & `httpx` - HTTP authentication, token requests, SSL handshake
-- `websockets` - WebSocket connection, login messages, server responses
-
-**Tip**: Start with just `custom_components.fansync: debug` for most issues. Add the module-specific loggers (`client`, `coordinator`, etc.) only if you need more granular detail.
-
-Then restart Home Assistant and reproduce the issue. Check logs in **Settings** → **System** → **Logs**.
+Reproduce the issue, then read the log under **Settings** → **System** → **Logs**. Note that the `websockets` logger prints the login token and session cookie; trim those before posting a log publicly.
 
 **Note**: If setup fails, the integration automatically logs structured diagnostics at ERROR level, so debug logging is optional but helpful for additional context.
 
@@ -265,7 +222,13 @@ Then restart Home Assistant and reproduce the issue. Check logs in **Settings** 
 
 **Automatic detection**: If you told the official Fanimation app that your fan has no light kit, the cloud marks the device accordingly (`hideLightDimmer`) and the integration hides the Light entity automatically — no configuration needed.
 
-**Manual option**: If the app was never told (the flag is only set when you configure it there), open the fan's device page (Settings → Devices & Services → FanSync → the fan) and turn off the **Light installed** switch under *Configuration*. The integration reloads and removes that fan's Light entity; turn the switch back on to restore it. The same setting is also available for all fans at once under the integration's Configure → Options → **Fans with no light**. Other fans that do have lights are unaffected. If you believe your fan *does* have a light that isn't working, please [open an issue](https://github.com/tjbaker/homeassistant-fansync/issues) with a downloaded diagnostics file so we can investigate device capabilities.
+**Manual option**: If the app was never told (the flag is only set when you configure it there), open the fan's device page (Settings → Devices & Services → FanSync → the fan) and turn off the **Light installed** switch under *Configuration*. That fan's Light entity is removed immediately, with no reload; turn the switch back on to restore it. The same setting is also available for all fans at once under the integration's Configure → Options → **Fans with no light**. Other fans that do have lights are unaffected. If you believe your fan *does* have a light that isn't working, please [open an issue](https://github.com/tjbaker/homeassistant-fansync/issues) with a downloaded diagnostics file so we can investigate device capabilities.
+
+#### The Speed Slider Jumps to a Different Value
+
+**Symptoms**: You set a speed such as 87% and a couple of seconds later Home Assistant shows 80%.
+
+**Cause**: Some fans only hold a fixed set of speeds. The controller accepts any value, snaps it to one of its levels, and reports that back; Home Assistant shows what the fan settled on. A Kute60, for example, holds 20/35/50/65/80/100 and rounds a request *down*, so 97% gives med high and only 100% gives high. The distinct values a fan has reported appear under `coordinator.observed_values` in a diagnostics download.
 
 #### Changing Fan Direction Does Nothing
 

@@ -137,3 +137,61 @@ async def test_cloud_flagged_fan_is_off_and_cannot_be_turned_on(hass: HomeAssist
     # turning off a cloud-flagged fan records nothing; the flag already hides it
     await _call(hass, "turn_off", switch, client)
     assert OPTION_LIGHTLESS_DEVICES not in entry.options
+
+
+async def test_toggle_does_not_reload_entry_or_disturb_the_fan(hass: HomeAssistant) -> None:
+    """Hiding and restoring the light happens in place: no reload, fan stays on."""
+    client = MetaLightClient(["dev1"])
+    entry = await _setup(hass, client, options={})
+    fan = _entity_id(hass, "fan", "dev1", "fan")
+    switch = _entity_id(hass, "switch", "dev1", "light_installed")
+    assert hass.states.get(fan).state == "on"
+
+    seen: list[str] = []
+    hass.bus.async_listen(
+        "state_changed",
+        lambda ev: (
+            seen.append(ev.data["new_state"].state)
+            if ev.data["entity_id"] == fan and ev.data["new_state"] is not None
+            else None
+        ),
+    )
+
+    with patch.object(hass.config_entries, "async_reload") as reload:
+        await _call(hass, "turn_off", switch, client)
+        assert _entity_id(hass, "light", "dev1", "light") is None
+        assert hass.states.get("light.fansync_light") is None
+        assert hass.states.get(switch).state == "off"
+
+        await _call(hass, "turn_on", switch, client)
+        assert _entity_id(hass, "light", "dev1", "light") is not None
+        assert hass.states.get(switch).state == "on"
+        reload.assert_not_called()
+
+    assert entry.state.name == "LOADED"
+    assert hass.states.get(fan).state == "on"
+    assert "unavailable" not in seen
+
+
+async def test_configure_form_path_is_also_in_place(hass: HomeAssistant) -> None:
+    """Writing the option directly (what the Configure form does) behaves the same."""
+    client = MetaLightClient(["dev1", "dev2"])
+    entry = await _setup(hass, client, options={})
+
+    with patch.object(hass.config_entries, "async_reload") as reload:
+        hass.config_entries.async_update_entry(
+            entry, options={OPTION_LIGHTLESS_DEVICES: ["dev1", "dev2"]}
+        )
+        await hass.async_block_till_done()
+        assert _entity_id(hass, "light", "dev1", "light") is None
+        assert _entity_id(hass, "light", "dev2", "light") is None
+        for did in ("dev1", "dev2"):
+            assert (
+                hass.states.get(_entity_id(hass, "switch", did, "light_installed")).state == "off"
+            )
+
+        hass.config_entries.async_update_entry(entry, options={OPTION_LIGHTLESS_DEVICES: ["dev2"]})
+        await hass.async_block_till_done()
+        assert _entity_id(hass, "light", "dev1", "light") is not None
+        assert _entity_id(hass, "light", "dev2", "light") is None
+        reload.assert_not_called()

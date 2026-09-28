@@ -25,6 +25,8 @@ from homeassistant.components.light import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -36,6 +38,7 @@ from .const import (
     KEY_LIGHT_COLOR_TEMP,
     KEY_LIGHT_POWER,
     ha_brightness_to_pct,
+    lightless_signal,
     pct_to_ha_brightness,
     resolve_light_color_temp_presets,
     resolve_lightless_devices,
@@ -83,22 +86,53 @@ async def async_setup_entry(
         client, all_ids
     )
 
+    def _has_light_channel(status: object) -> bool:
+        return isinstance(status, dict) and (
+            KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status
+        )
+
+    def _make(did: str, status: dict[str, object]) -> FanSyncLight:
+        model = profile_model(client, did)
+        presets = resolve_light_color_temp_presets(model, status)
+        return FanSyncLight(coordinator, client, did, color_temp_presets=presets)
+
     # Create a light entity per device that reports light capability and that the
     # user has not marked as lightless.
+    active: dict[str, FanSyncLight] = {}
     if isinstance(data, dict):
         for did, status in data.items():
-            if did in lightless:
-                continue
-            if isinstance(status, dict) and (
-                KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status
-            ):
-                model = profile_model(client, did)
-                color_temp_presets = resolve_light_color_temp_presets(model, status)
-                entities.append(
-                    FanSyncLight(coordinator, client, did, color_temp_presets=color_temp_presets)
-                )
+            if did not in lightless and _has_light_channel(status):
+                active[did] = _make(did, status)
+                entities.append(active[did])
 
     async_add_entities(entities)
+
+    async def _on_lightless_changed(new_lightless: set[str]) -> None:
+        """Add or remove Light entities in place when the lightless set changes."""
+        ent_reg = er.async_get(hass)
+        for did in list(active):
+            if did not in new_lightless:
+                continue
+            entity = active.pop(did)
+            if entity.entity_id and ent_reg.async_get(entity.entity_id):
+                # Removing the registry entry makes the platform remove the entity.
+                ent_reg.async_remove(entity.entity_id)
+            else:
+                await entity.async_remove()
+        current = coordinator.data or {}
+        added: list[FanSyncLight] = []
+        if isinstance(current, dict):
+            for did, status in current.items():
+                if did in new_lightless or did in active or not _has_light_channel(status):
+                    continue
+                active[did] = _make(did, status)
+                added.append(active[did])
+        if added:
+            async_add_entities(added)
+
+    entry.async_on_unload(
+        async_dispatcher_connect(hass, lightless_signal(entry.entry_id), _on_lightless_changed)
+    )
 
 
 class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
