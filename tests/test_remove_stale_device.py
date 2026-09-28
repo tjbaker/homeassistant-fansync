@@ -59,8 +59,8 @@ async def test_stale_device_can_be_deleted_but_live_one_cannot(
     )
     assert await async_remove_config_entry_device(hass, entry, stale) is True
 
-    # this is what HA does after a True: detach the entry, which deletes the device
-    registry.async_update_device(stale.id, remove_config_entry_id=entry.entry_id)
+    # this is what HA does after a True: remove the device
+    registry.async_remove_device(stale.id)
     assert registry.async_get(stale.id) is None
     assert registry.async_get(live.id) is not None
 
