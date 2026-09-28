@@ -39,6 +39,13 @@ frontend:
 config:
 
 # HTTP configuration - trust local network (no auth required!)
+# DEPRECATED IN HA 2026.9, STOPS WORKING IN 2027.2: the http: block is now
+# configured from the UI (Settings > System > Network). HA imports this block
+# into its own storage on first boot and then raises a repair asking for it to
+# be removed. It is kept here on purpose so a fresh volume (docker compose
+# down -v) still bootstraps without a login; click "Ignore" on the repair.
+# Once the image is on 2027.2 or later, remove this block and configure the
+# same values through the UI after the first start.
 http:
   # Trust connections from localhost and Docker network
   # This allows you to access HA without logging in

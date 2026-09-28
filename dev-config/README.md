@@ -39,6 +39,12 @@ This configuration provides:
 
 **Change location/timezone:** Edit the `homeassistant:` section in `configuration.yaml`
 
+## Known Warnings on HA 2026.9+
+
+**"Confirm new HTTP server configuration"** dialog on first start of a new image: click **Confirm**. The listed values (trusted proxies, X-Forwarded-For, IP banning off) are exactly the `http:` block from `configuration.yaml`. Reverting would bring back the login prompt.
+
+**"The HTTP YAML configuration is deprecated"** repair: click **Ignore**. HA 2026.9 moved `http:` settings to the UI and imported ours into the persistent `ha-config` volume. The YAML block is kept deliberately so `docker compose down -v` still gives a login-free instance; YAML import stops working in HA 2027.2, at which point the block must be removed and the same values set under Settings > System > Network.
+
 **Reset everything:** `docker compose down -v && docker compose up -d`
 
 For detailed Docker workflow and troubleshooting, see **[CONTRIBUTING.md](../CONTRIBUTING.md)**.
