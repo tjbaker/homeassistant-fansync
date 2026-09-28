@@ -35,16 +35,14 @@ from .const import (
     KEY_LIGHT_BRIGHTNESS,
     KEY_LIGHT_COLOR_TEMP,
     KEY_LIGHT_POWER,
-    coerce_status_int,
     ha_brightness_to_pct,
-    normalize_color_temp_kelvin,
     pct_to_ha_brightness,
     resolve_light_color_temp_presets,
     resolve_lightless_devices,
     snap_color_temp_kelvin,
 )
 from .coordinator import FanSyncCoordinator
-from .device_utils import cloud_lightless_devices
+from .device_utils import cloud_lightless_devices, profile_model
 from .entity import FanSyncOptimisticEntity
 
 # Only overlay keys that directly affect HA UI state to prevent snap-back
@@ -54,26 +52,6 @@ OVERLAY_KEYS = {KEY_LIGHT_POWER, KEY_LIGHT_BRIGHTNESS, KEY_LIGHT_COLOR_TEMP}
 PARALLEL_UPDATES = 0
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _get_profile_model(client: object, device_id: str) -> object:
-    """Return the device's profile model, or None if the profile is not known yet."""
-    get_profile = getattr(client, "device_profile", None)
-    if not callable(get_profile):
-        return None
-    try:
-        profile = get_profile(device_id)
-    except Exception:
-        # The real client reads a local cache and cannot raise; this guards
-        # test doubles and older clients. Log so a data-shape bug is visible.
-        _LOGGER.debug("device_profile lookup failed for %s", device_id, exc_info=True)
-        return None
-    if not isinstance(profile, dict):
-        return None
-    esh = profile.get("esh")
-    if not isinstance(esh, dict):
-        return None
-    return esh.get("model")
 
 
 async def async_setup_entry(
@@ -114,7 +92,7 @@ async def async_setup_entry(
             if isinstance(status, dict) and (
                 KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status
             ):
-                model = _get_profile_model(client, did)
+                model = profile_model(client, did)
                 color_temp_presets = resolve_light_color_temp_presets(model, status)
                 entities.append(
                     FanSyncLight(coordinator, client, did, color_temp_presets=color_temp_presets)
@@ -172,7 +150,7 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         a preset profile has been resolved, a transient off-preset H04 reading
         must not strip the capability (which would flap the entity registry).
         """
-        model = _get_profile_model(self.client, self._device_id)
+        model = profile_model(self.client, self._device_id)
         status = self._status_for(self.coordinator.data or {})
         presets = resolve_light_color_temp_presets(model, status)
         if presets is None:
@@ -213,21 +191,15 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
             pct = ha_brightness_to_pct(brightness)
             optimistic[KEY_LIGHT_BRIGHTNESS] = pct
             payload[KEY_LIGHT_BRIGHTNESS] = pct
-        else:
-            pct = None
-
-        kelvin = None
         if color_temp_kelvin is not None and self._supports_color_temp:
             kelvin = snap_color_temp_kelvin(color_temp_kelvin, self._color_temp_presets)
             optimistic[KEY_LIGHT_COLOR_TEMP] = kelvin
             payload[KEY_LIGHT_COLOR_TEMP] = kelvin
 
-        def _confirm(s: dict[str, object], pb: int | None = pct, pk: int | None = kelvin) -> bool:
-            return (
-                s.get(KEY_LIGHT_POWER) == 1
-                and (pb is None or coerce_status_int(s.get(KEY_LIGHT_BRIGHTNESS)) == pb)
-                and (pk is None or normalize_color_temp_kelvin(s.get(KEY_LIGHT_COLOR_TEMP)) == pk)
-            )
+        previous = self._previous_values(payload)
+
+        def _confirm(s: dict[str, object]) -> bool:
+            return self._write_applied(s, payload, previous)
 
         await self._apply_with_optimism(optimistic, payload, _confirm)
 

@@ -129,26 +129,15 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
             target_speed = clamp_percentage(percentage)
             optimistic[KEY_SPEED] = target_speed
             payload[KEY_SPEED] = target_speed
-        else:
-            target_speed = None
         if preset_mode is not None:
             inv = {v: k for k, v in PRESET_MODES.items()}
             target_preset = inv.get(preset_mode, 0)
             optimistic[KEY_PRESET] = target_preset
             payload[KEY_PRESET] = target_preset
-        else:
-            target_preset = None
+        previous = self._previous_values(payload)
 
-        def _confirm(
-            s: dict[str, object],
-            ts: int | None = target_speed,
-            tp: int | None = target_preset,
-        ) -> bool:
-            return (
-                s.get(KEY_POWER) == 1
-                and (ts is None or s.get(KEY_SPEED) == ts)
-                and (tp is None or s.get(KEY_PRESET) == tp)
-            )
+        def _confirm(s: dict[str, object]) -> bool:
+            return self._write_applied(s, payload, previous)
 
         await self._apply_with_optimism(optimistic, payload, _confirm)
 
@@ -163,10 +152,11 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         # Adjusting percentage exits fresh-air (breeze) mode -> set preset to normal (0)
         optimistic = {KEY_POWER: 1, KEY_SPEED: target, KEY_PRESET: 0}
         payload = {KEY_POWER: 1, KEY_SPEED: target, KEY_PRESET: 0}
+        previous = self._previous_values(payload)
         await self._apply_with_optimism(
             optimistic,
             payload,
-            lambda s: s.get(KEY_SPEED) == target and s.get(KEY_PRESET) == 0,
+            lambda s: self._write_applied(s, payload, previous),
         )
 
     async def async_set_direction(self, direction: str) -> None:

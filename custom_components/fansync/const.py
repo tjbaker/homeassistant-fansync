@@ -100,6 +100,9 @@ PUSH_LOG_EVERY = 50
 # Diagnostics history retention
 COMMAND_HISTORY_MAX = 50
 STATUS_HISTORY_MAX = 10
+# Distinct device-reported values kept per register for diagnostics. Enough to
+# capture every level of a quantized register; a continuous one just fills up.
+OBSERVED_VALUES_MAX = 32
 MISMATCH_HISTORY_MAX = 10
 
 # WebSocket request IDs for connection bootstrap (keep stable for compatibility)

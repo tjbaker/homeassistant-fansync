@@ -62,6 +62,10 @@ async def async_get_config_entry_diagnostics(
             "status_history": getattr(coordinator, "_status_history", []),
             "device_count": len(coordinator.data) if coordinator.data else 0,
             "status_snapshot": summarize_status_snapshot(coordinator.data),
+            # Distinct values each device has reported per register (polls and
+            # pushes only). A quantized register such as a fan's speed shows
+            # its real levels here once the user has cycled through them.
+            "observed_values": getattr(coordinator, "_observed_values", {}),
         }
 
     # Client diagnostics
