@@ -16,7 +16,12 @@ import asyncio
 import logging
 import time  # noqa: F401  retained as a module-level patch seam for tests
 
-from homeassistant.components.light import ColorMode, LightEntity
+from homeassistant.components.light import (
+    DEFAULT_MAX_KELVIN,
+    DEFAULT_MIN_KELVIN,
+    ColorMode,
+    LightEntity,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -58,6 +63,9 @@ def _get_profile_model(client: object, device_id: str) -> tuple[bool, object]:
     try:
         profile = get_profile(device_id)
     except Exception:
+        # The real client reads a local cache and cannot raise; this guards
+        # test doubles and older clients. Log so a data-shape bug is visible.
+        _LOGGER.debug("device_profile lookup failed for %s", device_id, exc_info=True)
         return False, None
     if not isinstance(profile, dict):
         return False, None
@@ -157,8 +165,8 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         else:
             self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
             self._attr_color_mode = ColorMode.BRIGHTNESS
-            self._attr_min_color_temp_kelvin = None
-            self._attr_max_color_temp_kelvin = None
+            self._attr_min_color_temp_kelvin = DEFAULT_MIN_KELVIN
+            self._attr_max_color_temp_kelvin = DEFAULT_MAX_KELVIN
         return changed
 
     def _refresh_color_temp_profile(self) -> bool:
