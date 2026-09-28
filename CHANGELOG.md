@@ -18,15 +18,16 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 
 ### Bug Fixes
 
-* carry the current speed on fan power, direction and preset writes ([#245](https://github.com/tjbaker/homeassistant-fansync/issues/245)) ([ef47fa7](https://github.com/tjbaker/homeassistant-fansync/commit/ef47fa7545e90dcd2984150823189caf0dacdf6d))
-* confirm writes on the value the device settles on ([#237](https://github.com/tjbaker/homeassistant-fansync/issues/237)) ([dc57dbf](https://github.com/tjbaker/homeassistant-fansync/commit/dc57dbf42005ae28be40fcdfaaf1bb7388bed3a5))
-* honor a confirming push that lands during the final retry sleep ([#242](https://github.com/tjbaker/homeassistant-fansync/issues/242)) ([f62f452](https://github.com/tjbaker/homeassistant-fansync/commit/f62f45281bc3cab70c619660408a7f996dff83b8))
-* include raw protocol values in diagnostics snapshots ([#219](https://github.com/tjbaker/homeassistant-fansync/issues/219)) ([9d346aa](https://github.com/tjbaker/homeassistant-fansync/commit/9d346aa454138d8a9dcfc77fa5551633d6058d4c))
-* judge writes against device-reported values and clear late confirms ([#238](https://github.com/tjbaker/homeassistant-fansync/issues/238)) ([a28a87f](https://github.com/tjbaker/homeassistant-fansync/commit/a28a87fb7dc7e8f57da4b48f673f1337162b6c0f))
-* publish device state when an unconfirmed guard expires ([#244](https://github.com/tjbaker/homeassistant-fansync/issues/244)) ([bca5dfc](https://github.com/tjbaker/homeassistant-fansync/commit/bca5dfca4c09cd0650c76d6d45f9e8fa779b24dc))
-* skip no-op interval and timeout re-application on options change ([#241](https://github.com/tjbaker/homeassistant-fansync/issues/241)) ([3539836](https://github.com/tjbaker/homeassistant-fansync/commit/3539836a6c5426ad402d7a4a709b8861e36af17a))
-* use scoped device registry lookup and full connection set ([#233](https://github.com/tjbaker/homeassistant-fansync/issues/233)) ([1f48e22](https://github.com/tjbaker/homeassistant-fansync/commit/1f48e221317da6955d5b51f24dc5cf2e2222e15f)), closes [#229](https://github.com/tjbaker/homeassistant-fansync/issues/229)
-* write only the registers a change needs ([#243](https://github.com/tjbaker/homeassistant-fansync/issues/243)) ([707e01d](https://github.com/tjbaker/homeassistant-fansync/commit/707e01d25003363533f9626634da8ca0417324de))
+* Fans that only hold fixed speeds (e.g. Kute60) now confirm and display the speed the fan actually settled on instead of snapping back to a stale value, and a request that lands on the fan's current level no longer lingers until the next poll ([#237](https://github.com/tjbaker/homeassistant-fansync/issues/237), [#238](https://github.com/tjbaker/homeassistant-fansync/issues/238), [#242](https://github.com/tjbaker/homeassistant-fansync/issues/242), [#244](https://github.com/tjbaker/homeassistant-fansync/issues/244))
+* Writes carry only the registers that need to change, plus the current speed on power, direction and preset changes. Fixes 100% never reaching the cloud or the Fanimation app, and fixes on/off/direction/preset changes going unreported so the app and Home Assistant stayed out of sync ([#243](https://github.com/tjbaker/homeassistant-fansync/issues/243), [#245](https://github.com/tjbaker/homeassistant-fansync/issues/245))
+* Diagnostics include raw protocol values, the last device-reported state, and the distinct values each device has reported per register ([#219](https://github.com/tjbaker/homeassistant-fansync/issues/219), [#238](https://github.com/tjbaker/homeassistant-fansync/issues/238))
+* Resolved Home Assistant 2026.9 device-registry deprecation warnings ([#233](https://github.com/tjbaker/homeassistant-fansync/issues/233)), closes [#229](https://github.com/tjbaker/homeassistant-fansync/issues/229)
+* Changing options no longer re-applies unchanged timeouts or recreates the HTTP client ([#241](https://github.com/tjbaker/homeassistant-fansync/issues/241))
+
+
+### Contributors
+
+* Thanks to [@devPalacio](https://github.com/devPalacio), a first-time contributor, for decoding the light color-temperature register and validating the presets on live hardware ([#211](https://github.com/tjbaker/homeassistant-fansync/pull/211)), and for the multi-fan diagnostics that made lightless auto-detection possible ([#199](https://github.com/tjbaker/homeassistant-fansync/issues/199)).
 
 ## [0.8.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.8.0...0.8.1) (2026-07-01)
 
