@@ -10,13 +10,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Per-device configuration switches.
+"""Per-device switches.
 
 ``Light installed`` lives on each fan's device page under *Configuration*.
 Turning it off records the device in the ``lightless_devices`` option, which
 reloads the integration and removes that fan's phantom Light entity (issue
 #199). It is the same option as the integration's Configure form, surfaced
 where people actually look for it.
+
+``Home Away`` mirrors the Fanimation app's mode of the same name (register
+``H0D``) and is only created for fans that report that register.
 """
 
 from __future__ import annotations
@@ -34,10 +37,19 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .client import FanSyncClient
-from .const import DOMAIN, OPTION_LIGHTLESS_DEVICES, lightless_signal, resolve_lightless_devices
+from .const import (
+    DOMAIN,
+    KEY_HOME_AWAY,
+    OPTION_LIGHTLESS_DEVICES,
+    lightless_signal,
+    resolve_lightless_devices,
+)
+from .coordinator import FanSyncCoordinator
 from .device_utils import cloud_lightless_devices, create_device_info
+from .entity import FanSyncOptimisticEntity
 
-# Config writes only; nothing here talks to the cloud
+# Light installed only writes config; Home Away writes go through the client,
+# which serializes its own requests.
 PARALLEL_UPDATES = 0
 
 _LOGGER = logging.getLogger(__name__)
@@ -51,10 +63,65 @@ async def async_setup_entry(
     client: FanSyncClient = entry.runtime_data["client"]
     device_ids = [d for d in (getattr(client, "device_ids", []) or [client.device_id]) if d]
     cloud_lightless = cloud_lightless_devices(client, device_ids)
-    async_add_entities(
+    entities: list[SwitchEntity] = [
         FanSyncLightInstalledSwitch(entry, client, did, cloud_lightless=did in cloud_lightless)
         for did in device_ids
+    ]
+    coordinator: FanSyncCoordinator = entry.runtime_data["coordinator"]
+    data = coordinator.data or {}
+    entities.extend(
+        FanSyncHomeAwaySwitch(coordinator, client, did)
+        for did in device_ids
+        if KEY_HOME_AWAY in (data.get(did) or {})
     )
+    async_add_entities(entities)
+
+
+class FanSyncHomeAwaySwitch(FanSyncOptimisticEntity, SwitchEntity):
+    """The Fanimation app's Home Away mode.
+
+    Measured on a Kute60-FD6R1L5 (firmware 3.2.9): turning the mode on stops
+    the fan, turning it off leaves the fan stopped, and powering the fan on
+    clears the mode. The fan reports each of those itself, so the fan entity
+    follows without any help from here. Only the mode's own register is
+    written.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "home_away"
+
+    OVERLAY_KEYS = {KEY_HOME_AWAY}
+
+    def __init__(
+        self, coordinator: FanSyncCoordinator, client: FanSyncClient, device_id: str
+    ) -> None:
+        super().__init__(coordinator, client, device_id)
+        self._attr_unique_id = f"{DOMAIN}_{device_id}_home_away"
+
+    @property
+    def is_on(self) -> bool:
+        return self._get_with_overlay(KEY_HOME_AWAY, 0) == 1
+
+    @property
+    def icon(self) -> str:
+        return "mdi:home-export-outline" if self.is_on else "mdi:home-outline"
+
+    @property
+    def extra_state_attributes(self) -> None:
+        return None  # the module details belong on the fan, not on a mode switch
+
+    async def _write(self, value: int) -> None:
+        payload = {KEY_HOME_AWAY: value}
+        previous = self._previous_values(payload)
+        await self._apply_with_optimism(
+            dict(payload), payload, lambda s: self._write_applied(s, payload, previous)
+        )
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._write(1)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._write(0)
 
 
 class FanSyncLightInstalledSwitch(SwitchEntity):

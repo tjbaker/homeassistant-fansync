@@ -63,6 +63,9 @@
     "switch": {
       "light_installed": {
         "name": "Lumière installée"
+      },
+      "home_away": {
+        "name": "Absence"
       }
     }
   }

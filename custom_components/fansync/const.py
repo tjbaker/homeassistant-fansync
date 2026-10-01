@@ -39,6 +39,8 @@ KEY_DIRECTION = "H06"
 KEY_LIGHT_POWER = "H0B"
 KEY_LIGHT_BRIGHTNESS = "H0C"
 KEY_LIGHT_COLOR_TEMP = "H04"
+# The app's "Home Away" mode. Turning it on stops the fan; powering the fan on clears it.
+KEY_HOME_AWAY = "H0D"
 
 # Warm, natural, cool. Not a continuous range - requested kelvin values are
 # snapped to the nearest of these for devices without a model-specific profile.
