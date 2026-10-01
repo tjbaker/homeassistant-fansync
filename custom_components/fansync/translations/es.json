@@ -63,6 +63,9 @@
     "switch": {
       "light_installed": {
         "name": "Luz instalada"
+      },
+      "home_away": {
+        "name": "Fuera de casa"
       }
     }
   }
