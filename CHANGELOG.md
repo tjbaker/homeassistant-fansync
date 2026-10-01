@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.10.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.9.0...0.10.0) (2026-10-01)
+
+
+### Features
+
+* allow deleting devices the account no longer lists ([#247](https://github.com/tjbaker/homeassistant-fansync/issues/247)) ([999ac13](https://github.com/tjbaker/homeassistant-fansync/commit/999ac1326d846c9add198410a5baf09d8b372b25))
+
+
+### Bug Fixes
+
+* turn the fan off with power alone, never with a speed ([#250](https://github.com/tjbaker/homeassistant-fansync/issues/250)) ([5563250](https://github.com/tjbaker/homeassistant-fansync/commit/55632509423780fc2230677c811fb9346f319d76))
+
 ## [0.9.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.8.1...0.9.0) (2026-09-28)
 
 
