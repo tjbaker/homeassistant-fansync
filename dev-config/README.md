@@ -20,6 +20,8 @@ This directory contains a pre-configured Home Assistant setup for local Docker d
 
 ## Quick Reference
 
+Start with `make docker-up`, restart after code changes with `make docker-restart`, and follow the integration's log lines with `make docker-logs` (add `FILTER=websockets`, or any regex on the logger name, to follow something else). `make help` lists every target.
+
 This configuration provides:
 - **No authentication** for localhost (trusted network)
 - **Fast startup** (minimal recorder, 1-day history)
@@ -35,7 +37,7 @@ This configuration provides:
 
 ## Customization
 
-**Disable debug logging:** Edit `configuration.yaml` and remove the `logs:` section, then `docker compose restart`
+**Disable debug logging:** Edit `configuration.yaml` and remove the `logs:` section, then `make docker-restart`
 
 **Change location/timezone:** Edit the `homeassistant:` section in `configuration.yaml`
 
@@ -45,7 +47,11 @@ This configuration provides:
 
 **"The HTTP YAML configuration is deprecated"** repair: click **Ignore**. HA 2026.9 moved `http:` settings to the UI and imported ours into the persistent `ha-config` volume. The YAML block is kept deliberately so `docker compose down -v` still gives a login-free instance; YAML import stops working in HA 2027.2, at which point the block must be removed and the same values set under Settings > System > Network.
 
-**Reset everything:** `docker compose down -v && docker compose up -d`
+**Reset everything:** `make docker-reset` (runs `docker compose down -v` then `up -d`; deletes the config volume)
+
+## Troubleshooting
+
+**http://localhost:8123 refuses the connection although the container is "healthy":** run `make docker-status`. If the PORTS column shows `8123/tcp` instead of `0.0.0.0:8123->8123/tcp`, Docker restarted the container without reattaching its network (the log then shows `OSError: [Errno 19] No such device` from zeroconf and "does not have any enabled IPv4 addresses"). Recreate it with `make docker-down && make docker-up`; the config volume is kept.
 
 For detailed Docker workflow and troubleshooting, see **[CONTRIBUTING.md](../CONTRIBUTING.md)**.
 

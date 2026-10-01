@@ -14,12 +14,14 @@
 
 # Docker Compose setup for local FanSync development
 # 
-# Usage:
-#   docker compose up -d              # Start HA in background
-#   docker compose logs -f            # Follow logs
-#   docker compose restart            # Quick restart after code changes
-#   docker compose down               # Stop and remove containers
-#   docker compose down -v            # Stop and remove ALL data (fresh start)
+# Usage (make targets wrap these; run `make help`):
+#   make docker-up        docker compose up -d      # Start HA in background
+#   make docker-logs      (filtered)                # Follow the integration's loggers;
+#                                                   #   FILTER='fansync|websockets' for others
+#   make docker-logs-all  docker compose logs -f    # Follow the whole log
+#   make docker-restart   docker compose restart    # Quick restart after code changes
+#   make docker-down      docker compose down       # Stop and remove containers
+#   make docker-reset     docker compose down -v    # Remove ALL data, then start fresh
 #
 # After starting, access HA at: http://localhost:8123
 

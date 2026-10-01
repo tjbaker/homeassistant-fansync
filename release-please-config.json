@@ -6,6 +6,7 @@
     ".": {
       "release-type": "simple",
       "include-v-in-tag": false,
+      "include-v-in-release-name": false,
       "changelog-sections": [
         {"type": "feat", "section": "Features"},
         {"type": "fix", "section": "Bug Fixes"},

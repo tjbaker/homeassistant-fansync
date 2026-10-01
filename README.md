@@ -299,11 +299,14 @@ Want to contribute or test changes locally?
 Get a local Home Assistant instance running in seconds:
 
 ```bash
-docker compose up -d              # Start HA with your code mounted
-# Access at http://localhost:8123 (no login after first setup!)
-# Edit code, then:
-docker compose restart            # See changes in ~10 seconds
+make docker-up            # Start HA with your code mounted, at http://localhost:8123
+# No login after first setup. Edit code, then:
+make docker-restart       # See changes in ~10 seconds
+make docker-logs          # Follow the integration's loggers
+make docker-logs FILTER='fansync|websockets'   # ...or any loggers, by name
 ```
+
+Run `make help` for every target, including `docker-reset` for a clean slate.
 
 ### 🧰 Local Dev (Virtualenv + Make)
 

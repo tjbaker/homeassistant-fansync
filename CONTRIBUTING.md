@@ -86,8 +86,10 @@ The **fastest way** to develop is using Docker Compose - get a local Home Assist
 
 ```bash
 # Start Home Assistant with your code mounted
-docker compose up -d
+make docker-up
 ```
+
+Every Docker step has a make target that wraps `docker compose`; run `make help` to list them. Use the raw `docker compose` commands if you prefer, or set `COMPOSE="docker-compose"` for the standalone binary.
 
 **Access Home Assistant:**
 - Open: http://localhost:8123
@@ -103,38 +105,80 @@ docker compose up -d
 vim custom_components/fansync/fan.py
 
 # 2. Restart to see changes (~5-10 seconds!)
-docker compose restart
+make docker-restart
 
 # 3. Test in browser at http://localhost:8123
 
-# View logs
-docker compose logs -f
+# Follow the integration's log lines
+make docker-logs
 
-# Filter for FanSync
-docker compose logs -f | grep -i fansync
+# Follow other loggers: FILTER is a case-insensitive regex on the logger name
+make docker-logs FILTER=websockets
+make docker-logs FILTER='fansync|httpx'
 
-# Fresh start (removes all data)
-docker compose down -v
-docker compose up -d
+# Everything Home Assistant logs
+make docker-logs-all
+
+# Fresh start (deletes the config volume, onboarding required again)
+make docker-reset
 ```
+
+| Target | What it does |
+|---|---|
+| `make docker-up` | Start the container in the background |
+| `make docker-restart` | Restart it to pick up code changes |
+| `make docker-logs` | Follow records whose logger name matches `FILTER` (default `fansync`), tracebacks included; `FILTER='a\|b'` for other loggers |
+| `make docker-logs-all` | Follow the whole log |
+| `make docker-status` | Show container state and health |
+| `make docker-shell` | Open a shell inside the container |
+| `make docker-pull` | Pull the image pinned in `docker-compose.yml` (after a version bump) |
+| `make docker-down` | Stop and remove the container, keeping its config volume |
+| `make docker-reset` | Delete the config volume and start fresh |
 
 **Debugging:**
 
-Debug logging is **enabled by default** for:
-- `custom_components.fansync` (all modules: client, coordinator, fan, light)
-- `httpcore` (HTTP connections)
-- `httpx` (HTTP requests)
-- `websockets` (WebSocket protocol)
+Debug logging is **enabled by default** for `custom_components.fansync`, which covers every module (client, coordinator, fan, light, switch).
+
+`httpx` and `websockets` debug logging is present but commented out in `dev-config/configuration.yaml`. Enable those two only for login or connection problems: they are very noisy, and `websockets` prints the login token and session cookie, so trim logs before posting them.
 
 View logs with:
 ```bash
-docker compose logs -f
-# Or filter for FanSync:
-docker compose logs -f | grep -i "fansync\|httpcore\|httpx\|websockets"
+make docker-logs                              # the integration's loggers
+make docker-logs FILTER='fansync|websockets'  # several loggers
+make docker-logs FILTER=homeassistant.setup   # any other logger
+make docker-logs-all                          # the whole Home Assistant log
 ```
 
-To disable debug logging, edit `dev-config/configuration.yaml` and remove the `logs:` section, then `docker compose restart`.
-If you removed the default logging, re-enable it by adding those loggers back to the `logs:` map.
+How `FILTER` works:
+- It is a case-insensitive regular expression matched against the **logger name** only, the bracketed field of each record such as `[custom_components.fansync.client]`. The default is `fansync`.
+- Core lines that merely mention the word in their message are not shown. The loader's "custom integration fansync" warning and the entity registry's "Registered new fan.fansync entity" come from other loggers; use `make docker-logs-all` or a wider `FILTER` to see them.
+- Lines that continue a matching record are kept, so a traceback from the integration prints in full.
+- An empty value, `make docker-logs FILTER=`, shows everything.
+- Do not pipe `docker compose logs` through `grep fansync` yourself: every line is prefixed with the container name `ha-fansync-dev`, so that matches everything.
+
+To change logging, edit the `logs:` map in `dev-config/configuration.yaml`, then `make docker-restart`.
+
+### Probing how a fan behaves
+
+Fans do not agree about the same write. One model reports a bare power-off and another applies it silently; one refuses a speed while off and another starts on it. Before changing what the integration writes, or when reporting a device that misbehaves, measure it:
+
+```bash
+make probe                                  # fan matrix, about ten minutes
+make probe ARGS='--lights'                  # light matrix (L1 to L7), about five minutes
+make probe ARGS='--list'                    # show the cases without touching anything
+make probe ARGS='--cases 1,5,L3 --out probe-report.md'  # selected cases, save the report
+```
+
+`scripts/probe_device.py` logs in the same way the integration does, puts the fan into a verified start state before every case, sends one raw payload, records each acknowledgement and push, reads the cloud's state back, and asks you what the fan is physically doing. It ends with a Markdown report to paste into an issue or PR, and restores the state it found. The report includes what the cloud says about the device (model, firmware, capability flags, every register) so nothing else has to be collected; the owner, device id, display name, MAC and IP are left out.
+
+- It switches the fan on and off and changes speed and direction. Someone has to be in the room to answer its questions.
+- The light cases run only with `--lights` (or by name, `--cases L6,L7`) and never touch the fan motor. They switch the light, check whether a brightness or color write turns it on, and sweep brightness and color temperature to find the values the fixture holds. On a fan with no light kit, answer `?` to the questions; the acknowledgements and reports are still recorded.
+- Nothing else may control the fan while it runs. Stop the dev container (`make docker-down`) when the script asks, or disable the FanSync integration in your own Home Assistant, and leave the app and remote alone.
+- It does not need Docker or Home Assistant. On any computer with git, make and Python 3.14: clone the repository, run `make venv install`, then `make probe`. The bug report template asks for a probe report in the same way.
+- Credentials come from `FANSYNC_EMAIL` / `FANSYNC_PASSWORD`, else from the running dev container's config entry, else from a prompt. They are never printed.
+- A case whose start state cannot be reached is skipped and marked, not run from a wrong state.
+
+The measured results for each model are recorded under "Device Protocol Rules" in [`AGENTS.md`](AGENTS.md).
 
 ### Alternative: Virtual Environment
 
@@ -172,7 +216,7 @@ Then manually install Home Assistant Core in development mode (see Home Assistan
 - **HA patterns**: CoordinatorEntity, push-first updates, optimistic UI
 - **Error handling**: Narrow exception catches, proper logging levels
 - **Testing**: pytest, no real network calls, ≥75% coverage target
-- **AI instructions**: Single canonical file: `.cursorrules` (pre-commit syncs to other locations)
+- **AI instructions**: Single canonical file: `AGENTS.md`
 
 ### Pre-commit
 
@@ -181,7 +225,6 @@ This repository uses pre-commit to enforce style and commit message conventions.
 Hooks configured (see `.pre-commit-config.yaml`):
 - ruff (with `--fix`) and ruff-format
 - black (line length 100)
-- sync ai instructions (keeps `.github/copilot-instructions.md` in sync with `.cursorrules`)
 - commitizen check (runs at `commit-msg` stage; enforces Conventional Commits and ≤ 72-char subject)
 
 Install and enable hooks:
@@ -277,10 +320,10 @@ cd homeassistant-fansync
 git checkout -b feat/your-feature-name
 
 # Set up Docker environment (see Development Setup section)
-docker compose up -d
+make docker-up
 
 # Make your changes, test locally
-docker compose restart  # After each change
+make docker-restart  # After each change
 
 # Add tests for new functionality
 # See tests/README.md for test patterns
@@ -336,8 +379,8 @@ Then open a PR on GitHub:
 
 ## AI Assistant Guidance
 
-- The canonical rules live in `.cursorrules`. A pre-commit hook syncs content to other locations.
-- Edit only `.cursorrules`; do not hand-edit generated copies.
+- Agent instructions live in [`AGENTS.md`](AGENTS.md), the one file every tool reads. It covers commands, code style, commit conventions, architecture, and the device protocol rules.
+- There are no tool-specific copies (`CLAUDE.md`, `.cursorrules`, Copilot instructions) and no sync hook. Claude Code, Copilot and VS Code read `AGENTS.md` directly; edit it when conventions change.
 
 ## License and attribution
 
