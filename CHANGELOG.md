@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.11.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.10.0...0.11.0) (2026-10-01)
+
+
+### Features
+
+* add a Home Away switch ([#256](https://github.com/tjbaker/homeassistant-fansync/issues/256)) ([02f7704](https://github.com/tjbaker/homeassistant-fansync/commit/02f7704b2c613c1ff6209b5e781db2d040805c13))
+
+
+### Bug Fixes
+
+* keep a power-off the fan acknowledged but never reported ([#255](https://github.com/tjbaker/homeassistant-fansync/issues/255)) ([695daa4](https://github.com/tjbaker/homeassistant-fansync/commit/695daa47fe4198aad902b76bfc40778a6c5eb729))
+
 ## [0.10.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.9.0...0.10.0) (2026-10-01)
 
 
