@@ -44,6 +44,15 @@ make docker-down          # Stop, keep the config volume
 make docker-reset         # Delete the config volume and start fresh
 ```
 
+Measure how a real fan responds to raw writes (interactive, needs the hardware and someone watching it):
+
+```bash
+make probe                      # fan matrix, about ten minutes
+make probe ARGS='--lights'      # light matrix: power, brightness, color temperature
+make probe ARGS='--list'        # show the cases, no network
+make probe ARGS='--cases 1,5,L3 --out probe-report.md'
+```
+
 Keep `requirements-dev.txt`, the `docker-compose.yml` image and `hacs.json` on compatible Home Assistant versions. Reinstall the venv (`make install`) after the pinned Home Assistant changes, or local results will differ from CI.
 
 ## Code Style
@@ -122,23 +131,29 @@ Read this before changing anything an entity writes. These rules were learned fr
 
 **The cloud**: a `set` is acknowledged twice, first by the cloud and then by the device. A `get` returns what the device last reported, not what was last written. State changes arrive as `device_change` pushes.
 
-**Devices disagree.** Two fans measured with raw `set` payloads behave oppositely:
+**Devices disagree.** The same payload does different things on different fans. The Kute60 column was measured with `make probe` on 2026-10-01, every row from a start state confirmed by eye. The Spitfire column comes from the logs in issue #249 and has not been probed.
 
-| | Kute60-FD6R1L5, fw 3.2.9 | SpitfireV2-FD6R2L5, fw 3.6.7 |
+| Payload | Kute60-FD6R1L5, fw 3.2.9 | SpitfireV2-FD6R2L5, fw 3.6.7 |
 |---|---|---|
-| `{"H00": 0}` | applied, not reported | applied and reported |
-| `{"H00": 0, "H02": n}` | applied and reported; the speed is refused while off | off, then back on: a speed write starts the fan |
-| Speed | holds 20/35/50/65/80/100, rounds requests down | continuous |
-| `{"H00": 1, "H02": 100, "H01": 0}` | applied, not reported | not measured |
+| `{"H00": 0}` | applied, never reported (3 of 3) | applied and reported |
+| `{"H00": 1}` | applied, never reported (3 of 3) | not measured |
+| `{"H00": 0, "H02": n}` | applied and reported; the fan's own ack is `error` | off, then back on |
+| `{"H00": 1, "H02": n}` | applied and reported | applied and reported |
+| `{"H02": n}` while off | stays off and reports power 0; ack `error` (3 of 3) | starts the fan |
+| `{"H00": 1, "H02": 100, "H01": 0}` | applied, never reported (3 of 3) | not measured |
+| `{"H00": 1, "H02": 99, "H01": 0}` | applied and reported, as 80 | not measured |
+| `{"H06": x}` alone | applied and reported | not measured |
+| `{"H01": x}` alone | reported | not measured |
+| Speed | holds 20/35/50/65/80/100; a request rounds down, and anything below 20 gives 20 | continuous |
 
-The Kute60 only reports after a write that contains `H02`.
+On the Kute60 it is **power changes** that go unreported, unless the same write carries a speed. Speed, direction and preset writes are reported on their own. The three-register write of exactly 100 is a separate, repeatable exception. An earlier version of this file said the Kute60 "only reports after a write that contains `H02`"; that was inferred from logs and the probe disproved it.
 
 **Rules that follow:**
 
 1. **Write only the registers that need to change** (`_needs_write`), judged against the device-reported baseline. Never bundle a register "to be safe".
 2. **Power off is always `{"H00": 0}` alone.** Adding a speed to it broke turn-off on the Spitfire in 0.9.0 (issue #249). `_with_current_speed` refuses to touch a power-off payload.
-3. **Power on, direction and preset writes carry the current speed** (`_with_current_speed`), so a Kute60 reports them. This is safe because those writes either intend the fan to be on or leave a running fan at its speed.
-4. **Do not generalize from one device.** A payload change must be verified on more than one model, or be a strict reduction in what is sent. Prefer sending less.
+3. **A write that powers the fan on carries the current speed** (`_with_current_speed`), because a Kute60 does not report a power change otherwise. Direction and preset writes currently carry it too. The probe shows a Kute60 reports those on their own, so that is not required; it is harmless on a running fan, and removing it would be a strict reduction.
+4. **Do not generalize from one device.** A payload change must be verified on more than one model, or be a strict reduction in what is sent. Prefer sending less. `scripts/probe_device.py` (`make probe`) runs a fixed matrix of payloads against a fan from verified start states and prints a table of acknowledgements, pushes and what the fan physically did. `make probe ARGS='--lights'` does the same for the light registers, which have not been measured on any device with a light kit yet. Ask owners of other models to run it and paste the table before trusting a claim about "how the fans behave", and update the table above from its output rather than from logs.
 5. **Never add a write that could start or stop a fan as a side effect** of improving state reporting. A stale display is a smaller failure than a fan that turns itself back on.
 6. **Do not add per-model tables for behavior.** The integration confirms on the value the device settles on instead of predicting it. Small verified tables exist only where the protocol offers no other signal (light color-temperature presets).
 

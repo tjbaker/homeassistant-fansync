@@ -158,6 +158,28 @@ How `FILTER` works:
 
 To change logging, edit the `logs:` map in `dev-config/configuration.yaml`, then `make docker-restart`.
 
+### Probing how a fan behaves
+
+Fans do not agree about the same write. One model reports a bare power-off and another applies it silently; one refuses a speed while off and another starts on it. Before changing what the integration writes, or when reporting a device that misbehaves, measure it:
+
+```bash
+make probe                                  # fan matrix, about ten minutes
+make probe ARGS='--lights'                  # light matrix (L1 to L7), about five minutes
+make probe ARGS='--list'                    # show the cases without touching anything
+make probe ARGS='--cases 1,5,L3 --out probe-report.md'  # selected cases, save the report
+```
+
+`scripts/probe_device.py` logs in the same way the integration does, puts the fan into a verified start state before every case, sends one raw payload, records each acknowledgement and push, reads the cloud's state back, and asks you what the fan is physically doing. It ends with a Markdown report to paste into an issue or PR, and restores the state it found. The report includes what the cloud says about the device (model, firmware, capability flags, every register) so nothing else has to be collected; the owner, device id, display name, MAC and IP are left out.
+
+- It switches the fan on and off and changes speed and direction. Someone has to be in the room to answer its questions.
+- The light cases run only with `--lights` (or by name, `--cases L6,L7`) and never touch the fan motor. They switch the light, check whether a brightness or color write turns it on, and sweep brightness and color temperature to find the values the fixture holds. On a fan with no light kit, answer `?` to the questions; the acknowledgements and reports are still recorded.
+- Nothing else may control the fan while it runs. Stop the dev container (`make docker-down`) when the script asks, or disable the FanSync integration in your own Home Assistant, and leave the app and remote alone.
+- It does not need Docker or Home Assistant. On any computer with git, make and Python 3.14: clone the repository, run `make venv install`, then `make probe`. The bug report template asks for a probe report in the same way.
+- Credentials come from `FANSYNC_EMAIL` / `FANSYNC_PASSWORD`, else from the running dev container's config entry, else from a prompt. They are never printed.
+- A case whose start state cannot be reached is skipped and marked, not run from a wrong state.
+
+The measured results for each model are recorded under "Device Protocol Rules" in [`AGENTS.md`](AGENTS.md).
+
 ### Alternative: Virtual Environment
 
 If you prefer not to use Docker:
