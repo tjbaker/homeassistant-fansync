@@ -1,4 +1,4 @@
-.PHONY: help venv install test coverage lint format-check type-check check \
+.PHONY: help venv install test coverage lint format-check type-check check probe \
 	docker-up docker-restart docker-logs docker-logs-all docker-status \
 	docker-shell docker-pull docker-down docker-reset
 
@@ -37,6 +37,9 @@ type-check: ## Run mypy
 	$(PY) -m mypy custom_components/fansync --check-untyped-defs
 
 check: coverage lint format-check type-check ## Run every check CI runs
+
+probe: ## Measure how a real fan responds to raw writes (interactive); ARGS='--lights' for the light
+	$(PY) scripts/probe_device.py $(ARGS)
 
 # --- Local Home Assistant in Docker (see docker-compose.yml, dev-config/) ---
 

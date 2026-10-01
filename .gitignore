@@ -53,3 +53,6 @@ custom_components/**/__pycache__/
 
 # PR description (local working file)
 PR_DESCRIPTION.md
+
+# Device probe reports (make probe ARGS='--out probe-report.md')
+probe-report*.md

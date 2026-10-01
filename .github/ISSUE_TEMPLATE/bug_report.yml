@@ -80,6 +80,25 @@ body:
       required: false
 
   - type: textarea
+    id: probe
+    attributes:
+      label: Device Probe (Optional)
+      description: |
+        If the fan or light does something different from what Home Assistant shows (will not turn off, turns itself back on, wrong speed, brightness or color), a probe report tells us how your model behaves. Fans differ, and we can only measure the ones we own.
+
+        It needs a computer with git, make and Python 3.14, and someone in the room with the fan. It switches the fan on and off for about ten minutes, then restores the state it found. Disable the FanSync integration in Home Assistant while it runs.
+        ```bash
+        git clone https://github.com/tjbaker/homeassistant-fansync.git
+        cd homeassistant-fansync
+        make venv install
+        make probe ARGS='--out probe-report.md'
+        ```
+        For a light problem, run `make probe ARGS='--lights --out probe-report.md'` instead. The script asks for your FanSync email and password, which are sent only to Fanimation's cloud and never printed. The report leaves out your email, device id, device name, MAC and IP address. Details are in [CONTRIBUTING.md](https://github.com/tjbaker/homeassistant-fansync/blob/main/CONTRIBUTING.md#probing-how-a-fan-behaves).
+      placeholder: Paste the contents of probe-report.md here
+    validations:
+      required: false
+
+  - type: textarea
     id: logs
     attributes:
       label: Relevant Logs (Optional)
