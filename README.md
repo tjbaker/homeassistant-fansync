@@ -235,7 +235,7 @@ Reproduce the issue, then read the log under **Settings** → **System** → **L
 
 **Symptoms**: You turn the fan off in Home Assistant, the fan stops and Home Assistant shows it off, but the Fanimation app still shows it on.
 
-**Cause**: Some fans (a Kute60, for example) obey a power-off but never report it to Fanimation's cloud, which is where the app reads from. Home Assistant relies on the fan's own acknowledgement of the command instead. The app catches up the next time the fan reports anything, such as a speed change. Restarting Home Assistant makes it re-read the cloud, so the fan can show as on until the next command; fans kept this way are listed under `coordinator.assumed_values` in a diagnostics download.
+**Cause**: Some fans (a Kute60, for example) obey a power-off but never report it to Fanimation's cloud, which is where the app reads from. Home Assistant relies on the fan's own acknowledgement of the command instead. The app catches up the next time the fan reports anything, such as a speed change. Home Assistant remembers this across restarts. Fans kept this way are listed under `coordinator.assumed_values` in a diagnostics download.
 
 #### A Fan You No Longer Own Still Shows as a Device
 

@@ -65,6 +65,10 @@ PRESET_MODES = {0: "normal", 1: "fresh_air"}
 OPTIMISTIC_GUARD_SEC = 3.0
 # The status a device puts in its own acknowledgement of a write it accepted.
 DEVICE_ACK_OK = "ok"
+# Assumed power states are kept on disk so a restart does not bring back the
+# cloud's stale value. One file per config entry, written shortly after a change.
+ASSUMED_STORE_VERSION = 1
+ASSUMED_STORE_SAVE_DELAY_SEC = 1.0
 # Extra time an unreported power write waits for the device's acknowledgement
 # once the optimistic guard has lapsed. A Kute60 was measured answering 1.9 to
 # 2.5 seconds after the write, close to the guard itself.

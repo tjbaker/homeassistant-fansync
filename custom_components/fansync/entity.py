@@ -373,9 +373,9 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
         self._optimistic_until = expires
         self._optimistic_predicate = confirm_pred
         self._confirmed_by_push = False  # Reset flag for new optimistic update
-        # A register being written again is no longer assumed: this write's own
-        # outcome decides what it holds.
-        clear_assumed = getattr(self.coordinator, "clear_assumed", None)
+        # A register being written to a new value is no longer assumed: this
+        # write's own outcome decides what it holds.
+        clear_assumed = getattr(self.coordinator, "clear_assumed_for_write", None)
         if callable(clear_assumed):
             clear_assumed(self._device_id, payload)
         try:
