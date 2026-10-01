@@ -148,18 +148,20 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         await self._apply_with_optimism(optimistic, payload, _confirm)
 
     def _with_current_speed(self, payload: dict[str, int]) -> dict[str, int]:
-        """Carry the current speed on writes that do not set one.
+        """Carry the current speed on writes that turn the fan on or keep it on.
 
-        Probed live on a Kute60-FD6R1L5: the fan only reports its state back to
-        the cloud after a write that contains the speed register. Power alone,
-        or power plus preset, is applied silently, so the cloud, the official
-        app and HA all keep the old state (an off written as {"H00": 0} never
-        showed up anywhere). {"H00": 0, "H02": <current>} and {"H00": 1,
-        "H02": <current>} both apply and both report. The fan answers the off
-        variant with an error acknowledgement, apparently refusing the speed
-        while off, but applies it and reports regardless.
+        Probed live on a Kute60-FD6R1L5 (fw 3.2.9): the fan only reports its
+        state back to the cloud after a write that contains the speed register.
+        Power on alone, or power plus preset, is applied silently, so the cloud,
+        the official app and HA all keep the old state. {"H00": 1, "H02":
+        <current>} applies and reports.
+
+        Never used for power off. On a SpitfireV2-FD6R2L5 (fw 3.6.7) a speed
+        write turns the fan on, so {"H00": 0, "H02": <current>} switched it off
+        and straight back on (issue #249). Off is always written alone; the
+        Kute60 applies that too, it just does not report it.
         """
-        if KEY_SPEED in payload:
+        if KEY_SPEED in payload or payload.get(KEY_POWER) == 0:
             return payload
         speed = self._device_value(KEY_SPEED)
         if speed is None:
@@ -169,9 +171,10 @@ class FanSyncFan(FanSyncOptimisticEntity, FanEntity):
         return payload
 
     async def async_turn_off(self, **kwargs) -> None:
-        # Toggling power should not change percentage speed
+        # Power alone, never with a speed: on some fans a speed write turns the
+        # fan on and would undo the off in the same message (issue #249).
         optimistic = {KEY_POWER: 0}
-        payload = self._with_current_speed({KEY_POWER: 0})
+        payload = {KEY_POWER: 0}
         previous = self._previous_values(payload)
         await self._apply_with_optimism(
             optimistic,

@@ -18,10 +18,12 @@ Probed live on a Kute60-FD6R1L5:
   produce a device_change push with H02=100, while the former three-register
   {"H00": 1, "H02": 100, "H01": 0} is applied but never reported. So power and
   preset are written only when they differ from what the device reports.
-* The fan only reports after a write that contains H02 at all. {"H00": 0}
-  alone (and the app's own off) turned the fan off silently; {"H00": 0,
-  "H02": 35} and {"H00": 1, "H02": 35} both apply and both report. So power,
+* The fan only reports after a write that contains H02 at all, so power-on,
   direction and preset writes carry the current speed.
+* Off is the exception and is always written alone. On a SpitfireV2-FD6R2L5
+  (fw 3.6.7) a speed write turns the fan on, so {"H00": 0, "H02": 65} switched
+  it off and straight back on (issue #249). The Kute60 applies a bare off but
+  does not report it, which is the lesser problem.
 """
 
 from __future__ import annotations
@@ -151,7 +153,7 @@ async def test_direction_and_preset_write_power_only_when_off(
     assert writes[-1] == {"H06": 0, "H00": 1, "H02": 50}
 
 
-async def test_turn_off_carries_current_speed_so_the_fan_reports(
+async def test_turn_off_writes_power_alone(
     hass: HomeAssistant, mock_client, patch_client, fast_confirm
 ) -> None:
     mock_client.status = {"H00": 1, "H02": 65, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
@@ -159,10 +161,37 @@ async def test_turn_off_carries_current_speed_so_the_fan_reports(
 
     await _svc(hass, "turn_off")
 
-    assert writes[-1] == {"H00": 0, "H02": 65}
+    assert writes[-1] == {"H00": 0}
     assert hass.states.get("fan.fansync_fan").state == "off"
     # speed is retained for the next turn_on
     assert mock_client.status["H02"] == 65
+
+
+async def test_turn_off_stays_off_on_a_fan_that_starts_on_any_speed_write(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    """Issue #249: on a SpitfireV2 a speed write turns the fan on, so an off
+    bundled with the current speed switched it off and straight back on."""
+    mock_client.status = {"H00": 1, "H02": 65, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+
+    async def _spitfire_set(data, *, device_id=None):
+        mock_client.status.update(data)
+        if "H02" in data:
+            mock_client.status["H00"] = 1  # any speed write starts this fan
+
+    mock_client.async_set = _spitfire_set
+    writes = await _setup(hass, mock_client, "min-turn-off-spitfire")
+
+    await _svc(hass, "turn_off")
+
+    assert writes[-1] == {"H00": 0}
+    assert mock_client.status["H00"] == 0
+    assert hass.states.get("fan.fansync_fan").state == "off"
+
+    # and the usual on path still works on such a fan
+    await _svc(hass, "turn_on")
+    assert writes[-1] == {"H00": 1, "H02": 65}
+    assert hass.states.get("fan.fansync_fan").state == "on"
 
 
 async def _light(hass: HomeAssistant, service: str, **data) -> None:
