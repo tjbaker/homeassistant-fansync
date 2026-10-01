@@ -230,6 +230,12 @@ Reproduce the issue, then read the log under **Settings** → **System** → **L
 
 **Cause**: Some fans only hold a fixed set of speeds. The controller accepts any value, snaps it to one of its levels, and reports that back; Home Assistant shows what the fan settled on. A Kute60, for example, holds 20/35/50/65/80/100 and rounds a request *down*, so 97% gives med high and only 100% gives high. The distinct values a fan has reported appear under `coordinator.observed_values` in a diagnostics download.
 
+#### The Fanimation App Shows the Fan On After Home Assistant Turned It Off
+
+**Symptoms**: You turn the fan off in Home Assistant, the fan stops and Home Assistant shows it off, but the Fanimation app still shows it on.
+
+**Cause**: Some fans (a Kute60, for example) obey a power-off but never report it to Fanimation's cloud, which is where the app reads from. Home Assistant relies on the fan's own acknowledgement of the command instead. The app catches up the next time the fan reports anything, such as a speed change. Restarting Home Assistant makes it re-read the cloud, so the fan can show as on until the next command; fans kept this way are listed under `coordinator.assumed_values` in a diagnostics download.
+
 #### A Fan You No Longer Own Still Shows as a Device
 
 **Symptoms**: A FanSync device with no entities lingers under Settings → Devices & Services, typically a fan that was removed from the Fanimation account or left at a previous home.

@@ -33,6 +33,7 @@ from .const import (
     COMMAND_HISTORY_MAX,
     DEFAULT_HTTP_TIMEOUT_SECS,
     DEFAULT_WS_TIMEOUT_SECS,
+    DEVICE_ACK_HISTORY_MAX,
     PUSH_LOG_EVERY,
     SLOW_CONNECTION_WARNING_MS,
     SLOW_RESPONSE_WARNING_MS,
@@ -114,6 +115,11 @@ class FanSyncClient:
         self._command_history_max = COMMAND_HISTORY_MAX
         # Message routing: map request ID to Future for async_get_status/async_set
         self._pending_requests: dict[int, asyncio.Future[dict[str, Any]]] = {}
+        # A `set` is acknowledged twice with the same id: by the cloud, which
+        # resolves the pending request, and then by the device. The device's
+        # answer is kept here by request id, with the last `set` id per device.
+        self._device_acks: dict[int, str] = {}
+        self._last_set_request: dict[str, int] = {}
         # Start at 3 to avoid collision with hardcoded LOGIN(1) and LIST_DEVICES(2).
         # LOGIN and LIST_DEVICES remain hardcoded for connection bootstrap before
         # the request routing system is active. Dynamic allocation is used for
@@ -671,6 +677,12 @@ class FanSyncClient:
                     # Status callbacks for set acks are handled in async_set to avoid duplication.
                     continue
 
+                if request_id is not None and payload.get("response") == "set":
+                    # The device's own acknowledgement of a write the cloud already
+                    # acknowledged. Some fans apply a power write and say nothing
+                    # else about it, so this is the only evidence it arrived.
+                    self._record_device_ack(request_id, payload.get("status"))
+
                 # Process push updates not matched to pending requests (with status data)
                 pushed_status, push_device = self._extract_push_status(payload)
                 if pushed_status is not None:
@@ -1085,6 +1097,20 @@ class FanSyncClient:
             )
             raise
 
+    def _record_device_ack(self, request_id: object, status: object) -> None:
+        if not isinstance(request_id, int) or isinstance(request_id, bool):
+            return
+        self._device_acks[request_id] = str(status)
+        while len(self._device_acks) > DEVICE_ACK_HISTORY_MAX:
+            del self._device_acks[next(iter(self._device_acks))]
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("recv device ack id=%s status=%s", request_id, status)
+
+    def last_device_ack(self, device_id: str) -> str | None:
+        """Return the device's own acknowledgement of the last write, if it has arrived."""
+        request_id = self._last_set_request.get(device_id)
+        return None if request_id is None else self._device_acks.get(request_id)
+
     async def async_set(self, data: dict[str, int], *, device_id: str | None = None) -> None:
         """Set device parameters."""
         t_total = time.monotonic()
@@ -1098,6 +1124,7 @@ class FanSyncClient:
                 _LOGGER.debug("set start d=%s keys=%s", did, list(data.keys()))
 
             payload, request_id = await self._send_request("set", did, data)
+            self._last_set_request[did] = request_id
 
             latency_ms = (time.monotonic() - t_total) * 1000
             self.metrics.record_command(success=True, latency_ms=latency_ms)
