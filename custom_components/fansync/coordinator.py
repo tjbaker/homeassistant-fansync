@@ -24,11 +24,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import UNDEFINED
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import FanSyncClient
 from .const import (
+    ASSUMED_STORE_SAVE_DELAY_SEC,
+    ASSUMED_STORE_VERSION,
     DEFAULT_FALLBACK_POLL_SECS,
     DOMAIN,
     MISMATCH_HISTORY_MAX,
@@ -41,6 +44,15 @@ from .device_utils import create_device_info
 from .diagnostics_utils import _PROTOCOL_KEY_RE, summarize_status_snapshot
 
 SCAN_INTERVAL = timedelta(seconds=DEFAULT_FALLBACK_POLL_SECS)
+
+# device id -> register -> [assumed value, stale cloud value]. Loosely typed because
+# it is read back from disk and validated on load.
+type AssumedStoreData = dict[str, Any]
+
+
+def assumed_store(hass: HomeAssistant, entry_id: str) -> Store[AssumedStoreData]:
+    """Return the on-disk store of assumed power states for one config entry."""
+    return Store(hass, ASSUMED_STORE_VERSION, f"{DOMAIN}.assumed.{entry_id}")
 
 
 class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
@@ -98,6 +110,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         # register: (assumed value, the stale value the cloud still holds). The
         # assumed value stands in for the cloud's until the device reports.
         self._assumed: dict[str, dict[str, tuple[int, int | None]]] = {}
+        self._assumed_store = assumed_store(hass, config_entry.entry_id)
         self._next_update_trigger: str | None = "startup"
 
     def last_reported_status(self, device_id: str) -> dict[str, object]:
@@ -118,12 +131,57 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             stale = assumed[key][1] if key in assumed else coerce_status_int(baseline.get(key))
             assumed[key] = (value, stale)
             baseline[key] = value
+        self._save_assumed()
 
     def clear_assumed(self, device_id: str, keys: Iterable[str]) -> None:
-        """Forget assumptions about registers that are being written again."""
+        """Forget assumptions about registers the device itself has reported."""
         assumed = self._assumed.get(device_id, {})
-        for key in keys:
-            assumed.pop(key, None)
+        dropped = [assumed.pop(key) for key in list(keys) if key in assumed]
+        if dropped:
+            self._save_assumed()
+
+    def clear_assumed_for_write(self, device_id: str, payload: Mapping[str, int]) -> None:
+        """Forget assumptions that a new write is about to change.
+
+        Writing the value already assumed keeps the assumption. Dropping it
+        there let the next cloud read return the stale value, which differs
+        from the assumed one and so looked like the device had moved: a second
+        "off" turned the display back on.
+        """
+        assumed = self._assumed.get(device_id, {})
+        self.clear_assumed(
+            device_id, [k for k, v in payload.items() if k in assumed and assumed[k][0] != v]
+        )
+
+    async def async_load_assumed(self) -> None:
+        """Restore assumed states saved before a restart.
+
+        Each is kept only while the cloud still returns the stale value it was
+        recorded against; the first read that differs drops it. A change made
+        elsewhere while Home Assistant was down, and reported as the same value
+        the cloud already held, cannot be told apart from no change.
+        """
+        stored = await self._assumed_store.async_load()
+        if not isinstance(stored, dict):
+            return
+        for device_id, registers in stored.items():
+            if not isinstance(registers, dict):
+                continue
+            for key, pair in registers.items():
+                if not isinstance(pair, list) or len(pair) != 2 or not isinstance(pair[0], int):
+                    continue
+                stale = pair[1] if isinstance(pair[1], int) else None
+                self._assumed.setdefault(device_id, {})[key] = (pair[0], stale)
+
+    def _save_assumed(self) -> None:
+        self._assumed_store.async_delay_save(self._assumed_for_store, ASSUMED_STORE_SAVE_DELAY_SEC)
+
+    def _assumed_for_store(self) -> AssumedStoreData:
+        return {
+            did: {key: [value, stale] for key, (value, stale) in per.items()}
+            for did, per in self._assumed.items()
+            if per
+        }
 
     def assumed_values(self) -> dict[str, dict[str, int]]:
         """Return the assumed value per device and register, for diagnostics."""
@@ -143,13 +201,15 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         assumed = self._assumed.get(device_id)
         if not assumed:
             return result
-        for key, (value, stale) in list(assumed.items()):
+        moved = []
+        for key, (value, stale) in assumed.items():
             if key not in result:
                 continue
             if coerce_status_int(result[key]) == stale:
                 result[key] = value
             else:
-                del assumed[key]
+                moved.append(key)
+        self.clear_assumed(device_id, moved)
         return result
 
     def record_observed_status(
@@ -459,7 +519,10 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         """Return per-device changed keys vs the current coordinator snapshot."""
         mismatch: dict[str, list[str]] = {}
         if isinstance(current, dict):
-            for did, status in statuses.items():
+            for did, raw in statuses.items():
+                # Compare what will be shown: a stale cloud value standing behind an
+                # assumed one is not a change, and would be reported on every poll.
+                status = self._without_stale(did, raw) if isinstance(raw, dict) else raw
                 prev = current.get(did, {})
                 if isinstance(prev, dict) and isinstance(status, dict) and prev != status:
                     changed = _changed_keys(prev, status)

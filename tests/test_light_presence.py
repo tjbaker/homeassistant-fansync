@@ -152,6 +152,9 @@ async def test_platforms_fallback_when_first_refresh_deferred(hass: HomeAssistan
             """Stub for device registry update (no-op in this test)."""
             pass
 
+        async def async_load_assumed(self) -> None:
+            """Stub for restoring assumed states (nothing stored in this test)."""
+
         async def async_config_entry_first_refresh(self):
             raise TimeoutError()
 

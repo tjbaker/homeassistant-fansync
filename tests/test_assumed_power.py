@@ -27,7 +27,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import MockConfigEntry, flush_store
 
 from custom_components.fansync.client import FanSyncClient
 from custom_components.fansync.const import DEVICE_ACK_HISTORY_MAX
@@ -48,12 +48,15 @@ def fast_confirm():
         yield
 
 
-async def _setup(hass: HomeAssistant, unique_id: str) -> MockConfigEntry:
+async def _setup(
+    hass: HomeAssistant, unique_id: str, *, entry_id: str | None = None
+) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         title="FanSync",
         data={"email": "u@e.com", "password": "p", "verify_ssl": False},
         unique_id=unique_id,
+        **({"entry_id": entry_id} if entry_id else {}),
     )
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
@@ -106,10 +109,12 @@ async def test_acknowledged_unreported_off_stays_off(
     assert hass.states.get(FAN).state == "off"
     assert coordinator.assumed_values() == {DEVICE: {"H00": 0}}
 
-    # A poll returns the cloud's stale value; it must not put the fan back on.
+    # A poll returns the cloud's stale value; it must not put the fan back on,
+    # and it is not a mismatch worth recording every minute.
     await coordinator.async_refresh()
     await hass.async_block_till_done()
     assert hass.states.get(FAN).state == "off"
+    assert coordinator._last_poll_mismatch_keys == {}
 
 
 async def test_turn_on_after_assumed_off_writes_power_and_ends_the_assumption(
@@ -317,3 +322,83 @@ def test_device_ack_history_is_bounded(hass: HomeAssistant) -> None:
     assert len(client._device_acks) == DEVICE_ACK_HISTORY_MAX
     assert 0 not in client._device_acks
     assert DEVICE_ACK_HISTORY_MAX + 4 in client._device_acks
+
+
+async def test_turning_off_again_while_assumed_off_stays_off(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    """A second off (a nightly "all fans off" automation) must not undo the first.
+
+    0.11.0 forgot the assumption when the register was written again, then
+    read the cloud's stale "on", saw it differ from the assumed "off", and
+    took that as the device having changed.
+    """
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    writes = _kute60(mock_client)
+    entry = await _setup(hass, "assumed-off-twice")
+    coordinator = entry.runtime_data["coordinator"]
+    await _turn_off_and_wait(hass)
+    assert hass.states.get(FAN).state == "off"
+
+    await _turn_off_and_wait(hass)
+
+    assert writes == [{"H00": 0}, {"H00": 0}]
+    assert hass.states.get(FAN).state == "off"
+    assert coordinator.assumed_values() == {DEVICE: {"H00": 0}}
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(FAN).state == "off"
+
+
+async def test_assumed_off_survives_a_restart(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm, hass_storage
+) -> None:
+    """Seen on 0.11.0: every restart re-read the cloud and showed a stopped fan as on."""
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    _kute60(mock_client)
+    entry = await _setup(hass, "assumed-restart", entry_id="restart-entry")
+    await _turn_off_and_wait(hass)
+    await flush_store(entry.runtime_data["coordinator"]._assumed_store)
+    assert hass_storage[f"{DOMAIN}.assumed.restart-entry"]["data"] == {DEVICE: {"H00": [0, 1]}}
+
+    # A reload is a restart as far as the integration is concerned: new client
+    # session, new coordinator, and a first poll that returns the stale "on".
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert mock_client.status["H00"] == 1
+    assert hass.states.get(FAN).state == "off"
+    assert entry.runtime_data["coordinator"].assumed_values() == {DEVICE: {"H00": 0}}
+
+
+async def test_restored_assumption_is_dropped_when_the_cloud_moved(
+    hass: HomeAssistant, mock_client, patch_client, hass_storage
+) -> None:
+    """The fan reported while Home Assistant was down: the cloud's value wins."""
+    hass_storage[f"{DOMAIN}.assumed.moved-entry"] = {
+        "version": 1,
+        "minor_version": 1,
+        "key": f"{DOMAIN}.assumed.moved-entry",
+        "data": {DEVICE: {"H0B": [0, 1], "H00": "garbage"}, "gone": "garbage"},
+    }
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    entry = await _setup(hass, "assumed-moved", entry_id="moved-entry")
+
+    assert hass.states.get(FAN).state == "on"
+    assert entry.runtime_data["coordinator"].assumed_values() == {}
+
+
+async def test_removing_the_entry_deletes_the_stored_assumptions(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm, hass_storage
+) -> None:
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    _kute60(mock_client)
+    entry = await _setup(hass, "assumed-remove", entry_id="remove-entry")
+    await _turn_off_and_wait(hass)
+    await flush_store(entry.runtime_data["coordinator"]._assumed_store)
+    assert f"{DOMAIN}.assumed.remove-entry" in hass_storage
+
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert f"{DOMAIN}.assumed.remove-entry" not in hass_storage

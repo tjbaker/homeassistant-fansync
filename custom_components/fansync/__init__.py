@@ -45,7 +45,7 @@ from .const import (
     lightless_signal,
     resolve_lightless_devices,
 )
-from .coordinator import FanSyncCoordinator
+from .coordinator import FanSyncCoordinator, assumed_store
 from .device_utils import cloud_lightless_devices
 
 _LOGGER = logging.getLogger(__name__)
@@ -138,6 +138,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> b
                 _LOGGER.debug("FanSync setup connect failed details: %s", err)
             raise ConfigEntryNotReady from err
         coordinator = FanSyncCoordinator(hass, client, entry)
+        await coordinator.async_load_assumed()
         # Apply options-driven fallback polling
         secs = entry.options.get(OPTION_FALLBACK_POLL_SECS, DEFAULT_FALLBACK_POLL_SECS)
         coordinator.update_interval = None if secs == 0 else timedelta(seconds=int(secs))
@@ -315,6 +316,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> 
     if unloaded:
         await runtime_data["client"].async_disconnect()
     return unloaded
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> None:
+    """Delete what the integration stored for an entry that is being removed."""
+    await assumed_store(hass, entry.entry_id).async_remove()
 
 
 async def async_remove_config_entry_device(
