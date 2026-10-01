@@ -86,8 +86,10 @@ The **fastest way** to develop is using Docker Compose - get a local Home Assist
 
 ```bash
 # Start Home Assistant with your code mounted
-docker compose up -d
+make docker-up
 ```
+
+Every Docker step has a make target that wraps `docker compose`; run `make help` to list them. Use the raw `docker compose` commands if you prefer, or set `COMPOSE="docker-compose"` for the standalone binary.
 
 **Access Home Assistant:**
 - Open: http://localhost:8123
@@ -103,38 +105,58 @@ docker compose up -d
 vim custom_components/fansync/fan.py
 
 # 2. Restart to see changes (~5-10 seconds!)
-docker compose restart
+make docker-restart
 
 # 3. Test in browser at http://localhost:8123
 
-# View logs
-docker compose logs -f
+# Follow the integration's log lines
+make docker-logs
 
-# Filter for FanSync
-docker compose logs -f | grep -i fansync
+# Follow other loggers: FILTER is a case-insensitive regex on the logger name
+make docker-logs FILTER=websockets
+make docker-logs FILTER='fansync|httpx'
 
-# Fresh start (removes all data)
-docker compose down -v
-docker compose up -d
+# Everything Home Assistant logs
+make docker-logs-all
+
+# Fresh start (deletes the config volume, onboarding required again)
+make docker-reset
 ```
+
+| Target | What it does |
+|---|---|
+| `make docker-up` | Start the container in the background |
+| `make docker-restart` | Restart it to pick up code changes |
+| `make docker-logs` | Follow records whose logger name matches `FILTER` (default `fansync`), tracebacks included; `FILTER='a\|b'` for other loggers |
+| `make docker-logs-all` | Follow the whole log |
+| `make docker-status` | Show container state and health |
+| `make docker-shell` | Open a shell inside the container |
+| `make docker-pull` | Pull the image pinned in `docker-compose.yml` (after a version bump) |
+| `make docker-down` | Stop and remove the container, keeping its config volume |
+| `make docker-reset` | Delete the config volume and start fresh |
 
 **Debugging:**
 
-Debug logging is **enabled by default** for:
-- `custom_components.fansync` (all modules: client, coordinator, fan, light)
-- `httpcore` (HTTP connections)
-- `httpx` (HTTP requests)
-- `websockets` (WebSocket protocol)
+Debug logging is **enabled by default** for `custom_components.fansync`, which covers every module (client, coordinator, fan, light, switch).
+
+`httpx` and `websockets` debug logging is present but commented out in `dev-config/configuration.yaml`. Enable those two only for login or connection problems: they are very noisy, and `websockets` prints the login token and session cookie, so trim logs before posting them.
 
 View logs with:
 ```bash
-docker compose logs -f
-# Or filter for FanSync:
-docker compose logs -f | grep -i "fansync\|httpcore\|httpx\|websockets"
+make docker-logs                              # the integration's loggers
+make docker-logs FILTER='fansync|websockets'  # several loggers
+make docker-logs FILTER=homeassistant.setup   # any other logger
+make docker-logs-all                          # the whole Home Assistant log
 ```
 
-To disable debug logging, edit `dev-config/configuration.yaml` and remove the `logs:` section, then `docker compose restart`.
-If you removed the default logging, re-enable it by adding those loggers back to the `logs:` map.
+How `FILTER` works:
+- It is a case-insensitive regular expression matched against the **logger name** only, the bracketed field of each record such as `[custom_components.fansync.client]`. The default is `fansync`.
+- Core lines that merely mention the word in their message are not shown. The loader's "custom integration fansync" warning and the entity registry's "Registered new fan.fansync entity" come from other loggers; use `make docker-logs-all` or a wider `FILTER` to see them.
+- Lines that continue a matching record are kept, so a traceback from the integration prints in full.
+- An empty value, `make docker-logs FILTER=`, shows everything.
+- Do not pipe `docker compose logs` through `grep fansync` yourself: every line is prefixed with the container name `ha-fansync-dev`, so that matches everything.
+
+To change logging, edit the `logs:` map in `dev-config/configuration.yaml`, then `make docker-restart`.
 
 ### Alternative: Virtual Environment
 
@@ -277,10 +299,10 @@ cd homeassistant-fansync
 git checkout -b feat/your-feature-name
 
 # Set up Docker environment (see Development Setup section)
-docker compose up -d
+make docker-up
 
 # Make your changes, test locally
-docker compose restart  # After each change
+make docker-restart  # After each change
 
 # Add tests for new functionality
 # See tests/README.md for test patterns

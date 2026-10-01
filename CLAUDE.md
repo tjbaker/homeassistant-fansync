@@ -21,6 +21,7 @@ make lint           # Run Ruff linter
 make format-check   # Check Black formatting
 make type-check     # Run mypy
 make check          # Run all checks (coverage + lint + format + type)
+make help           # List every target
 ```
 
 Run a single test file:
@@ -28,7 +29,18 @@ Run a single test file:
 pytest tests/test_client_recv_reconnect.py -v
 ```
 
-A local Home Assistant instance for manual testing is available via `docker-compose.yml` with the integration code mounted.
+A local Home Assistant instance for manual testing runs from `docker-compose.yml` with the integration code mounted:
+
+```bash
+make docker-up            # Start at http://localhost:8123
+make docker-restart       # Pick up code changes
+make docker-logs          # Follow the integration's log lines; FILTER='fansync|websockets' matches other logger names
+make docker-logs-all      # Follow the whole container log
+make docker-status        # Container state and health
+make docker-pull          # Pull the pinned image after a version bump
+make docker-down          # Stop, keep the config volume
+make docker-reset         # Delete the config volume and start fresh
+```
 
 ## Code Style
 
