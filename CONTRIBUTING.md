@@ -194,7 +194,7 @@ Then manually install Home Assistant Core in development mode (see Home Assistan
 - **HA patterns**: CoordinatorEntity, push-first updates, optimistic UI
 - **Error handling**: Narrow exception catches, proper logging levels
 - **Testing**: pytest, no real network calls, ≥75% coverage target
-- **AI instructions**: Single canonical file: `.cursorrules` (pre-commit syncs to other locations)
+- **AI instructions**: Single canonical file: `AGENTS.md`
 
 ### Pre-commit
 
@@ -203,7 +203,6 @@ This repository uses pre-commit to enforce style and commit message conventions.
 Hooks configured (see `.pre-commit-config.yaml`):
 - ruff (with `--fix`) and ruff-format
 - black (line length 100)
-- sync ai instructions (keeps `.github/copilot-instructions.md` in sync with `.cursorrules`)
 - commitizen check (runs at `commit-msg` stage; enforces Conventional Commits and ≤ 72-char subject)
 
 Install and enable hooks:
@@ -358,8 +357,8 @@ Then open a PR on GitHub:
 
 ## AI Assistant Guidance
 
-- The canonical rules live in `.cursorrules`. A pre-commit hook syncs content to other locations.
-- Edit only `.cursorrules`; do not hand-edit generated copies.
+- Agent instructions live in [`AGENTS.md`](AGENTS.md), the one file every tool reads. It covers commands, code style, commit conventions, architecture, and the device protocol rules.
+- There are no tool-specific copies (`CLAUDE.md`, `.cursorrules`, Copilot instructions) and no sync hook. Claude Code, Copilot and VS Code read `AGENTS.md` directly; edit it when conventions change.
 
 ## License and attribution
 
