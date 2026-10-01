@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -94,16 +94,81 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         # entity's optimistic write, so it is the right baseline for judging
         # whether a later write moved a register.
         self._last_reported: dict[str, dict[str, object]] = {}
+        # Power writes a device acknowledged but never reported, per device and
+        # register: (assumed value, the stale value the cloud still holds). The
+        # assumed value stands in for the cloud's until the device reports.
+        self._assumed: dict[str, dict[str, tuple[int, int | None]]] = {}
         self._next_update_trigger: str | None = "startup"
 
     def last_reported_status(self, device_id: str) -> dict[str, object]:
         """Return the last device-reported status for a device (may be empty)."""
         return dict(self._last_reported.get(device_id, {}))
 
-    def record_observed_status(self, device_id: str, status: Mapping[str, object]) -> None:
-        """Record what a device reported: last-known baseline and value history."""
+    def assume_applied(self, device_id: str, values: Mapping[str, int]) -> None:
+        """Take an acknowledged, unreported write as the device's state.
+
+        A Kute60 applies a bare power write, acknowledges it, and never reports
+        it, so the cloud keeps the old value indefinitely. The written value
+        becomes the baseline, and cloud reads that still return the old value
+        are corrected until the device reports that register again.
+        """
+        assumed = self._assumed.setdefault(device_id, {})
+        baseline = self._last_reported.setdefault(device_id, {})
+        for key, value in values.items():
+            stale = assumed[key][1] if key in assumed else coerce_status_int(baseline.get(key))
+            assumed[key] = (value, stale)
+            baseline[key] = value
+
+    def clear_assumed(self, device_id: str, keys: Iterable[str]) -> None:
+        """Forget assumptions about registers that are being written again."""
+        assumed = self._assumed.get(device_id, {})
+        for key in keys:
+            assumed.pop(key, None)
+
+    def assumed_values(self) -> dict[str, dict[str, int]]:
+        """Return the assumed value per device and register, for diagnostics."""
+        return {
+            did: {key: value for key, (value, _stale) in per.items()}
+            for did, per in self._assumed.items()
+            if per
+        }
+
+    def _without_stale(self, device_id: str, status: Mapping[str, object]) -> dict[str, object]:
+        """Return a cloud read with assumed values in place of the stale ones.
+
+        A read that differs from the stale value means the device has reported
+        since, so the assumption is dropped and the read stands.
+        """
+        result = dict(status)
+        assumed = self._assumed.get(device_id)
+        if not assumed:
+            return result
+        for key, (value, stale) in list(assumed.items()):
+            if key not in result:
+                continue
+            if coerce_status_int(result[key]) == stale:
+                result[key] = value
+            else:
+                del assumed[key]
+        return result
+
+    def record_observed_status(
+        self, device_id: str, status: Mapping[str, object], *, pushed: bool = False
+    ) -> dict[str, object]:
+        """Record what a device reported: last-known baseline and value history.
+
+        ``pushed`` marks a report from the device itself, which ends any
+        assumption about the registers it carries. A cloud read cannot, because
+        the cloud returns its stored value whether or not the device is behind
+        it; see ``assume_applied``. Returns the status as it should be shown.
+        """
         if not device_id or not isinstance(status, Mapping):
-            return
+            return {}
+        if pushed:
+            self.clear_assumed(device_id, [k for k in status if isinstance(k, str)])
+            status = dict(status)
+        else:
+            status = self._without_stale(device_id, status)
         self._last_reported.setdefault(device_id, {}).update(status)
         per_device = self._observed_values.setdefault(device_id, {})
         for key, raw in status.items():
@@ -117,6 +182,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 continue
             seen.append(value)
             seen.sort()
+        return status
 
     async def async_request_refresh(self) -> None:
         """Request a manual refresh and track the trigger for diagnostics."""
@@ -412,8 +478,8 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
     ) -> None:
         """Shared success path: registry refresh, status/mismatch history, finalize."""
         self._update_device_registry(list(statuses.keys()))
-        for did, status in statuses.items():
-            self.record_observed_status(did, status)
+        for did, status in list(statuses.items()):
+            statuses[did] = self.record_observed_status(did, status)
         self._append_status_history(statuses)
         self._finalize_update(
             statuses=statuses,

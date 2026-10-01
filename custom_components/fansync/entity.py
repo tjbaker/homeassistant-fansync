@@ -38,6 +38,10 @@ from .const import (
     CONFIRM_INITIAL_DELAY_SEC,
     CONFIRM_RETRY_ATTEMPTS,
     CONFIRM_RETRY_DELAY_SEC,
+    DEVICE_ACK_GRACE_SEC,
+    DEVICE_ACK_OK,
+    KEY_LIGHT_POWER,
+    KEY_POWER,
     OPTIMISTIC_GUARD_SEC,
     coerce_status_int,
 )
@@ -50,6 +54,8 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
 
     # Overlay keys that directly affect HA UI state; subclasses override.
     OVERLAY_KEYS: set[str] = set()
+    # Registers whose unreported, acknowledged writes are taken as applied.
+    ASSUMABLE_KEYS: frozenset[str] = frozenset({KEY_POWER, KEY_LIGHT_POWER})
 
     def __init__(
         self,
@@ -103,11 +109,43 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
             return None
         return coerce_status_int(status.get(key))
 
-    def _record_reported(self, status: object) -> None:
-        """Feed a confirmation read into the coordinator's device-reported baseline."""
+    def _record_reported(self, status: dict[str, object]) -> dict[str, object]:
+        """Feed a confirmation read into the coordinator's device-reported baseline.
+
+        Returns the read as it should be used: the coordinator replaces values
+        the cloud holds stale with the ones it has assumed.
+        """
         record = getattr(self.coordinator, "record_observed_status", None)
-        if callable(record) and isinstance(status, Mapping):
-            record(self._device_id, status)
+        if not callable(record) or not isinstance(status, Mapping):
+            return status
+        shown = record(self._device_id, status)
+        return shown if isinstance(shown, dict) else status
+
+    def _assume_if_acknowledged(self, payload: Mapping[str, int]) -> None:
+        """Keep an unreported power write that the device itself acknowledged.
+
+        A Kute60 turns off on a bare power write, acknowledges it, and reports
+        nothing, so the cloud says "on" forever and restoring that put a stopped
+        fan back on screen. Only power registers qualify: they have no in-between
+        value a device could have settled on instead, which is what an
+        unreported speed or brightness write usually means. Nothing is written
+        to the device, so no fan can be started or stopped by this.
+        """
+        if not payload or any(key not in self.ASSUMABLE_KEYS for key in payload):
+            return
+        ack = getattr(self.client, "last_device_ack", None)
+        assume = getattr(self.coordinator, "assume_applied", None)
+        if not callable(ack) or not callable(assume):
+            return
+        if ack(self._device_id) != DEVICE_ACK_OK:
+            return
+        assume(self._device_id, payload)
+        if self._logger.isEnabledFor(logging.DEBUG):
+            self._logger.debug(
+                "optimism assumed d=%s values=%s device acknowledged, never reported",
+                self._device_id,
+                dict(payload),
+            )
 
     def _needs_write(self, key: str, value: int) -> bool:
         """True unless the device already reports ``value`` for ``key``.
@@ -127,7 +165,16 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
             self._guard_expiry_unsub()
             self._guard_expiry_unsub = None
 
-    def _schedule_guard_expiry(self, expires: float) -> None:
+    def _awaiting_device_ack(self, payload: Mapping[str, int]) -> bool:
+        """True while a power-only write has no acknowledgement from the device yet."""
+        if not payload or any(key not in self.ASSUMABLE_KEYS for key in payload):
+            return False
+        ack = getattr(self.client, "last_device_ack", None)
+        return callable(ack) and ack(self._device_id) is None
+
+    def _schedule_guard_expiry(
+        self, expires: float, payload: Mapping[str, int], *, may_extend: bool = True
+    ) -> None:
         """Publish the device's state the moment an unconfirmed guard lapses.
 
         When a device settles a request back to the value it already held (a
@@ -143,6 +190,15 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
             self._guard_expiry_unsub = None
             if self._optimistic_until != expires:
                 return  # confirmed since, or a newer write owns the guard
+            if may_extend and self._awaiting_device_ack(payload):
+                # The device's answer can take about as long as the guard. Hold
+                # the requested state a little longer, once, before giving up.
+                extended = time.monotonic() + DEVICE_ACK_GRACE_SEC
+                self._optimistic_until = extended
+                for key, (value, _expires) in list(self._overlay.items()):
+                    self._overlay[key] = (value, extended)
+                self._schedule_guard_expiry(extended, payload, may_extend=False)
+                return
             self._optimistic_until = None
             self._optimistic_predicate = None
             self._overlay.clear()
@@ -150,6 +206,7 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
                 self._logger.debug(
                     "optimism expired d=%s unconfirmed; showing device state", self._device_id
                 )
+            self._assume_if_acknowledged(payload)
             # The coordinator cache still holds the optimistic values if the
             # device never pushed. Put the device-reported baseline back so the
             # state write below shows what the device actually holds.
@@ -265,8 +322,7 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
                 self._confirmed_by_push = confirmed
                 if ok:
                     return status, True
-            status = await self.client.async_get_status(self._device_id)
-            self._record_reported(status)
+            status = self._record_reported(await self.client.async_get_status(self._device_id))
             if predicate(status):
                 return status, True
             await asyncio.sleep(self._retry_delay)
@@ -317,6 +373,11 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
         self._optimistic_until = expires
         self._optimistic_predicate = confirm_pred
         self._confirmed_by_push = False  # Reset flag for new optimistic update
+        # A register being written again is no longer assumed: this write's own
+        # outcome decides what it holds.
+        clear_assumed = getattr(self.coordinator, "clear_assumed", None)
+        if callable(clear_assumed):
+            clear_assumed(self._device_id, payload)
         try:
             await self.client.async_set(payload, device_id=self._device_id)
         except RuntimeError as exc:
@@ -359,7 +420,7 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
                     len(self._overlay),
                 )
         elif self._optimistic_until == expires:
-            self._schedule_guard_expiry(expires)
+            self._schedule_guard_expiry(expires, payload)
 
     @property
     def available(self) -> bool:

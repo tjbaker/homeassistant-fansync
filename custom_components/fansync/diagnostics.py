@@ -66,6 +66,7 @@ async def async_get_config_entry_diagnostics(
             # pushes only). A quantized register such as a fan's speed shows
             # its real levels here once the user has cycled through them.
             "observed_values": getattr(coordinator, "_observed_values", {}),
+            "assumed_values": coordinator.assumed_values(),
         }
 
     # Client diagnostics

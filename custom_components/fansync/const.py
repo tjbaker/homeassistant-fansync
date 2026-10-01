@@ -61,6 +61,14 @@ PRESET_MODES = {0: "normal", 1: "fresh_air"}
 # Push updates (device_change events) are reliable and typically arrive within 1-2 seconds.
 # Early termination logic stops polling once push confirms, so this is mainly a safety net.
 OPTIMISTIC_GUARD_SEC = 3.0
+# The status a device puts in its own acknowledgement of a write it accepted.
+DEVICE_ACK_OK = "ok"
+# Extra time an unreported power write waits for the device's acknowledgement
+# once the optimistic guard has lapsed. A Kute60 was measured answering 1.9 to
+# 2.5 seconds after the write, close to the guard itself.
+DEVICE_ACK_GRACE_SEC = 5.0
+# How many device acknowledgements the client remembers, newest kept.
+DEVICE_ACK_HISTORY_MAX = 32
 # Confirmation polling attempts and delay between polls
 # Push updates typically confirm changes within 1-2 seconds, terminating polling early.
 # Initial 0.5s delay before first poll, then 2 poll attempts with 0.5s delays between
