@@ -293,7 +293,7 @@ python -m mypy custom_components/fansync --check-untyped-defs
 python -m ruff check .
 
 # Formatting check
-python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/
+python -m black --check --line-length 100 custom_components/ tests/
 
 # Run all checks
 make check
@@ -339,7 +339,7 @@ python -m pytest --cov=custom_components/fansync --cov-report=term-missing
 
 # Check code style and types
 python -m ruff check .
-python -m black --check --line-length 100 --include '\.py$' custom_components/ tests/
+python -m black --check --line-length 100 custom_components/ tests/
 python -m mypy custom_components/fansync --check-untyped-defs
 ```
 
