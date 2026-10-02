@@ -31,7 +31,7 @@ lint: ## Run Ruff
 	$(PY) -m ruff check .
 
 format-check: ## Check Black formatting
-	$(PY) -m black --check --line-length 100 --include '\.py$$' custom_components/ tests/
+	$(PY) -m black --check --line-length 100 custom_components/ tests/
 
 type-check: ## Run mypy
 	$(PY) -m mypy custom_components/fansync --check-untyped-defs
