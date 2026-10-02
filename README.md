@@ -231,6 +231,39 @@ Reproduce the issue, then read the log under **Settings** → **System** → **L
 
 **Cause**: Some fans only hold a fixed set of speeds. The controller accepts any value, snaps it to one of its levels, and reports that back; Home Assistant shows what the fan settled on. A Kute60, for example, holds 20/35/50/65/80/100 and rounds a request *down*, so 97% gives med high and only 100% gives high. The distinct values a fan has reported appear under `coordinator.observed_values` in a diagnostics download.
 
+**Named speeds**: Home Assistant fans have no named speeds, only a percentage, so the integration can't show the names the Fanimation app uses. A [template select](https://www.home-assistant.io/integrations/template/#select) can show them. Add one to the `template:` section of `configuration.yaml` and put it on a tile card with the *Select options* feature to get a button for each speed. The example uses a Kute60's speeds and the app's names for them. For another fan, take its speeds from `observed_values`, use the names your app shows, and keep the two maps in step:
+
+```yaml
+template:
+  - select:
+      - name: Living room fan speed
+        unique_id: living_room_fan_speed
+        icon: mdi:ceiling-fan
+        # Shows the highest named speed at or below the fan's current percentage.
+        state: >
+          {% set speeds = {20: 'Min', 35: 'Low', 50: 'Med Low', 65: 'Med', 80: 'Med High', 100: 'High'} %}
+          {% if is_state('fan.living_room', 'on') %}
+            {% set p = [state_attr('fan.living_room', 'percentage') | int(0), speeds | min] | max %}
+            {{ speeds[speeds | select('le', p) | max] }}
+          {% else %}Off{% endif %}
+        options: "{{ ['Off', 'Min', 'Low', 'Med Low', 'Med', 'Med High', 'High'] }}"
+        select_option:
+          - if: "{{ option == 'Off' }}"
+            then:
+              - action: fan.turn_off
+                target:
+                  entity_id: fan.living_room
+            else:
+              - action: fan.set_percentage
+                target:
+                  entity_id: fan.living_room
+                data:
+                  percentage: >
+                    {{ {'Min': 20, 'Low': 35, 'Med Low': 50, 'Med': 65, 'Med High': 80, 'High': 100}[option] }}
+```
+
+Replace `fan.living_room` with your fan's entity id. Send the exact listed percentages: a Kute60 rounds anything in between down, so 99% gives Med High.
+
 #### The Fanimation App Shows the Fan On After Home Assistant Turned It Off
 
 **Symptoms**: You turn the fan off in Home Assistant, the fan stops and Home Assistant shows it off, but the Fanimation app still shows it on.
