@@ -379,13 +379,99 @@ async def test_restored_assumption_is_dropped_when_the_cloud_moved(
         "version": 1,
         "minor_version": 1,
         "key": f"{DOMAIN}.assumed.moved-entry",
-        "data": {DEVICE: {"H0B": [0, 1], "H00": "garbage"}, "gone": "garbage"},
+        "data": {
+            DEVICE: {"H0B": [0, 1], "H00": "garbage", "H0D": [True, 1], "H0C": [7, 1]},
+            "gone": "garbage",
+            "a-fan-no-longer-in-the-account": {"H00": [0, 1]},
+        },
     }
     mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
     entry = await _setup(hass, "assumed-moved", entry_id="moved-entry")
+    coordinator = entry.runtime_data["coordinator"]
+
+    assert hass.states.get(FAN).state == "on"
+    assert coordinator.assumed_values() == {}
+    await coordinator.async_flush_assumed()
+    assert hass_storage[f"{DOMAIN}.assumed.moved-entry"]["data"] == {}
+
+
+async def test_unreadable_store_does_not_block_setup(
+    hass: HomeAssistant, mock_client, patch_client, hass_storage
+) -> None:
+    """A file from a newer version makes the store raise; setup carries on without it."""
+    hass_storage[f"{DOMAIN}.assumed.newer-entry"] = {
+        "version": 99,
+        "minor_version": 1,
+        "key": f"{DOMAIN}.assumed.newer-entry",
+        "data": {DEVICE: {"H00": [0, 1]}},
+    }
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    entry = await _setup(hass, "assumed-newer", entry_id="newer-entry")
 
     assert hass.states.get(FAN).state == "on"
     assert entry.runtime_data["coordinator"].assumed_values() == {}
+
+
+async def test_a_poll_timeout_keeps_the_assumption(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    """A timed-out device keeps its cached state, which already holds the assumed
+    value. Treating that as a read looked like the device had moved."""
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    _kute60(mock_client)
+    entry = await _setup(hass, "assumed-timeout")
+    coordinator = entry.runtime_data["coordinator"]
+    await _turn_off_and_wait(hass)
+    working = mock_client.async_get_status
+
+    async def _timeout(device_id: str | None = None) -> dict[str, int]:
+        raise TimeoutError
+
+    mock_client.async_get_status = _timeout
+    await coordinator.async_refresh()
+    mock_client.async_get_status = working
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(FAN).state == "off"
+    assert coordinator.assumed_values() == {DEVICE: {"H00": 0}}
+
+
+async def test_a_failed_write_keeps_the_assumption(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    _kute60(mock_client)
+    entry = await _setup(hass, "assumed-failed-write")
+    coordinator = entry.runtime_data["coordinator"]
+    await _turn_off_and_wait(hass)
+
+    async def _down(data: dict[str, int], *, device_id: str | None = None) -> None:
+        raise RuntimeError("socket down")
+
+    mock_client.async_set = _down
+    with pytest.raises(RuntimeError):
+        await hass.services.async_call("fan", "turn_on", {"entity_id": FAN}, blocking=True)
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(FAN).state == "off"
+    assert coordinator.assumed_values() == {DEVICE: {"H00": 0}}
+
+
+async def test_reload_right_after_an_off_keeps_it(
+    hass: HomeAssistant, mock_client, patch_client, fast_confirm
+) -> None:
+    """The save is delayed; unloading must not leave it behind."""
+    mock_client.status = {"H00": 1, "H02": 20, "H06": 0, "H01": 0, "H0B": 0, "H0C": 0}
+    _kute60(mock_client)
+    entry = await _setup(hass, "assumed-quick-reload", entry_id="quick-reload-entry")
+    with patch("custom_components.fansync.coordinator.ASSUMED_STORE_SAVE_DELAY_SEC", 3600):
+        await _turn_off_and_wait(hass)
+        assert await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert hass.states.get(FAN).state == "off"
 
 
 async def test_removing_the_entry_deletes_the_stored_assumptions(

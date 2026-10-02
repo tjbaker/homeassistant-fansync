@@ -373,11 +373,6 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
         self._optimistic_until = expires
         self._optimistic_predicate = confirm_pred
         self._confirmed_by_push = False  # Reset flag for new optimistic update
-        # A register being written to a new value is no longer assumed: this
-        # write's own outcome decides what it holds.
-        clear_assumed = getattr(self.coordinator, "clear_assumed_for_write", None)
-        if callable(clear_assumed):
-            clear_assumed(self._device_id, payload)
         try:
             await self.client.async_set(payload, device_id=self._device_id)
         except RuntimeError as exc:
@@ -398,6 +393,12 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
                 )
             self.coordinator.async_set_updated_data(all_previous)
             raise
+        # A register just written to a new value is no longer assumed: this
+        # write's own outcome decides what it holds. Done only once the write has
+        # gone out, so a failed write leaves the assumption in place.
+        clear_assumed = getattr(self.coordinator, "clear_assumed_for_write", None)
+        if callable(clear_assumed):
+            clear_assumed(self._device_id, payload)
         status, ok = await self._retry_update_until(confirm_pred)
         if ok:
             # Drop the guard and overlays *before* publishing, so the state
