@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.11.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.11.0...0.11.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* keep an assumed power-off across restarts and repeated offs ([#258](https://github.com/tjbaker/homeassistant-fansync/issues/258)) ([7dfb0fe](https://github.com/tjbaker/homeassistant-fansync/commit/7dfb0fef74c37674e2b557100131930f55f0d716))
+* keep an assumed power-off through poll timeouts and failed writes ([#261](https://github.com/tjbaker/homeassistant-fansync/issues/261)) ([4553ea8](https://github.com/tjbaker/homeassistant-fansync/commit/4553ea80fd2724f9e8bff4d8866a6cd2e606d2a0))
+
 ## [0.11.0](https://github.com/tjbaker/homeassistant-fansync/compare/0.10.0...0.11.0) (2026-10-01)
 
 
