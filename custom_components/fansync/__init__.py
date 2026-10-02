@@ -314,6 +314,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: FanSyncConfigEntry) -> 
     platforms = runtime_data["platforms"]
     unloaded = await hass.config_entries.async_unload_platforms(entry, platforms)
     if unloaded:
+        await runtime_data["coordinator"].async_flush_assumed()
         await runtime_data["client"].async_disconnect()
     return unloaded
 

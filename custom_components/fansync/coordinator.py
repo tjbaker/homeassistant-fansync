@@ -22,7 +22,7 @@ from typing import Any
 import httpx
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import UNDEFINED
@@ -48,6 +48,11 @@ SCAN_INTERVAL = timedelta(seconds=DEFAULT_FALLBACK_POLL_SECS)
 # device id -> register -> [assumed value, stale cloud value]. Loosely typed because
 # it is read back from disk and validated on load.
 type AssumedStoreData = dict[str, Any]
+
+
+def _is_power_value(value: object) -> bool:
+    """True for the only values an assumed power register can hold."""
+    return isinstance(value, int) and not isinstance(value, bool) and value in (0, 1)
 
 
 def assumed_store(hass: HomeAssistant, entry_id: str) -> Store[AssumedStoreData]:
@@ -111,6 +116,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         # assumed value stands in for the cloud's until the device reports.
         self._assumed: dict[str, dict[str, tuple[int, int | None]]] = {}
         self._assumed_store = assumed_store(hass, config_entry.entry_id)
+        self._assumed_dirty = False
         self._next_update_trigger: str | None = "startup"
 
     def last_reported_status(self, device_id: str) -> dict[str, object]:
@@ -136,8 +142,10 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
     def clear_assumed(self, device_id: str, keys: Iterable[str]) -> None:
         """Forget assumptions about registers the device itself has reported."""
         assumed = self._assumed.get(device_id, {})
-        dropped = [assumed.pop(key) for key in list(keys) if key in assumed]
-        if dropped:
+        present = [key for key in keys if key in assumed]
+        for key in present:
+            del assumed[key]
+        if present:
             self._save_assumed()
 
     def clear_assumed_for_write(self, device_id: str, payload: Mapping[str, int]) -> None:
@@ -161,19 +169,36 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         elsewhere while Home Assistant was down, and reported as the same value
         the cloud already held, cannot be told apart from no change.
         """
-        stored = await self._assumed_store.async_load()
+        try:
+            stored = await self._assumed_store.async_load()
+        except NotImplementedError, HomeAssistantError:
+            # Written by a newer version, or unreadable. It is a cache of display
+            # state; setup must not fail over it.
+            self.logger.warning("Ignoring unreadable FanSync assumed-state file")
+            return
         if not isinstance(stored, dict):
             return
+        known = set(getattr(self.client, "device_ids", None) or [])
         for device_id, registers in stored.items():
-            if not isinstance(registers, dict):
+            if not isinstance(registers, dict) or (known and device_id not in known):
+                self._assumed_dirty = True  # a fan no longer in the account, or junk
                 continue
             for key, pair in registers.items():
-                if not isinstance(pair, list) or len(pair) != 2 or not isinstance(pair[0], int):
+                if not isinstance(pair, list) or len(pair) != 2 or not _is_power_value(pair[0]):
+                    self._assumed_dirty = True
                     continue
-                stale = pair[1] if isinstance(pair[1], int) else None
+                stale = pair[1] if _is_power_value(pair[1]) else None
                 self._assumed.setdefault(device_id, {})[key] = (pair[0], stale)
 
+    async def async_flush_assumed(self) -> None:
+        """Write pending changes now. Called on unload, so a reload or a removal
+        inside the save delay neither loses a change nor recreates a deleted file."""
+        if self._assumed_dirty:
+            self._assumed_dirty = False
+            await self._assumed_store.async_save(self._assumed_for_store())
+
     def _save_assumed(self) -> None:
+        self._assumed_dirty = True
         self._assumed_store.async_delay_save(self._assumed_for_store, ASSUMED_STORE_SAVE_DELAY_SEC)
 
     def _assumed_for_store(self) -> AssumedStoreData:
@@ -364,7 +389,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
                 try:
                     s = await asyncio.wait_for(self.client.async_get_status(), timeout_s)
                     did = self.client.device_id or "unknown"
-                    statuses[did] = s
+                    statuses[did] = self.record_observed_status(did, s)
                 except TimeoutError:
                     # Keep last known data instead of failing
                     self.logger.warning(
@@ -432,7 +457,11 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
             results = await asyncio.gather(*(_get(d) for d in ids))
             for did, status in results:
                 if isinstance(status, dict):
-                    statuses[did] = status
+                    # Only what was actually read is recorded. The cached state kept
+                    # below for a device that timed out already holds any assumed
+                    # value, and treating it as a read would look like the device
+                    # had moved and drop the assumption.
+                    statuses[did] = self.record_observed_status(did, status)
             # Keep last known state for timed-out devices to avoid entity dropouts.
             current = self.data or {}
             if isinstance(current, dict):
@@ -519,10 +548,7 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
         """Return per-device changed keys vs the current coordinator snapshot."""
         mismatch: dict[str, list[str]] = {}
         if isinstance(current, dict):
-            for did, raw in statuses.items():
-                # Compare what will be shown: a stale cloud value standing behind an
-                # assumed one is not a change, and would be reported on every poll.
-                status = self._without_stale(did, raw) if isinstance(raw, dict) else raw
+            for did, status in statuses.items():
                 prev = current.get(did, {})
                 if isinstance(prev, dict) and isinstance(status, dict) and prev != status:
                     changed = _changed_keys(prev, status)
@@ -541,8 +567,6 @@ class FanSyncCoordinator(DataUpdateCoordinator[dict[str, dict[str, object]]]):
     ) -> None:
         """Shared success path: registry refresh, status/mismatch history, finalize."""
         self._update_device_registry(list(statuses.keys()))
-        for did, status in list(statuses.items()):
-            statuses[did] = self.record_observed_status(did, status)
         self._append_status_history(statuses)
         self._finalize_update(
             statuses=statuses,
