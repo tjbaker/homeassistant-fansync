@@ -11,7 +11,7 @@
 # limitations under the License.
 
 # Development requirements for CI and local checks
-black==26.10.0
+black==26.10.1
 homeassistant==2026.9.4
 mypy==2.3.1
 pycares==5.1.0
