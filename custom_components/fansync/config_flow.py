@@ -17,7 +17,7 @@ import logging
 from typing import Any
 
 import httpx
-import voluptuous as vol
+import probatio as vol
 from homeassistant import config_entries
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
