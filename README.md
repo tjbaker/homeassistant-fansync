@@ -28,7 +28,7 @@ Custom Home Assistant integration for Fanimation FanSync devices with cloud push
 ## Requirements
 
 - **Python:** 3.14+
-- **Home Assistant:** 2026.8.0 or newer (HACS enforces this minimum)
+- **Home Assistant:** 2026.10.0 or newer (HACS enforces this minimum)
 - **HACS:** Optional (only if installing via HACS)
 - **Account:** Valid Fanimation FanSync account with registered devices
 
