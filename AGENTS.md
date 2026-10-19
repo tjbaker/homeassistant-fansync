@@ -7,7 +7,7 @@ Instructions for AI coding agents working in this repository. This is the only s
 Custom Home Assistant integration for Fanimation FanSync smart fans and lights. It talks to Fanimation's cloud over a WebSocket, uses push updates as the primary mechanism, and falls back to polling.
 
 - **Integration domain**: `fansync`
-- **HA minimum version**: 2026.8.0, Python 3.14+ (enforced via `hacs.json`; latest-HA-only policy, no backward compatibility)
+- **HA minimum version**: 2026.10.0, Python 3.14+ (enforced via `hacs.json`; latest-HA-only policy, no backward compatibility)
 - **IoT class**: `cloud_push`
 - **Platforms**: `fan`, `light`, `switch`
 
