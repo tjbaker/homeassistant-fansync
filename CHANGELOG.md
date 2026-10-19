@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.11.2](https://github.com/tjbaker/homeassistant-fansync/compare/0.11.1...0.11.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* build config flow schemas with probatio for HA 2026.10 ([#266](https://github.com/tjbaker/homeassistant-fansync/issues/266)) ([3230e65](https://github.com/tjbaker/homeassistant-fansync/commit/3230e65c36a1025c4d9aa3be013ea60649fb0d40))
+
 ## [0.11.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.11.0...0.11.1) (2026-10-02)
 
 
