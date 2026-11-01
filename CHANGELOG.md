@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+## [0.11.2](https://github.com/tjbaker/homeassistant-fansync/compare/0.11.1...0.11.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* build config flow schemas with probatio for HA 2026.10 ([#266](https://github.com/tjbaker/homeassistant-fansync/issues/266)) ([3230e65](https://github.com/tjbaker/homeassistant-fansync/commit/3230e65c36a1025c4d9aa3be013ea60649fb0d40))
+* bump github/codeql-action from 4.39.0 to 4.39.1 ([#281](https://github.com/tjbaker/homeassistant-fansync/issues/281)) ([055682f](https://github.com/tjbaker/homeassistant-fansync/commit/055682f25e390c3d7342a168b839f4339052e26d))
+* bump pycares from 5.2.0 to 5.2.1 ([#279](https://github.com/tjbaker/homeassistant-fansync/issues/279)) ([1d5fc76](https://github.com/tjbaker/homeassistant-fansync/commit/1d5fc76e049e5bd9ed6e0c47f9716ff27a2d2bcb))
+* bump ruff from 0.16.10 to 0.17.1 ([#280](https://github.com/tjbaker/homeassistant-fansync/issues/280)) ([d0f1961](https://github.com/tjbaker/homeassistant-fansync/commit/d0f19612c0855c9707a007f33c8fc5fadeebe955))
+* bump the homeassistant-test-stack group with 2 updates ([#278](https://github.com/tjbaker/homeassistant-fansync/issues/278)) ([8650d92](https://github.com/tjbaker/homeassistant-fansync/commit/8650d923d0f31ad4d47beef9e4d71c65069bc5b9))
+* bump websockets from 17.2 to 17.3 ([#282](https://github.com/tjbaker/homeassistant-fansync/issues/282)) ([5755689](https://github.com/tjbaker/homeassistant-fansync/commit/5755689da2458bb44e9877f11fcbbe51287daa77))
+
 ## [0.11.1](https://github.com/tjbaker/homeassistant-fansync/compare/0.11.0...0.11.1) (2026-10-02)
 
 
