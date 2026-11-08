@@ -12,7 +12,7 @@
 
 # Development requirements for CI and local checks
 black==26.10.1
-homeassistant==2026.10.4
+homeassistant==2026.11.0
 mypy==2.4.0
 pycares==5.2.1
 # pytest and pytest-cov are intentionally unpinned: pytest-homeassistant-custom-component
