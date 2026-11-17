@@ -38,6 +38,7 @@ Custom Home Assistant integration for Fanimation FanSync devices with cloud push
 - **Fan:** On/off, speed, direction, preset modes (normal, fresh_air). Direction is hidden on fans the app marks as not reversible.
 - **Light:** On/off, brightness, and color temperature on tunable-white fixtures (fixed-temperature lights stay brightness-only).
 - **Home Away** switch: the Fanimation app's Home Away mode, on fans that report it. Turning it on stops the fan; turning the fan on again ends the mode.
+- **Error** sensor (diagnostic): the fault the fan's receiver reports, such as under voltage, stalled fault or over temperature, or `none`. Read-only, created on fans that report the fault register.
 - **Light installed** switch on each fan's device page: turn it off on a fan with no light kit to remove its phantom Light entity.
 - **Real-time Updates:** Cloud push updates for instant state synchronization
 - **Fallback Polling:** Configurable polling when push unavailable (default: 60s)
