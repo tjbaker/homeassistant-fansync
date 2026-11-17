@@ -58,6 +58,12 @@
     "light": {
       "light": {
         "name": "Lumière"
+      },
+      "down_light": {
+        "name": "Lumière du bas"
+      },
+      "up_light": {
+        "name": "Lumière du haut"
       }
     },
     "switch": {

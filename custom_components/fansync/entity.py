@@ -42,6 +42,7 @@ from .const import (
     DEVICE_ACK_OK,
     KEY_LIGHT_POWER,
     KEY_POWER,
+    KEY_UPLIGHT_POWER,
     OPTIMISTIC_GUARD_SEC,
     coerce_status_int,
 )
@@ -55,7 +56,7 @@ class FanSyncOptimisticEntity(CoordinatorEntity[FanSyncCoordinator]):
     # Overlay keys that directly affect HA UI state; subclasses override.
     OVERLAY_KEYS: set[str] = set()
     # Registers whose unreported, acknowledged writes are taken as applied.
-    ASSUMABLE_KEYS: frozenset[str] = frozenset({KEY_POWER, KEY_LIGHT_POWER})
+    ASSUMABLE_KEYS: frozenset[str] = frozenset({KEY_POWER, KEY_LIGHT_POWER, KEY_UPLIGHT_POWER})
 
     def __init__(
         self,

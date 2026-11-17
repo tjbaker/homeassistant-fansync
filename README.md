@@ -36,7 +36,7 @@ Custom Home Assistant integration for Fanimation FanSync devices with cloud push
 
 ### Device Control
 - **Fan:** On/off, speed, direction, preset modes (normal, fresh_air). Direction is hidden on fans the app marks as not reversible.
-- **Light:** On/off, brightness, and color temperature on tunable-white fixtures (fixed-temperature lights stay brightness-only).
+- **Light:** On/off, brightness, and color temperature on tunable-white fixtures (fixed-temperature lights stay brightness-only). Fans with two lights (the LD5 receivers, such as the TorchAire64-FD6R1LD5) get an **Up light** and a **Down light**; both share one color temperature, as in the Fanimation app. Color temperature steps follow the receiver: five (2700 to 5000 K) for L4, L5 and LD5, three (3000 to 5000 K) for L3.
 - **Home Away** switch: the Fanimation app's Home Away mode, on fans that report it. Turning it on stops the fan; turning the fan on again ends the mode.
 - **Light installed** switch on each fan's device page: turn it off on a fan with no light kit to remove its phantom Light entity.
 - **Real-time Updates:** Cloud push updates for instant state synchronization

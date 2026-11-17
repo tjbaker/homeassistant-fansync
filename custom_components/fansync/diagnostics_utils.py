@@ -23,6 +23,8 @@ from .const import (
     KEY_POWER,
     KEY_PRESET,
     KEY_SPEED,
+    KEY_UPLIGHT_BRIGHTNESS,
+    KEY_UPLIGHT_POWER,
 )
 
 # Device protocol registers (H00, H0B, ...). Their raw values are plain fan/light
@@ -45,7 +47,7 @@ def summarize_status_snapshot(data: object | None) -> dict[str, dict[str, object
         if not isinstance(status, Mapping):
             continue
         status_map = dict(status)
-        summary[device_id] = {
+        entry: dict[str, object] = {
             "keys": sorted(status_map.keys()),
             "raw": {k: status_map[k] for k in sorted(status_map) if _PROTOCOL_KEY_RE.match(k)},
             "fan": {
@@ -60,4 +62,11 @@ def summarize_status_snapshot(data: object | None) -> dict[str, dict[str, object
                 "color_temp": status_map.get(KEY_LIGHT_COLOR_TEMP),
             },
         }
+        if KEY_UPLIGHT_POWER in status_map or KEY_UPLIGHT_BRIGHTNESS in status_map:
+            entry["up_light"] = {
+                "power": status_map.get(KEY_UPLIGHT_POWER),
+                "brightness": status_map.get(KEY_UPLIGHT_BRIGHTNESS),
+                "color_temp": status_map.get(KEY_LIGHT_COLOR_TEMP),
+            }
+        summary[device_id] = entry
     return summary

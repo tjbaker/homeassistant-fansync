@@ -87,8 +87,12 @@ def _remove_lightless_light_entities(hass: HomeAssistant, lightless: set[str]) -
         return
     ent_reg = er.async_get(hass)
     for device_id in lightless:
-        entity_id = ent_reg.async_get_entity_id("light", DOMAIN, f"{DOMAIN}_{device_id}_light")
-        if entity_id:
+        for suffix in ("light", "up_light"):
+            entity_id = ent_reg.async_get_entity_id(
+                "light", DOMAIN, f"{DOMAIN}_{device_id}_{suffix}"
+            )
+            if not entity_id:
+                continue
             ent_reg.async_remove(entity_id)
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug("removed hidden light entity %s (device marked lightless)", entity_id)

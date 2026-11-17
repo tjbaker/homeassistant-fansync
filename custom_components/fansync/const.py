@@ -10,6 +10,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from collections.abc import Iterable, Mapping
 
 DOMAIN = "fansync"
@@ -39,6 +40,10 @@ KEY_DIRECTION = "H06"
 KEY_LIGHT_POWER = "H0B"
 KEY_LIGHT_BRIGHTNESS = "H0C"
 KEY_LIGHT_COLOR_TEMP = "H04"
+# Up light on dual-light receivers (LD5). It shares KEY_LIGHT_COLOR_TEMP with the
+# down light: the app disables color temperature only when both lights are off.
+KEY_UPLIGHT_POWER = "H09"
+KEY_UPLIGHT_BRIGHTNESS = "H0A"
 # The app's "Home Away" mode. Turning it on stops the fan; powering the fan on clears it.
 KEY_HOME_AWAY = "H0D"
 
@@ -46,13 +51,28 @@ KEY_HOME_AWAY = "H0D"
 # snapped to the nearest of these for devices without a model-specific profile.
 LIGHT_COLOR_TEMP_PRESETS_KELVIN = (3000, 4000, 5000)
 
-# The known Corke fixture profile has five selectable CCT presets. Model names
-# are matched by normalized prefix so size/receiver suffixes (for example
-# Corke36-FD6R1L5) do not need individual entries. Unknown models stay on the
-# legacy three-preset profile; H04 alone is not enough to infer Corke support.
-LIGHT_COLOR_TEMP_MODEL_PRESETS = {
-    "corke": (2700, 3000, 3500, 4000, 5000),
+LIGHT_COLOR_TEMP_FIVE_PRESETS = (2700, 3000, 3500, 4000, 5000)
+
+# Fanimation's information model sets the CCT presets per receiver type, which
+# is the light code at the end of the model name (FD6R1L5 -> 5, FDR1LD5 -> 5,
+# FD6R2L5T -> 5). Codes 4 and 5 hold five presets, code 3 holds three.
+LIGHT_COLOR_TEMP_RECEIVER_PRESETS = {
+    "3": LIGHT_COLOR_TEMP_PRESETS_KELVIN,
+    "4": LIGHT_COLOR_TEMP_FIVE_PRESETS,
+    "5": LIGHT_COLOR_TEMP_FIVE_PRESETS,
 }
+
+# Fallback for models whose receiver code is not readable: the known Corke
+# fixture profile has five presets. Model names are matched by normalized prefix
+# so size/receiver suffixes (for example Corke36-FD6R1L5) need no entries.
+# Unknown models stay on the legacy three-preset profile; H04 alone is not
+# enough to infer five-preset support.
+LIGHT_COLOR_TEMP_MODEL_PRESETS = {
+    "corke": LIGHT_COLOR_TEMP_FIVE_PRESETS,
+}
+
+# Light code at the end of a receiver name: L5, LD5, L5T.
+_RECEIVER_LIGHT_CODE = re.compile(r"l(?:d)?(\d)t?$")
 
 # Preset modes mapping
 PRESET_MODES = {0: "normal", 1: "fresh_air"}
@@ -208,6 +228,15 @@ def _normalize_model(model: object) -> str:
     return "".join(char for char in model.casefold() if char.isalnum())
 
 
+def _receiver_light_presets(model: object) -> tuple[int, ...] | None:
+    """Return the presets for the receiver code at the end of a model name."""
+    if not isinstance(model, str):
+        return None
+    receiver = model.rsplit("-", 1)[-1].casefold()
+    match = _RECEIVER_LIGHT_CODE.search(receiver)
+    return LIGHT_COLOR_TEMP_RECEIVER_PRESETS.get(match.group(1)) if match else None
+
+
 def resolve_light_color_temp_presets(
     model: object,
     status: Mapping[str, object],
@@ -215,16 +244,19 @@ def resolve_light_color_temp_presets(
     """Resolve the supported CCT presets for one device.
 
     H04 is present on devices that do not have a tunable light, so presence of
-    the key is not sufficient. Known model profiles select their own preset
-    list, but the current H04 value must still be one of those presets. The
-    known Corke profile provides five presets (2700/3000/3500/4000/5000 K).
-    Unknown models use the original three-preset behavior only when H04 is one
-    of the known three-preset values; otherwise the light remains
-    brightness-only.
+    the key is not sufficient. The receiver code in the model name selects the
+    preset list (Fanimation's information model), then the Corke prefix, but
+    the current H04 value must still be one of those presets. Unknown models
+    use the original three-preset behavior only when H04 is one of the known
+    three-preset values; otherwise the light remains brightness-only.
     """
     current = normalize_color_temp_kelvin(status.get(KEY_LIGHT_COLOR_TEMP))
     if current is None:
         return None
+
+    by_receiver = _receiver_light_presets(model)
+    if by_receiver is not None:
+        return by_receiver if current in by_receiver else None
 
     normalized_model = _normalize_model(model)
     for prefix, presets in LIGHT_COLOR_TEMP_MODEL_PRESETS.items():
