@@ -145,7 +145,7 @@ async def test_down_light_does_not_touch_up_registers(
 async def test_color_temp_is_shared_between_lights(
     hass: HomeAssistant, mock_client, patch_client
 ) -> None:
-    mock_client.profile = {"esh": {"model": "Kute60-FD6R1LD5"}}
+    mock_client.profile = {"esh": {"model": "TorchAire64-FD6R1LD5"}}
     mock_client.status = {**DUAL_LIGHT_STATUS, "H09": 1}
     await _setup(hass)
     up_id = _entity_id(hass, "up_light")
