@@ -94,8 +94,8 @@ async def test_platforms_stored_and_forwarded_without_light(hass: HomeAssistant,
         await hass.async_block_till_done()
 
     stored = entry.runtime_data["platforms"]
-    assert stored == ["fan", "light", "switch"]
-    assert calls and calls[-1] == ["fan", "light", "switch"]
+    assert stored == ["fan", "light", "sensor", "switch"]
+    assert calls and calls[-1] == ["fan", "light", "sensor", "switch"]
 
 
 async def test_platforms_stored_and_forwarded_with_light(hass: HomeAssistant, monkeypatch):
@@ -131,8 +131,8 @@ async def test_platforms_stored_and_forwarded_with_light(hass: HomeAssistant, mo
         await hass.async_block_till_done()
 
     stored = entry.runtime_data["platforms"]
-    assert stored == ["fan", "light", "switch"]
-    assert calls and calls[-1] == ["fan", "light", "switch"]
+    assert stored == ["fan", "light", "sensor", "switch"]
+    assert calls and calls[-1] == ["fan", "light", "sensor", "switch"]
 
 
 async def test_platforms_fallback_when_first_refresh_deferred(hass: HomeAssistant, monkeypatch):
@@ -185,5 +185,5 @@ async def test_platforms_fallback_when_first_refresh_deferred(hass: HomeAssistan
         await hass.async_block_till_done()
 
     stored = entry.runtime_data["platforms"]
-    assert stored == ["fan", "light", "switch"]
-    assert calls and calls[-1] == ["fan", "light", "switch"]
+    assert stored == ["fan", "light", "sensor", "switch"]
+    assert calls and calls[-1] == ["fan", "light", "sensor", "switch"]

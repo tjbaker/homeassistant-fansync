@@ -13,7 +13,7 @@
 from collections.abc import Iterable, Mapping
 
 DOMAIN = "fansync"
-PLATFORMS = ["fan", "light", "switch"]
+PLATFORMS = ["fan", "light", "sensor", "switch"]
 
 
 def lightless_signal(entry_id: str) -> str:
@@ -41,6 +41,33 @@ KEY_LIGHT_BRIGHTNESS = "H0C"
 KEY_LIGHT_COLOR_TEMP = "H04"
 # The app's "Home Away" mode. Turning it on stops the fan; powering the fan on clears it.
 KEY_HOME_AWAY = "H0D"
+# Fault register. Fanimation's information model lists the codes below; 0 is
+# taken to mean no fault (the model does not list it), and any other unlisted
+# value is shown as its number.
+KEY_ERROR = "H0E"
+ERROR_NONE = "none"
+ERROR_CODE_TEXT = {
+    250: "Parameter error",
+    251: "Parameter length error",
+    252: "Memory allocate failed",
+    253: "Send error",
+    254: "Unknown commands",
+    255: "Unknown fields",
+    256: "Too many entries",
+    257: "Under voltage",
+    258: "Over voltage",
+    259: "Over current",
+    260: "Under speed",
+    261: "Over speed",
+    262: "Stalled fault",
+    263: "Open phase fault",
+    264: "Chase max speed",
+    265: "Over temperature",
+    266: "EEPROM error",
+    267: "Remote control did not learn",
+    268: "Driver IC not response",
+    269: "ACZ abnormal",
+}
 
 # Warm, natural, cool. Not a continuous range - requested kelvin values are
 # snapped to the nearest of these for devices without a model-specific profile.
@@ -169,6 +196,15 @@ def ha_brightness_to_pct(brightness: int | None) -> int:
 def pct_to_ha_brightness(pct: int) -> int:
     """Map FanSync 0-100 to Home Assistant brightness (0-255)."""
     return int(int(pct) * 255 / 100)
+
+
+def error_state(code: int | None) -> str | None:
+    """Return the fault text for an H0E value: None if unreadable, ``none`` for 0."""
+    if code is None:
+        return None
+    if code == 0:
+        return ERROR_NONE
+    return ERROR_CODE_TEXT.get(code, f"Unknown error {code}")
 
 
 def coerce_status_int(value: object) -> int | None:

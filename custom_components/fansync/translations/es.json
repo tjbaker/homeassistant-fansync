@@ -60,6 +60,11 @@
         "name": "Luz"
       }
     },
+    "sensor": {
+      "error": {
+        "name": "Error"
+      }
+    },
     "switch": {
       "light_installed": {
         "name": "Luz instalada"
