@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time  # noqa: F401  retained as a module-level patch seam for tests
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.light import (
@@ -37,6 +38,8 @@ from .const import (
     KEY_LIGHT_BRIGHTNESS,
     KEY_LIGHT_COLOR_TEMP,
     KEY_LIGHT_POWER,
+    KEY_UPLIGHT_BRIGHTNESS,
+    KEY_UPLIGHT_POWER,
     ha_brightness_to_pct,
     lightless_signal,
     pct_to_ha_brightness,
@@ -48,8 +51,26 @@ from .coordinator import FanSyncCoordinator
 from .device_utils import cloud_lightless_devices, profile_model
 from .entity import FanSyncOptimisticEntity
 
-# Only overlay keys that directly affect HA UI state to prevent snap-back
-OVERLAY_KEYS = {KEY_LIGHT_POWER, KEY_LIGHT_BRIGHTNESS, KEY_LIGHT_COLOR_TEMP}
+
+@dataclass(frozen=True)
+class LightChannel:
+    """One light a fan can drive. Both channels share the color-temperature register."""
+
+    power_key: str
+    brightness_key: str
+    unique_suffix: str
+    translation_key: str
+    icon: str
+
+
+DOWN_LIGHT = LightChannel(
+    KEY_LIGHT_POWER, KEY_LIGHT_BRIGHTNESS, "light", "light", "mdi:ceiling-light"
+)
+UP_LIGHT = LightChannel(
+    KEY_UPLIGHT_POWER, KEY_UPLIGHT_BRIGHTNESS, "up_light", "up_light", "mdi:ceiling-light-outline"
+)
+# On a fan with an up light the down light is renamed so the two read clearly.
+DOWN_LIGHT_NAMED = "down_light"
 
 # Coordinator handles all API calls; allow unlimited parallel entity updates (no semaphore)
 PARALLEL_UPDATES = 0
@@ -86,34 +107,44 @@ async def async_setup_entry(
         client, all_ids
     )
 
-    def _has_light_channel(status: object) -> bool:
-        return isinstance(status, dict) and (
-            KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status
-        )
+    def _channels_for(status: object) -> list[LightChannel]:
+        if not isinstance(status, dict):
+            return []
+        channels: list[LightChannel] = []
+        if KEY_LIGHT_POWER in status or KEY_LIGHT_BRIGHTNESS in status:
+            channels.append(DOWN_LIGHT)
+        if KEY_UPLIGHT_POWER in status or KEY_UPLIGHT_BRIGHTNESS in status:
+            channels.append(UP_LIGHT)
+        return channels
 
-    def _make(did: str, status: dict[str, object]) -> FanSyncLight:
+    def _make(did: str, status: dict[str, object], channel: LightChannel) -> FanSyncLight:
         model = profile_model(client, did)
         presets = resolve_light_color_temp_presets(model, status)
-        return FanSyncLight(coordinator, client, did, color_temp_presets=presets)
+        has_up = UP_LIGHT in _channels_for(status)
+        return FanSyncLight(
+            coordinator, client, did, channel, color_temp_presets=presets, has_up_light=has_up
+        )
 
     # Create a light entity per device that reports light capability and that the
     # user has not marked as lightless.
-    active: dict[str, FanSyncLight] = {}
+    active: dict[tuple[str, str], FanSyncLight] = {}
     if isinstance(data, dict):
         for did, status in data.items():
-            if did not in lightless and _has_light_channel(status):
-                active[did] = _make(did, status)
-                entities.append(active[did])
+            if did in lightless:
+                continue
+            for channel in _channels_for(status):
+                active[did, channel.unique_suffix] = _make(did, status, channel)
+                entities.append(active[did, channel.unique_suffix])
 
     async_add_entities(entities)
 
     async def _on_lightless_changed(new_lightless: set[str]) -> None:
         """Add or remove Light entities in place when the lightless set changes."""
         ent_reg = er.async_get(hass)
-        for did in list(active):
-            if did not in new_lightless:
+        for key in list(active):
+            if key[0] not in new_lightless:
                 continue
-            entity = active.pop(did)
+            entity = active.pop(key)
             if entity.entity_id and ent_reg.async_get(entity.entity_id):
                 # Removing the registry entry makes the platform remove the entity.
                 ent_reg.async_remove(entity.entity_id)
@@ -123,10 +154,13 @@ async def async_setup_entry(
         added: list[FanSyncLight] = []
         if isinstance(current, dict):
             for did, status in current.items():
-                if did in new_lightless or did in active or not _has_light_channel(status):
+                if did in new_lightless:
                     continue
-                active[did] = _make(did, status)
-                added.append(active[did])
+                for channel in _channels_for(status):
+                    if (did, channel.unique_suffix) in active:
+                        continue
+                    active[did, channel.unique_suffix] = _make(did, status, channel)
+                    added.append(active[did, channel.unique_suffix])
         if added:
             async_add_entities(added)
 
@@ -137,19 +171,24 @@ async def async_setup_entry(
 
 class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
     _attr_has_entity_name = True
-    _attr_translation_key = "light"
-
-    OVERLAY_KEYS = OVERLAY_KEYS
 
     def __init__(
         self,
         coordinator: FanSyncCoordinator,
         client: FanSyncClient,
         device_id: str,
+        channel: LightChannel = DOWN_LIGHT,
         color_temp_presets: tuple[int, ...] | None = None,
+        has_up_light: bool = False,
     ):
         super().__init__(coordinator, client, device_id)
-        self._attr_unique_id = f"{DOMAIN}_{self._device_id}_light"
+        self._channel = channel
+        # Only overlay keys that directly affect HA UI state to prevent snap-back
+        self.OVERLAY_KEYS = {channel.power_key, channel.brightness_key, KEY_LIGHT_COLOR_TEMP}
+        self._attr_translation_key = (
+            DOWN_LIGHT_NAMED if channel is DOWN_LIGHT and has_up_light else channel.translation_key
+        )
+        self._attr_unique_id = f"{DOMAIN}_{self._device_id}_{channel.unique_suffix}"
         # Each device carries its own model-specific preset list; None or empty
         # means the light is brightness-only.
         self._color_temp_presets: tuple[int, ...] = ()
@@ -193,11 +232,11 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
 
     @property
     def is_on(self) -> bool:
-        return self._get_with_overlay(KEY_LIGHT_POWER, 0) == 1
+        return self._get_with_overlay(self._channel.power_key, 0) == 1
 
     @property
     def brightness(self) -> int | None:
-        val = self._get_with_overlay(KEY_LIGHT_BRIGHTNESS, 0)
+        val = self._get_with_overlay(self._channel.brightness_key, 0)
         return pct_to_ha_brightness(val)
 
     @property
@@ -219,20 +258,21 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         color_temp_kelvin: int | None = None,
         **kwargs: Any,
     ) -> None:
-        optimistic = {KEY_LIGHT_POWER: 1}
+        power_key = self._channel.power_key
+        optimistic = {power_key: 1}
         payload: dict[str, int] = {}
         if brightness is not None:
             pct = ha_brightness_to_pct(brightness)
-            optimistic[KEY_LIGHT_BRIGHTNESS] = pct
-            payload[KEY_LIGHT_BRIGHTNESS] = pct
+            optimistic[self._channel.brightness_key] = pct
+            payload[self._channel.brightness_key] = pct
         if color_temp_kelvin is not None and self._supports_color_temp:
             kelvin = snap_color_temp_kelvin(color_temp_kelvin, self._color_temp_presets)
             optimistic[KEY_LIGHT_COLOR_TEMP] = kelvin
             payload[KEY_LIGHT_COLOR_TEMP] = kelvin
         # Power always goes when nothing else does (a bare turn_on), otherwise
         # only when the light is not already on. See _needs_write.
-        if not payload or self._needs_write(KEY_LIGHT_POWER, 1):
-            payload[KEY_LIGHT_POWER] = 1
+        if not payload or self._needs_write(power_key, 1):
+            payload[power_key] = 1
 
         previous = self._previous_values(payload)
 
@@ -242,21 +282,23 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
         await self._apply_with_optimism(optimistic, payload, _confirm)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        optimistic = {KEY_LIGHT_POWER: 0}
-        payload = {KEY_LIGHT_POWER: 0}
+        power_key = self._channel.power_key
+        optimistic = {power_key: 0}
+        payload = {power_key: 0}
         await self._apply_with_optimism(
             optimistic,
             payload,
-            lambda s: s.get(KEY_LIGHT_POWER) == 0,
+            lambda s: s.get(power_key) == 0,
         )
 
     def _log_state(self, status: dict[str, object]) -> None:
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(
-                "state update d=%s power=%s brightness=%s color_temp=%s",
+                "state update d=%s channel=%s power=%s brightness=%s color_temp=%s",
                 self._device_id,
-                status.get(KEY_LIGHT_POWER),
-                status.get(KEY_LIGHT_BRIGHTNESS),
+                self._channel.unique_suffix,
+                status.get(self._channel.power_key),
+                status.get(self._channel.brightness_key),
                 status.get(KEY_LIGHT_COLOR_TEMP),
             )
 
@@ -268,4 +310,4 @@ class FanSyncLight(FanSyncOptimisticEntity, LightEntity):
 
     @property
     def icon(self) -> str | None:
-        return "mdi:ceiling-light"
+        return self._channel.icon
